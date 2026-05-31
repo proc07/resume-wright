@@ -1,0 +1,6 @@
+# demo/macros/close_dialog.macro
+# 关闭弹窗宏（非阻塞，弹窗不一定每次出现）
+
+? tap "@关闭弹窗"
+? tap "role:button[取消]"
+? tap "role:button[关闭]"

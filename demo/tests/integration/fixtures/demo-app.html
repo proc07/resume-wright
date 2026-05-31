@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Demo — 采购审批系统</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: #f3f4f6; color: #111827; min-height: 100vh; }
+    .topbar { background: #1e40af; color: #fff; padding: 12px 24px;
+              display: flex; align-items: center; justify-content: space-between; }
+    .topbar h1 { font-size: 16px; font-weight: 600; }
+    .topbar .user { font-size: 13px; opacity: .85; }
+    .container { max-width: 680px; margin: 32px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 8px; padding: 28px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: 20px; }
+    h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #1e3a8a; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    input[type=text], input[type=number], textarea, select {
+      width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 6px;
+      font-size: 14px; transition: border-color .15s; }
+    input:focus, textarea:focus { outline: none; border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; }
+    .checkbox-row input { width: auto; }
+    .checkbox-row label { margin: 0; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px;
+           border-radius: 6px; font-size: 14px; font-weight: 500; border: none;
+           cursor: pointer; transition: all .15s; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger  { background: #dc2626; color: #fff; }
+    .btn-outline { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px;
+             font-size: 12px; font-weight: 500; }
+    .badge-pending  { background: #fef3c7; color: #92400e; }
+    .badge-approved { background: #d1fae5; color: #065f46; }
+    .badge-rejected { background: #fee2e2; color: #991b1b; }
+    .badge-finance  { background: #dbeafe; color: #1e40af; }
+    .list-item { padding: 14px 0; border-bottom: 1px solid #f3f4f6;
+                 display: flex; align-items: center; justify-content: space-between; }
+    .list-item:last-child { border-bottom: none; }
+    .list-item .title { font-weight: 500; font-size: 14px; }
+    .list-item .meta  { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .steps { display: flex; gap: 0; margin-bottom: 24px; }
+    .step { flex: 1; padding: 10px; text-align: center; font-size: 12px;
+            background: #f9fafb; border: 1px solid #e5e7eb; }
+    .step.done   { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+    .step.active { background: #dbeafe; border-color: #93c5fd; color: #1e40af; font-weight: 600; }
+    .step:first-child { border-radius: 6px 0 0 6px; }
+    .step:last-child  { border-radius: 0 6px 6px 0; }
+    .toast { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;
+             font-size: 14px; display: none; }
+    .toast.show { display: block; }
+    .toast-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .toast-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .detail-row { display: flex; padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
+    .detail-row .label { width: 120px; color: #6b7280; flex-shrink: 0; }
+    .detail-row .value { font-weight: 500; }
+    .detail-row:last-child { border-bottom: none; }
+    .hidden { display: none !important; }
+    .mt-4 { margin-top: 16px; }
+    .gap-2 { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <h1>🏢 采购审批系统 — Demo</h1>
+  <span class="user" id="current-user" data-testid="current-user">未登录</span>
+</div>
+<div class="container">
+
+  <!-- 登录页 -->
+  <div id="page-login" class="hidden">
+    <div class="card">
+      <h2>用户登录</h2>
+      <div class="toast toast-error" id="login-error" data-testid="login-error"></div>
+      <div class="field">
+        <label for="login-username">邮箱账号</label>
+        <input id="login-username" type="text" data-testid="login-username" placeholder="请输入账号">
+      </div>
+      <div class="field">
+        <label for="login-password">密码</label>
+        <input id="login-password" type="text" data-testid="login-password" placeholder="请输入密码">
+      </div>
+      <button class="btn btn-primary" role="button" data-testid="btn-login" onclick="doLogin()">登录</button>
+    </div>
+  </div>
+
+  <!-- 工作台 -->
+  <div id="page-dashboard" class="hidden">
+    <div class="toast toast-success show" id="dashboard-welcome" data-testid="dashboard-welcome">已登录工作台</div>
+    <div id="section-requester" class="hidden">
+      <div class="card">
+        <h2>📋 我的申请</h2>
+        <div id="my-list" data-testid="my-list"><p style="color:#6b7280;font-size:14px">暂无申请记录</p></div>
+        <div class="mt-4">
+          <button class="btn btn-primary" role="button" data-testid="btn-new-purchase" onclick="goto('/purchase/new')">＋ 新建采购申请</button>
+        </div>
+      </div>
+    </div>
+    <div id="section-approver" class="hidden">
+      <div class="card">
+        <h2 id="inbox-title">📥 待我审批</h2>
+        <div id="inbox-list" data-testid="inbox-list"><p style="color:#6b7280;font-size:14px">暂无待办事项</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建采购 -->
+  <div id="page-purchase-new" class="hidden">
+    <div class="card">
+      <h2>新建采购申请</h2>
+      <div class="toast" id="new-toast" data-testid="new-toast"></div>
+      <div class="field">
+        <label for="purchase-title">申请标题</label>
+        <input id="purchase-title" type="text" data-testid="purchase-title" placeholder="请输入申请标题">
+      </div>
+      <div class="field">
+        <label for="purchase-amount">申请金额</label>
+        <input id="purchase-amount" type="number" data-testid="purchase-amount" placeholder="请输入金额（元）">
+      </div>
+      <div class="field">
+        <label for="purchase-reason">申请原因</label>
+        <textarea id="purchase-reason" data-testid="purchase-reason" rows="3" placeholder="请说明采购原因"></textarea>
+      </div>
+      <div class="field checkbox-row">
+        <input type="checkbox" id="purchase-urgent" data-testid="purchase-urgent">
+        <label for="purchase-urgent">加急申请</label>
+      </div>
+      <div class="field mt-4">
+        <label for="purchase-file">附件上传</label>
+        <input type="file" id="purchase-file" data-testid="purchase-file">
+      </div>
+      <div class="gap-2 mt-4">
+        <button class="btn btn-primary" role="button" data-testid="btn-submit-purchase" onclick="submitPurchase()">提交申请</button>
+        <button class="btn btn-outline" role="button" onclick="goto('/dashboard')">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 采购详情 -->
+  <div id="page-purchase-detail" class="hidden">
+    <div class="card">
+      <h2>采购申请详情</h2>
+      <div class="steps">
+        <div class="step done" data-testid="step-submitted">✓ 已提交</div>
+        <div class="step" id="step-mgr" data-testid="step-manager-review">主管审批</div>
+        <div class="step" id="step-fin" data-testid="step-finance-review">财务审核</div>
+        <div class="step" id="step-done" data-testid="step-done">完成</div>
+      </div>
+      <div class="detail-row">
+        <span class="label">当前状态</span>
+        <span class="value"><span id="purchase-status-badge" class="badge badge-pending" data-testid="purchase-status">待主管审批</span></span>
+      </div>
+      <div class="detail-row"><span class="label">申请单号</span><span class="value" id="detail-id" data-testid="detail-id"></span></div>
+      <div class="detail-row"><span class="label">申请标题</span><span class="value" id="detail-title" data-testid="detail-title"></span></div>
+      <div class="detail-row"><span class="label">申请金额</span><span class="value" id="detail-amount" data-testid="detail-amount"></span></div>
+      <div class="detail-row"><span class="label">申请原因</span><span class="value" id="detail-reason" data-testid="detail-reason"></span></div>
+      <div class="detail-row"><span class="label">是否加急</span><span class="value" id="detail-urgent" data-testid="detail-urgent"></span></div>
+
+      <!-- 主管审批区 -->
+      <div id="section-manager-approve" class="hidden mt-4">
+        <h2 style="font-size:15px;margin-bottom:12px;">主管审批</h2>
+        <div class="field">
+          <label for="mgr-comment">审批意见</label>
+          <textarea id="mgr-comment" data-testid="mgr-comment" rows="2" placeholder="请输入审批意见"></textarea>
+        </div>
+        <div class="gap-2">
+          <button class="btn btn-success" role="button" data-testid="btn-approve" onclick="managerApprove()">审批通过</button>
+          <button class="btn btn-danger"  role="button" data-testid="btn-reject"  onclick="managerReject()">驳回</button>
+        </div>
+      </div>
+
+      <!-- 财务审核区 -->
+      <div id="section-finance-approve" class="hidden mt-4">
+        <h2 style="font-size:15px;margin-bottom:12px;">财务审核</h2>
+        <div class="field">
+          <label for="fin-comment">财务意见</label>
+          <textarea id="fin-comment" data-testid="fin-comment" rows="2" placeholder="请输入财务意见"></textarea>
+        </div>
+        <div class="gap-2">
+          <button class="btn btn-success" role="button" data-testid="btn-finance-approve" onclick="financeApprove()">财务确认通过</button>
+        </div>
+      </div>
+
+      <!-- 结果区 -->
+      <div id="section-result" class="hidden mt-4">
+        <div class="toast toast-success show" id="result-msg" data-testid="result-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建发票 -->
+  <div id="page-invoice-new" class="hidden">
+    <div class="card">
+      <h2>新建发票报销</h2>
+      <div class="toast" id="invoice-toast" data-testid="invoice-toast"></div>
+      <div class="field">
+        <label for="invoice-title">发票标题</label>
+        <input id="invoice-title" type="text" data-testid="invoice-title" placeholder="请输入发票标题">
+      </div>
+      <div class="field">
+        <label for="invoice-amount">金额</label>
+        <input id="invoice-amount" type="number" data-testid="invoice-amount" placeholder="请输入金额">
+      </div>
+      <div class="field">
+        <label for="invoice-type">费用类型</label>
+        <input id="invoice-type" type="text" data-testid="invoice-type" placeholder="请输入费用类型">
+      </div>
+      <div class="field mt-4">
+        <label for="invoice-file">附件上传</label>
+        <input type="file" id="invoice-file" data-testid="invoice-file" onchange="mockInvoiceUpload()">
+        <span id="invoice-upload-status" class="badge badge-approved hidden" style="margin-top:8px">上传成功</span>
+      </div>
+      <div class="gap-2 mt-4">
+        <button class="btn btn-primary" role="button" data-testid="btn-submit-invoice" onclick="submitInvoice()">提交审核</button>
+        <button class="btn btn-outline" role="button" onclick="goto('/dashboard')">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 发票详情 -->
+  <div id="page-invoice-detail" class="hidden">
+    <div class="card">
+      <h2>发票详情</h2>
+      <div class="detail-row">
+        <span class="label">当前状态</span>
+        <span class="value"><span id="invoice-status-badge" class="badge badge-pending invoice-status" data-testid="invoice-status">待审核</span></span>
+      </div>
+      <div class="detail-row"><span class="label">发票单号</span><span class="value" id="inv-detail-id" data-testid="inv-detail-id"></span></div>
+      <div class="detail-row"><span class="label">发票标题</span><span class="value" id="inv-detail-title" data-testid="inv-detail-title"></span></div>
+      <div class="detail-row"><span class="label">发票金额</span><span class="value" id="inv-detail-amount" data-testid="inv-detail-amount"></span></div>
+      <div class="detail-row"><span class="label">费用类型</span><span class="value" id="inv-detail-type" data-testid="inv-detail-type"></span></div>
+
+      <!-- 审核区（仅审核人且状态为 pending_review） -->
+      <div id="section-reviewer-approve" class="hidden mt-4">
+        <h2 style="font-size:15px;margin-bottom:12px;">发票审核</h2>
+        <div class="field">
+          <label for="rev-comment">审核意见</label>
+          <textarea id="rev-comment" data-testid="rev-comment" rows="2" placeholder="请输入审核意见"></textarea>
+        </div>
+        <div class="gap-2">
+          <button class="btn btn-success" role="button" data-testid="btn-review-approve" onclick="reviewerApprove()">审核通过</button>
+        </div>
+      </div>
+
+      <!-- 结果区 -->
+      <div id="section-invoice-result" class="hidden mt-4">
+        <div class="toast toast-success show" id="invoice-result-msg" data-testid="invoice-result-msg"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── 用户表（前端验证，真实项目中由后端处理）
+const USERS = {
+  requester: { password: 'req_pass', name: '张三（申请人）', role: 'requester' },
+  manager:   { password: 'mgr_pass', name: '李四（主管）',   role: 'approver'  },
+  finance:   { password: 'fin_pass', name: '王五（财务）',   role: 'finance'   },
+  'submitter@co.com': { password: 'sub_pass', name: '赵六（发票提交人）', role: 'submitter' },
+  'reviewer@co.com':  { password: 'rev_pass', name: '钱七（发票审核人）', role: 'reviewer'  },
+};
+
+// ── Session（本 Context 内）
+function getSession() { return JSON.parse(localStorage.getItem('session') || 'null'); }
+function saveSession(s) { if (s) localStorage.setItem('session', JSON.stringify(s)); else localStorage.removeItem('session'); }
+
+// ── 服务端 API（共享状态，跨 BrowserContext 有效）
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── 路由
+function route() {
+  const path = location.pathname;
+  const session = getSession();
+  if (!session && path !== '/login') { history.replaceState({}, '', '/login'); route(); return; }
+  if (session) document.getElementById('current-user').textContent = session.name;
+  document.querySelectorAll('[id^="page-"]').forEach(el => el.classList.add('hidden'));
+
+  if (path === '/login')             showPage('login');
+  else if (path === '/dashboard')    { showPage('dashboard'); renderDashboard(); }
+  else if (path === '/purchase/new') showPage('purchase-new');
+  else if (path.startsWith('/purchase/')) { showPage('purchase-detail'); renderDetail(path.split('/')[2]); }
+  else if (path === '/invoice/new')  showPage('invoice-new');
+  else if (path.startsWith('/invoice/'))  { showPage('invoice-detail'); renderInvoiceDetail(path.split('/')[2]); }
+  else goto('/dashboard');
+}
+function showPage(n) { document.getElementById('page-' + n)?.classList.remove('hidden'); }
+function goto(path) { history.pushState({}, '', path); route(); }
+window.addEventListener('popstate', route);
+
+// ── 登录
+function doLogin() {
+  const u = document.getElementById('login-username').value.trim();
+  const p = document.getElementById('login-password').value;
+  const user = USERS[u];
+  const errEl = document.getElementById('login-error');
+  if (!user || user.password !== p) {
+    errEl.textContent = '用户名或密码错误'; errEl.classList.add('show'); return;
+  }
+  errEl.classList.remove('show');
+  saveSession({ username: u, name: user.name, role: user.role });
+  goto('/dashboard');
+}
+
+// ── 工作台
+async function renderDashboard() {
+  const session = getSession();
+  const allPurchases = await api('GET', '/api/purchases').catch(() => []);
+
+  if (session.role === 'requester') {
+    document.getElementById('section-requester').classList.remove('hidden');
+    const mine = allPurchases.filter(p => p.createdBy === session.username);
+    document.getElementById('my-list').innerHTML = mine.length === 0
+      ? '<p style="color:#6b7280;font-size:14px">暂无申请记录</p>'
+      : mine.map(p => `<div class="list-item"><div>
+          <div class="title">${p.title}</div>
+          <div class="meta">¥${p.amount} · ${p.urgent ? '🚨加急' : '普通'}</div>
+        </div>
+        <span class="badge ${badgeClass(p.status)}" data-testid="status-${p.id}">${statusLabel(p.status)}</span>
+        </div>`).join('');
+
+  } else if (session.role === 'approver') {
+    document.getElementById('section-approver').classList.remove('hidden');
+    const pending = allPurchases.filter(p => p.status === 'pending_manager');
+    document.getElementById('inbox-list').innerHTML = pending.length === 0
+      ? '<p style="color:#6b7280;font-size:14px">暂无待审批事项</p>'
+      : pending.map(p => `<div class="list-item"><div>
+          <div class="title">${p.title}</div>
+          <div class="meta">¥${p.amount}</div>
+        </div>
+        <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="goto('/purchase/${p.id}')">审批</button>
+        </div>`).join('');
+
+  } else if (session.role === 'finance') {
+    document.getElementById('section-approver').classList.remove('hidden');
+    document.getElementById('inbox-title').textContent = '📥 待我财务审核';
+    const pending = allPurchases.filter(p => p.status === 'pending_finance');
+    document.getElementById('inbox-list').innerHTML = pending.length === 0
+      ? '<p style="color:#6b7280;font-size:14px">暂无待财务审核事项</p>'
+      : pending.map(p => `<div class="list-item"><div>
+          <div class="title">${p.title}</div>
+          <div class="meta">¥${p.amount}</div>
+        </div>
+        <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="goto('/purchase/${p.id}')">审核</button>
+        </div>`).join('');
+  }
+}
+
+// ── 提交申请
+async function submitPurchase() {
+  const title  = document.getElementById('purchase-title').value.trim();
+  const amount = document.getElementById('purchase-amount').value;
+  const reason = document.getElementById('purchase-reason').value.trim();
+  const urgent = document.getElementById('purchase-urgent').checked;
+  const session = getSession();
+  const toastEl = document.getElementById('new-toast');
+
+  if (!title || !amount) {
+    toastEl.textContent = '请填写申请标题和申请金额';
+    toastEl.className = 'toast toast-error show'; return;
+  }
+
+  try {
+    const result = await api('POST', '/api/purchases', {
+      title, amount: Number(amount), reason, urgent,
+      createdBy: session.username,
+    });
+    goto('/purchase/' + result.id + '?submitted=1');
+  } catch (err) {
+    toastEl.textContent = '提交失败：' + err.message;
+    toastEl.className = 'toast toast-error show';
+  }
+}
+
+// ── 详情页
+async function renderDetail(id) {
+  const session = getSession();
+  const p = await api('GET', '/api/purchases/' + id).catch(() => null);
+  if (!p) { document.getElementById('detail-id').textContent = '申请不存在'; return; }
+
+  document.getElementById('detail-id').textContent = p.id;
+  document.getElementById('detail-title').textContent = p.title;
+  document.getElementById('detail-amount').textContent = '¥' + p.amount;
+  document.getElementById('detail-reason').textContent = p.reason || '—';
+  document.getElementById('detail-urgent').textContent = p.urgent ? '是（加急）' : '否';
+
+  const badge = document.getElementById('purchase-status-badge');
+  badge.textContent = statusLabel(p.status);
+  badge.className = 'badge ' + badgeClass(p.status);
+  updateSteps(p.status);
+
+  // URL 参数带 submitted=1 显示成功消息
+  if (new URLSearchParams(location.search).get('submitted') === '1') {
+    document.getElementById('result-msg').textContent = '申请已提交';
+    document.getElementById('section-result').classList.remove('hidden');
+  }
+
+  // 主管审批区（仅主管且状态为 pending_manager）
+  if (p.status === 'pending_manager' && session.role === 'approver') {
+    document.getElementById('section-manager-approve').classList.remove('hidden');
+  }
+  // 财务审核区
+  if (p.status === 'pending_finance' && session.role === 'finance') {
+    document.getElementById('section-finance-approve').classList.remove('hidden');
+  }
+  // 完成状态
+  if (p.status === 'approved') {
+    document.getElementById('result-msg').textContent = '审批完成，采购申请已通过';
+    document.getElementById('section-result').classList.remove('hidden');
+  }
+  if (p.status === 'rejected') {
+    document.getElementById('result-msg').textContent = '❌ 申请已被驳回';
+    document.getElementById('section-result').classList.remove('hidden');
+  }
+
+  document.getElementById('page-purchase-detail').dataset.purchaseId = id;
+}
+
+function updateSteps(status) {
+  const mgrEl  = document.getElementById('step-mgr');
+  const finEl  = document.getElementById('step-fin');
+  const doneEl = document.getElementById('step-done');
+  if (status === 'pending_manager') { mgrEl.className = 'step active'; }
+  else if (status === 'pending_finance') {
+    mgrEl.className = 'step done'; mgrEl.textContent = '✓ 主管审批';
+    finEl.className = 'step active';
+  } else if (status === 'approved') {
+    mgrEl.className = 'step done'; mgrEl.textContent = '✓ 主管审批';
+    finEl.className = 'step done'; finEl.textContent = '✓ 财务审核';
+    doneEl.className = 'step done'; doneEl.textContent = '✓ 已完成';
+  }
+}
+
+async function managerApprove() {
+  const id = document.getElementById('page-purchase-detail').dataset.purchaseId;
+  const comment = document.getElementById('mgr-comment').value;
+  await api('PATCH', '/api/purchases/' + id, { status: 'pending_finance', mgrComment: comment });
+  document.getElementById('section-manager-approve').classList.add('hidden');
+  await renderDetail(id);
+  document.getElementById('result-msg').textContent = '审批完成';
+  document.getElementById('section-result').classList.remove('hidden');
+}
+
+async function managerReject() {
+  const id = document.getElementById('page-purchase-detail').dataset.purchaseId;
+  const comment = document.getElementById('mgr-comment').value;
+  await api('PATCH', '/api/purchases/' + id, { status: 'rejected', mgrComment: comment });
+  renderDetail(id);
+  document.getElementById('section-manager-approve').classList.add('hidden');
+}
+
+async function financeApprove() {
+  const id = document.getElementById('page-purchase-detail').dataset.purchaseId;
+  const comment = document.getElementById('fin-comment').value;
+  await api('PATCH', '/api/purchases/' + id, { status: 'approved', finComment: comment });
+  document.getElementById('section-finance-approve').classList.add('hidden');
+  await renderDetail(id);
+  // 覆盖 renderDetail 设置的消息，显示“流程完成”
+  document.getElementById('result-msg').textContent = '流程完成';
+  document.getElementById('section-result').classList.remove('hidden');
+}
+
+function statusLabel(s) {
+  return { pending_manager:'待主管审批', pending_finance:'待财务审核',
+           approved:'已完成', rejected:'已驳回' }[s] || s;
+}
+function badgeClass(s) {
+  return { pending_manager:'badge-pending', pending_finance:'badge-finance',
+           approved:'badge-approved', rejected:'badge-rejected' }[s] || '';
+}
+
+// ── 发票相关的 JS 函数
+function mockInvoiceUpload() {
+  const uploadStatus = document.getElementById('invoice-upload-status');
+  uploadStatus.classList.remove('hidden');
+  uploadStatus.textContent = '上传成功';
+}
+
+async function submitInvoice() {
+  const title  = document.getElementById('invoice-title').value.trim();
+  const amount = document.getElementById('invoice-amount').value;
+  const expenseType = document.getElementById('invoice-type').value.trim();
+  const toastEl = document.getElementById('invoice-toast');
+
+  if (!title || !amount) {
+    toastEl.textContent = '请填写发票标题和金额';
+    toastEl.className = 'toast toast-error show'; return;
+  }
+
+  try {
+    const result = await api('POST', '/api/invoice', {
+      title, amount: Number(amount), expenseType,
+    });
+    goto('/invoice/' + result.data.id + '?submitted=1');
+  } catch (err) {
+    toastEl.textContent = '提交失败：' + err.message;
+    toastEl.className = 'toast toast-error show';
+  }
+}
+
+async function renderInvoiceDetail(id) {
+  const session = getSession();
+  const res = await api('GET', '/api/invoice/' + id).catch(() => null);
+  if (!res || !res.data) { document.getElementById('inv-detail-id').textContent = '发票不存在'; return; }
+  const p = res.data;
+
+  document.getElementById('inv-detail-id').textContent = p.id;
+  document.getElementById('inv-detail-title').textContent = p.title;
+  document.getElementById('inv-detail-amount').textContent = '¥' + p.amount;
+  document.getElementById('inv-detail-type').textContent = p.expenseType || '—';
+
+  const badge = document.getElementById('invoice-status-badge');
+  badge.textContent = invoiceStatusLabel(p.status);
+  badge.className = 'badge invoice-status ' + invoiceBadgeClass(p.status);
+
+  // URL 参数带 submitted=1 显示成功消息
+  if (new URLSearchParams(location.search).get('submitted') === '1') {
+    document.getElementById('invoice-result-msg').textContent = '提交成功';
+    document.getElementById('section-invoice-result').classList.remove('hidden');
+  } else {
+    document.getElementById('section-invoice-result').classList.add('hidden');
+  }
+
+  // 审核区（仅审核人且状态为 pending_review）
+  if (p.status === 'pending_review' && session.role === 'reviewer') {
+    document.getElementById('section-reviewer-approve').classList.remove('hidden');
+  } else {
+    document.getElementById('section-reviewer-approve').classList.add('hidden');
+  }
+
+  // 完成状态
+  if (p.status === 'approved') {
+    document.getElementById('invoice-result-msg').textContent = '审核完成，已审核通过，已入账';
+    document.getElementById('section-invoice-result').classList.remove('hidden');
+  }
+
+  document.getElementById('page-invoice-detail').dataset.invoiceId = id;
+}
+
+async function reviewerApprove() {
+  const id = document.getElementById('page-invoice-detail').dataset.invoiceId;
+  const comment = document.getElementById('rev-comment').value;
+  await api('PATCH', '/api/invoice/' + id, { status: 'approved', reviewerComment: comment });
+  document.getElementById('section-reviewer-approve').classList.add('hidden');
+  await renderInvoiceDetail(id);
+  document.getElementById('invoice-result-msg').textContent = '审核完成';
+  document.getElementById('section-invoice-result').classList.remove('hidden');
+}
+
+function invoiceStatusLabel(s) {
+  return { pending_review: '待审核', approved: '已审核通过' }[s] || s;
+}
+
+function invoiceBadgeClass(s) {
+  return { pending_review: 'badge-pending', approved: 'badge-approved' }[s] || '';
+}
+
+route();
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+{
+  "name": "resumewright",
+  "version": "0.1.0",
+  "description": "A resumable Playwright execution framework for multi-role workflow automation",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "types": "./dist/src/index.d.ts"
+    },
+    "./engine": {
+      "import": "./dist/src/engine/index.js",
+      "types": "./dist/src/engine/index.d.ts"
+    },
+    "./dsl": {
+      "import": "./dist/src/dsl/index.js",
+      "types": "./dist/src/dsl/index.d.ts"
+    }
+  },
+  "bin": {
+    "resumewright": "./dist/run.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "keywords": [
+    "playwright",
+    "automation",
+    "testing",
+    "resumable",
+    "workflow",
+    "dsl"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx run.ts",
+    "run:case": "tsx run.ts run",
+    "typecheck": "tsc --noEmit",
+    "validate": "tsx run.ts validate",
+    "status": "tsx run.ts status",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.44.0",
+    "commander": "^12.1.0",
+    "csv-parse": "^5.5.6",
+    "fast-glob": "^3.3.2",
+    "js-yaml": "^4.1.0",
+    "p-limit": "^6.1.0",
+    "zod": "^3.23.8"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.22.3",
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.7"
+  }
+}
+

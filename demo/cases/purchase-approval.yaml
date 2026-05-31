@@ -1,0 +1,71 @@
+# demo/cases/purchase-approval.yaml
+# 完整示例：采购申请全流程审批
+# 对应规格文档第六节示例
+
+name: "采购申请全流程审批"
+description: "覆盖申请人提交、主管审批、财务确认的完整链路"
+timeout: 600000
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+  manager:   { username: "manager",   password: "mgr_pass" }
+  finance:   { username: "finance",   password: "fin_pass" }
+
+steps:
+  - id: step1_create
+    role: requester
+    on_failure:
+      strategy: retry
+      max_retries: 2
+      retry_delay: 3000
+    script: |
+      open "http://127.0.0.1:61775/purchase/new"
+      input "Q3 办公设备采购" to "label:申请标题"
+      input "50000"           to "label:申请金额"
+      input "Team expansion"  to "label:申请原因"
+      check "加急申请"
+      upload "./fixtures/budget.xlsx"
+      tap "role:button[提交申请]"
+
+      assert_exists "采购申请详情" 10s
+      $workflow_url = current_url
+      $workflow_id  = url_match "/purchase/([\w-]+)"
+
+      screenshot
+
+  - id: step2_manager
+    role: manager
+    on_failure:
+      strategy: retry
+      max_retries: 3
+      retry_delay: 3000
+      restore_snapshot: true
+    script: |
+      open "$workflow_url"
+      assert_exists "待主管审批" 5s
+      input "预算内，同意采购" to "label:审批意见"
+      tap "role:button[审批通过]"
+      assert_exists "审批完成" 10s
+      screenshot
+
+  - id: step3_finance
+    role: finance
+    script: |
+      open "$workflow_url"
+      assert_exists "待财务审核" 10s
+      $res = do_get "http://127.0.0.1:61775/api/purchases/$workflow_id"
+      assert_text_equal "$res.status" "pending_finance"
+      assert_text_equal "$res.amount" "50000"
+      input "金额合规，财务确认" to "label:财务意见"
+      tap "role:button[财务确认通过]"
+      assert_exists "流程完成" 10s
+      screenshot
+
+  - id: step4_verify
+    role: finance
+    script: |
+      open "$workflow_url"
+      assert_exists "已完成" 5s
+      $final_status = "testid:purchase-status"
+      assert_text_equal "$final_status" "已完成"
+      screenshot

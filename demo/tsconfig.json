@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    "types": ["node", "vitest/globals", "vitest"],
+
+    // ── import.meta.dirname 支持（Node 22 ESM）
+    "customConditions": [],
+
+    // ── 将 'resumewright' 映射到框架源码（IDE 类型跳转用）
+    //    vitest alias 负责运行时解析，paths 负责编译器/IDE 解析
+    "paths": {
+      "resumewright": ["../src/index.ts"],
+      "resumewright/*": ["../src/*"]
+    }
+  },
+  "include": [
+    "tests/**/*.ts",
+    "vitest.config.ts",
+    "server.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

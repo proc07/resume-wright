@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>ResumeWright 测试应用</title>
+  <style>
+    body { font-family: sans-serif; padding: 40px; max-width: 600px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 4px; font-weight: bold; }
+    input, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 10px 24px; background: #4f46e5; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #4338ca; }
+    #result { margin-top: 20px; padding: 12px; border-radius: 4px; display: none; }
+    #result.success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    #result.error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+    .status-badge.pending { background: #fef3c7; color: #92400e; }
+    .status-badge.approved { background: #d1fae5; color: #065f46; }
+    #workflow-status { data-state: "pending"; }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; }
+    .checkbox-group input { width: auto; }
+  </style>
+</head>
+<body>
+  <h1>工作流申请表单</h1>
+
+  <div id="form-section">
+    <div class="form-group">
+      <label for="title-input">申请标题</label>
+      <input id="title-input" type="text" data-testid="title-input" placeholder="请输入申请标题">
+    </div>
+
+    <div class="form-group">
+      <label for="amount-input">申请金额</label>
+      <input id="amount-input" type="number" data-testid="amount-input" placeholder="请输入金额">
+    </div>
+
+    <div class="form-group">
+      <label for="reason-input">申请原因</label>
+      <textarea id="reason-input" data-testid="reason-input" placeholder="请说明申请原因" rows="3"></textarea>
+    </div>
+
+    <div class="form-group checkbox-group">
+      <input type="checkbox" id="urgent-checkbox" data-testid="urgent-checkbox">
+      <label for="urgent-checkbox">加急申请</label>
+    </div>
+
+    <button
+      role="button"
+      data-testid="submit-btn"
+      onclick="submitForm()"
+    >提交申请</button>
+  </div>
+
+  <div id="result"></div>
+
+  <div id="workflow-section" style="display:none; margin-top: 24px;">
+    <h2>申请详情</h2>
+    <p>申请ID: <span id="workflow-id" data-testid="workflow-id"></span></p>
+    <p>
+      当前状态:
+      <span id="workflow-status" class="status-badge pending" data-state="pending" data-testid="workflow-status">
+        待审批
+      </span>
+    </p>
+    <p>标题: <span id="detail-title" data-testid="detail-title"></span></p>
+    <p>金额: <span id="detail-amount" data-testid="detail-amount"></span></p>
+    <p>加急: <span id="detail-urgent" data-testid="detail-urgent"></span></p>
+
+    <button role="button" data-testid="approve-btn" onclick="approveWorkflow()">审批通过</button>
+  </div>
+
+  <script>
+    function generateId() {
+      return 'wf-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function submitForm() {
+      const title = document.getElementById('title-input').value;
+      const amount = document.getElementById('amount-input').value;
+      const reason = document.getElementById('reason-input').value;
+      const urgent = document.getElementById('urgent-checkbox').checked;
+
+      if (!title || !amount) {
+        showResult('请填写必填项：申请标题和申请金额', false);
+        return;
+      }
+
+      const id = generateId();
+      document.getElementById('workflow-id').textContent = id;
+      document.getElementById('detail-title').textContent = title;
+      document.getElementById('detail-amount').textContent = amount;
+      document.getElementById('detail-urgent').textContent = urgent ? '是' : '否';
+
+      document.getElementById('form-section').style.display = 'none';
+      document.getElementById('workflow-section').style.display = 'block';
+      showResult('申请已提交', true);
+
+      // 更新 URL（模拟跳转）
+      history.pushState({}, '', '/workflow/' + id);
+    }
+
+    function approveWorkflow() {
+      const badge = document.getElementById('workflow-status');
+      badge.textContent = '已审批';
+      badge.className = 'status-badge approved';
+      badge.setAttribute('data-state', 'approved');
+      badge.setAttribute('data-testid', 'workflow-status');
+      showResult('审批完成', true);
+    }
+
+    function showResult(msg, success) {
+      const el = document.getElementById('result');
+      el.textContent = msg;
+      el.className = 'result ' + (success ? 'success' : 'error');
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# ResumeWright 运行时状态目录
+.resumewright/
+
+# Node modules
+node_modules/
+
+# TypeScript 编译输出
+dist/
+
+# 环境变量
+.env
+.env.local
+
+# Playwright 报告
+playwright-report/
+test-results/

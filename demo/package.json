@@ -1,0 +1,27 @@
+{
+  "name": "resumewright-demo",
+  "version": "1.0.0",
+  "description": "真实项目示例：使用 resumewright 框架实现多角色审批工作流自动化",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "server": "npx tsx server.ts",
+    "run:all": "npx tsx ../run.ts run --cases-dir cases",
+    "run:purchase": "npx tsx ../run.ts run cases/purchase-approval.yaml",
+    "run:invoice": "npx tsx ../run.ts run cases/invoice-review-substeps.yaml",
+    "validate": "npx tsx ../run.ts validate --cases-dir cases",
+    "status": "npx tsx ../run.ts status",
+    "reset": "npx tsx ../run.ts reset --all"
+  },
+  "dependencies": {
+    "resumewright": "file:../"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@types/node": "^20.19.41",
+    "tsx": "^4.22.3",
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.7"
+  }
+}
