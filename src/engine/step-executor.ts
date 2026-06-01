@@ -87,7 +87,7 @@ export class StepExecutor {
   }
 
   private async runStep(step: Step): Promise<void> {
-    const { rolePool, contextStore, caseName, screenshotDir } = this.execCtx;
+    const { rolePool, contextStore, caseName, screenshotDir, screenshotOnAssert } = this.execCtx;
 
     // 获取角色的 Page 和 BrowserContext
     const { page, context } = await rolePool.getRoleContext(step.role);
@@ -115,6 +115,7 @@ export class StepExecutor {
           screenshotDir,
           macrosDir: 'macros',
           subStepsBaseDir: path.join(caseDir, 'sub-steps'),
+          screenshotOnAssert,
           defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
         }
       );
@@ -129,6 +130,7 @@ export class StepExecutor {
           screenshotDir,
           macrosDir: 'macros',
           stepId: step.id,
+          screenshotOnAssert,
         });
       } finally {
         await interceptor.detach();

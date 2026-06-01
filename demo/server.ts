@@ -25,12 +25,27 @@ interface Invoice {
   createdAt: string;
 }
 
+interface Merchant {
+  id: string;
+  shopName: string;
+  deposit: number;
+  licenseFile?: string;
+  status: 'pending_compliance' | 'compliance_rejected' | 'pending_finance' | 'approved';
+  complianceComment?: string;
+  financeComment?: string;
+  creditLimit?: number;
+  contractSigned?: boolean;
+  createdAt: string;
+}
+
 const serverDB: {
   purchases: Record<string, Purchase>;
   invoices: Record<string, Invoice>;
+  merchants: Record<string, Merchant>;
 } = {
   purchases: {},
   invoices: {},
+  merchants: {},
 };
 
 let uiFailCount = 0;
@@ -201,6 +216,62 @@ const server = http.createServer(async (req, res) => {
     }
     Object.assign(serverDB.invoices[id]!, body);
     return jsonRes(res, 200, { data: serverDB.invoices[id] });
+  }
+
+  // ── GET /api/compliance/check/:id
+  if (pathname.startsWith('/api/compliance/check/') && req.method === 'GET') {
+    const id = pathname.split('/')[4]!;
+    const merchant = serverDB.merchants[id];
+    if (!merchant) {
+      return jsonRes(res, 404, { error: 'Merchant not found' });
+    }
+    // 根据上传的执照文件名返回对应的机审分
+    const score = merchant.licenseFile?.includes('license_v2') ? 95 : 52;
+    return jsonRes(res, 200, { score });
+  }
+
+  // ── GET /api/merchants
+  if (pathname === '/api/merchants' && req.method === 'GET') {
+    return jsonRes(res, 200, { data: Object.values(serverDB.merchants) });
+  }
+
+  // ── GET /api/merchants/:id
+  if (pathname.startsWith('/api/merchants/') && req.method === 'GET') {
+    const id = pathname.split('/')[3]!;
+    const merchant = serverDB.merchants[id];
+    if (!merchant) {
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+    return jsonRes(res, 200, { data: merchant });
+  }
+
+  // ── POST /api/merchants
+  if (pathname === '/api/merchants' && req.method === 'POST') {
+    const body = JSON.parse(await readBody(req));
+    const id = 'MER-' + Date.now().toString(36).toUpperCase();
+    const merchant: Merchant = {
+      id,
+      status: 'pending_compliance',
+      createdAt: new Date().toISOString(),
+      ...body,
+    };
+    serverDB.merchants[id] = merchant;
+    return jsonRes(res, 201, { data: merchant });
+  }
+
+  // ── PATCH /api/merchants/:id
+  if (pathname.startsWith('/api/merchants/') && req.method === 'PATCH') {
+    const id = pathname.split('/')[3]!;
+    const body = JSON.parse(await readBody(req));
+    if (!serverDB.merchants[id]) {
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+    Object.assign(serverDB.merchants[id]!, body);
+    return jsonRes(res, 200, { data: serverDB.merchants[id] });
   }
 
   // ── Serve HTML for all other routes

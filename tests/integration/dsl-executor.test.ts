@@ -212,6 +212,30 @@ describe('DSL 执行器集成测试', () => {
         assert_exists "工作流申请表单" 3s
       `, page, ctx, {})).resolves.not.toThrow();
     });
+
+    it('断言成功时自动截图', async () => {
+      const ctx = makeCtx();
+      const tempDir = path.join(import.meta.dirname, '../../.temp-assert-screenshots');
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+
+      await executeScript(`
+        open "$base_url"
+        assert_exists "工作流申请表单" 3s
+      `, page, ctx, {
+        screenshotOnAssert: true,
+        screenshotDir: tempDir,
+        stepId: 'test_assert_step',
+      });
+
+      const files = fs.readdirSync(tempDir);
+      expect(files.length).toBe(1);
+      expect(files[0]).toContain('test_assert_step-assert-');
+      expect(files[0]?.endsWith('.png')).toBe(true);
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
   });
 
   describe('check — 复选框', () => {

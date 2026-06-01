@@ -33,11 +33,13 @@ program
   .option('--headed', 'Show browser window (debug mode)')
   .option('--only-failed', 'Only run cases with existing checkpoints (resume failed)')
   .option('--no-screenshot', 'Disable auto screenshot on failure')
+  .option('--screenshot-on-assert', 'Take screenshot after assert_exists successfully executes')
   .option('--cases-dir <dir>', 'Cases directory', 'cases')
   .option('--trace', 'Enable Playwright action tracing (saves to .resumewright/traces/)')
   .action(async (files: string[], opts) => {
     const headless = !opts.headed;
     const screenshotOnFail = opts.screenshot !== false;
+    const screenshotOnAssert = !!opts.screenshotOnAssert;
     const onlyFailed = !!opts.onlyFailed;
     const concurrency = parseInt(opts.concurrency, 10);
     const casesDir = opts.casesDir;
@@ -54,6 +56,7 @@ program
         const runner = new WorkflowRunner(definition, filePath, {
           headless,
           screenshotOnFail,
+          screenshotOnAssert,
           enableTrace,
         });
         const result = await runner.run();
@@ -68,6 +71,7 @@ program
         concurrency,
         headless,
         screenshotOnFail,
+        screenshotOnAssert,
         onlyFailed,
         enableTrace,
         filter: files && files.length > 1 ? files : undefined,

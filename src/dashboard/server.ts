@@ -18,6 +18,42 @@ const __dirname = path.dirname(__filename);
 let activeProcess: any = null;
 const lastRunStatuses: Record<string, 'passed' | 'failed' | 'running'> = {};
 
+const SETTINGS_FILE = path.join(process.cwd(), '.resumewright', 'dashboard-settings.json');
+
+interface DashboardSettings {
+  headed: boolean;
+  trace: boolean;
+  screenshotOnAssert: boolean;
+}
+
+function loadDashboardSettings(): DashboardSettings {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const data = fs.readFileSync(SETTINGS_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('[dashboard] Failed to load settings:', err);
+  }
+  return {
+    headed: true,
+    trace: true,
+    screenshotOnAssert: true
+  };
+}
+
+function saveDashboardSettings(settings: DashboardSettings): void {
+  try {
+    const dir = path.dirname(SETTINGS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[dashboard] Failed to save settings:', err);
+  }
+}
+
 export async function startDashboardServer(requestedPort: number): Promise<void> {
   const server = http.createServer(handleRequest);
 
@@ -137,6 +173,32 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
   }
 
+  // ── REST API: GET /api/settings — 获取设置 ──
+  if (pathname === '/api/settings' && req.method === 'GET') {
+    try {
+      const settings = loadDashboardSettings();
+      return jsonRes(res, 200, settings);
+    } catch (err: any) {
+      return jsonRes(res, 500, { error: err.message });
+    }
+  }
+
+  // ── REST API: POST /api/settings — 保存设置 ──
+  if (pathname === '/api/settings' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const settings = {
+        headed: !!body.headed,
+        trace: !!body.trace,
+        screenshotOnAssert: !!body.screenshotOnAssert
+      };
+      saveDashboardSettings(settings);
+      return jsonRes(res, 200, { success: true, settings });
+    } catch (err: any) {
+      return jsonRes(res, 500, { error: err.message });
+    }
+  }
+
   // ── REST API: GET /api/case/:caseName/details — 获取单用例详情 ──
   if (pathname.startsWith('/api/case/') && pathname.endsWith('/details') && req.method === 'GET') {
     try {
@@ -241,6 +303,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     const caseFiles = url.searchParams.get('cases')?.split(',') || [];
     const headed = url.searchParams.get('headed') === 'true';
     const trace = url.searchParams.get('trace') === 'true';
+    const screenshotOnAssert = url.searchParams.get('screenshotOnAssert') === 'true';
 
     if (caseFiles.length === 0) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -278,6 +341,9 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     if (trace) {
       cmdArgs.push('--trace');
+    }
+    if (screenshotOnAssert) {
+      cmdArgs.push('--screenshot-on-assert');
     }
 
     const command = isTs ? 'npx' : 'node';
@@ -432,7 +498,12 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     else if (ext === '.js') contentType = 'application/javascript';
     else if (ext === '.ico') contentType = 'image/x-icon';
 
-    res.writeHead(200, { 'Content-Type': contentType });
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     fs.createReadStream(staticFilePath).pipe(res);
     return;
   }

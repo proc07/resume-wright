@@ -855,8 +855,6 @@ code, pre {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
-  display: flex;
-  flex-direction: column-reverse; /* 新日志输出在底部，自动向上推 */
 }
 
 .step-screenshots-section {

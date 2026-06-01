@@ -18,6 +18,7 @@ export interface ExecutorOptions {
   screenshotDir?: string;
   macrosDir?: string;
   stepId?: string;
+  screenshotOnAssert?: boolean;
 }
 
 // ── 主执行函数 ────────────────────────────────────────────────
@@ -310,11 +311,20 @@ async function executeCommand(
         const countExpr = countMatch[2]!;
         const locator = resolveLocatorFromString(page, baseLocStr);
         await assertCount(locator, countExpr, timeoutMs);
-        break;
+      } else {
+        const locator = resolveLocatorFromString(page, locStr);
+        await expect(locator).toBeVisible({ timeout: timeoutMs });
       }
 
-      const locator = resolveLocatorFromString(page, locStr);
-      await expect(locator).toBeVisible({ timeout: timeoutMs });
+      if (opts.screenshotOnAssert) {
+        const dir = opts.screenshotDir ?? '.resumewright/screenshots';
+        fs.mkdirSync(dir, { recursive: true });
+        const timestamp = getFormattedDateTime();
+        const stepId = opts.stepId ?? 'unknown';
+        const screenshotPath = path.join(dir, `${stepId}-assert-${timestamp}.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: false });
+        console.log(`[dsl]   📸 Assert screenshot saved: ${screenshotPath}`);
+      }
       break;
     }
 

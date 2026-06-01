@@ -14,6 +14,7 @@ export interface SubStepExecutorOptions {
   screenshotDir?: string;
   macrosDir?: string;
   subStepsBaseDir?: string;
+  screenshotOnAssert?: boolean;
   defaultOnFailure?: import('../types/case.types.js').OnFailureConfig;
 }
 
@@ -87,6 +88,7 @@ export class SubStepExecutor {
             screenshotDir: this.opts.screenshotDir,
             macrosDir: this.opts.macrosDir,
             stepId: id,
+            screenshotOnAssert: this.opts.screenshotOnAssert,
           });
         }
 

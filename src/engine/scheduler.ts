@@ -85,6 +85,7 @@ export class Scheduler {
         const runner = new WorkflowRunner(definition, filePath, {
           headless: this.opts.headless ?? true,
           screenshotOnFail: this.opts.screenshotOnFail ?? true,
+          screenshotOnAssert: this.opts.screenshotOnAssert,
           enableTrace: this.opts.enableTrace,
           traceDir: this.opts.traceDir,
         });

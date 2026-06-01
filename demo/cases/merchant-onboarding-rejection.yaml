@@ -1,0 +1,123 @@
+# demo/cases/merchant-onboarding-rejection.yaml
+# 资质审核退回重审高级复杂用例
+
+name: "商户入驻资质审核与退回重审流程"
+description: "资质初审驳回、商户整改后二次提交、资质初审通过、财务核准入驻以及最终在线签署合同的完整多角色协作流程"
+timeout: 600000
+
+# 全局默认失败重试配置
+on_failure:
+  strategy: retry
+  max_retries: 2
+  restore_snapshot: true
+
+roles:
+  merchant:   { username: "merchant",   password: "mer_pass" }
+  compliance: { username: "compliance", password: "comp_pass" }
+  finance:    { username: "finance",    password: "fin_pass" }
+
+steps:
+  # ── 步骤 1: 商家提交首次申请 ──
+  - id: step1_merchant_submit
+    role: merchant
+    script: |
+      open "http://127.0.0.1:61775/login"
+      input "merchant" to "testid:login-username"
+      input "mer_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      open "http://127.0.0.1:61775/merchant/new"
+      input "大牛旗舰店" to "testid:merchant-shop"
+      input "10000" to "testid:merchant-deposit"
+      upload "./fixtures/license_v1.pdf"
+      assert_exists "testid:merchant-upload-status" 5s
+      tap "role:button[提交入驻申请]"
+      
+      assert_exists "入驻申请已提交" 10s
+      $merchant_id = url_match "/merchant/([\w-]+)"
+      $merchant_url = current_url
+
+  # ── 步骤 2: 合规专员机审核对并退回驳回 ──
+  - id: step2_compliance_reject
+    role: compliance
+    script: |
+      open "http://127.0.0.1:61775/login"
+      input "compliance" to "testid:login-username"
+      input "comp_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      open "$merchant_url"
+      assert_exists "合规资质审查 (机审评估得分: 52 分)" 10s
+      input "营业执照已过期，请重新上传最新执照" to "testid:comp-comment"
+      tap "role:button[退回修改]"
+      assert_exists "已驳回待修改" 10s
+
+  # ── 步骤 3: 商家登录查看退回意见，修改并二次提交 ──
+  - id: step3_merchant_modify
+    role: merchant
+    script: |
+      open "http://127.0.0.1:61775/login"
+      input "merchant" to "testid:login-username"
+      input "mer_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      open "$merchant_url"
+      assert_exists "营业执照已过期，请重新上传最新执照" 10s
+      input "大牛旗舰店整改店" to "testid:merchant-shop-new"
+      upload "./fixtures/license_v2.pdf"
+      assert_exists "testid:merchant-upload-status-new" 5s
+      tap "role:button[重新提交申请]"
+      assert_exists "入驻申请已重新提交" 10s
+
+  # ── 步骤 4: 合规专员进行二次核对并初审通过 ──
+  - id: step4_compliance_approve
+    role: compliance
+    script: |
+      open "http://127.0.0.1:61775/login"
+      input "compliance" to "testid:login-username"
+      input "comp_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      open "$merchant_url"
+      assert_exists "合规资质审查 (机审评估得分: 95 分)" 10s
+      input "资质已补正，同意初审通过" to "testid:comp-comment"
+      tap "role:button[初审通过]"
+      assert_exists "待财务核准" 10s
+
+  # ── 步骤 5: 财务主管确认保证金入账并录入信用额度 ──
+  - id: step5_finance_approve
+    role: finance
+    script: |
+      open "http://127.0.0.1:61775/login"
+      input "finance" to "testid:login-username"
+      input "fin_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      open "$merchant_url"
+      assert_exists "财务入驻核准" 5s
+      input "50000" to "testid:mer-credit-limit"
+      input "保证金已收妥，同意入驻并开通额度" to "testid:mer-fin-comment"
+      tap "role:button[财务确认入驻]"
+      assert_exists "待签合同" 10s
+      
+
+  # ── 步骤 6: 商家确认核准额度并在线签署合同 ──
+  - id: step6_merchant_sign
+    role: merchant
+    script: |
+      open "http://127.0.0.1:61775/login"
+      input "merchant" to "testid:login-username"
+      input "mer_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      open "$merchant_url"
+      $credit_val = "testid:mer-detail-credit"
+      assert_text_equal "$credit_val" "¥50000"
+      tap "role:button[在线签署合同]"
+      assert_exists "*入驻已核准，电子合同已签署*" 10s

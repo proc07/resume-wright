@@ -10,6 +10,7 @@ export interface SchedulerOptions {
   headless?: boolean;         // 无头模式，默认 true
   retryFailed?: boolean;      // 自动重试失败的 Case
   screenshotOnFail?: boolean; // 失败时截图
+  screenshotOnAssert?: boolean; // 断言成功时截图
   filter?: string[];          // 按文件名过滤
   onlyFailed?: boolean;       // 仅运行上次失败的 Case
   enableTrace?: boolean;
@@ -20,6 +21,7 @@ export interface SchedulerOptions {
 export interface WorkflowRunnerOptions {
   headless?: boolean;
   screenshotOnFail?: boolean;
+  screenshotOnAssert?: boolean;
   sessionCheckUrl?: string;   // Role Pool Session 校验 URL
   enableTrace?: boolean;
   traceDir?: string;
@@ -33,6 +35,7 @@ export interface StepExecutionContext {
   checkpoint: import('../engine/checkpoint.js').Checkpoint;
   caseName: string;
   screenshotDir: string;
+  screenshotOnAssert?: boolean;
   defaultOnFailure?: import('./case.types.js').OnFailureConfig;
 }
 

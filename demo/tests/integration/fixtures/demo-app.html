@@ -255,6 +255,114 @@
     </div>
   </div>
 
+  <!-- 新建商户 -->
+  <div id="page-merchant-new" class="hidden">
+    <div class="card">
+      <h2>商户入驻申请</h2>
+      <div class="toast" id="merchant-toast" data-testid="merchant-toast"></div>
+      <div class="field">
+        <label for="merchant-shop">店铺名称</label>
+        <input id="merchant-shop" type="text" data-testid="merchant-shop" placeholder="请输入店铺名称">
+      </div>
+      <div class="field">
+        <label for="merchant-deposit">缴存保证金（元）</label>
+        <input id="merchant-deposit" type="number" data-testid="merchant-deposit" placeholder="请输入保证金额度">
+      </div>
+      <div class="field mt-4">
+        <label for="merchant-file">上传营业执照</label>
+        <input type="file" id="merchant-file" data-testid="merchant-file" onchange="mockMerchantUpload()">
+        <span id="merchant-upload-status" data-testid="merchant-upload-status" class="badge badge-approved hidden" style="margin-top:8px">上传成功</span>
+      </div>
+      <div class="gap-2 mt-4">
+        <button class="btn btn-primary" role="button" data-testid="btn-submit-merchant" onclick="submitMerchant()">提交入驻申请</button>
+        <button class="btn btn-outline" role="button" onclick="goto('/dashboard')">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 商户入驻详情 -->
+  <div id="page-merchant-detail" class="hidden">
+    <div class="card">
+      <h2>商户入驻审批详情</h2>
+      <div class="steps">
+        <div class="step done" id="step-mer-submitted" data-testid="step-mer-submitted">✓ 提交申请</div>
+        <div class="step" id="step-mer-comp" data-testid="step-mer-comp">合规审查</div>
+        <div class="step" id="step-mer-fin" data-testid="step-mer-fin">财务核准</div>
+        <div class="step" id="step-mer-done" data-testid="step-mer-done">签署合同</div>
+      </div>
+      <div class="detail-row">
+        <span class="label">入驻状态</span>
+        <span class="value"><span id="merchant-status-badge" class="badge badge-pending merchant-status" data-testid="merchant-status">待合规审查</span></span>
+      </div>
+      <div class="detail-row"><span class="label">商户单号</span><span class="value" id="mer-detail-id" data-testid="mer-detail-id"></span></div>
+      <div class="detail-row"><span class="label">店铺名称</span><span class="value" id="mer-detail-shop" data-testid="mer-detail-shop"></span></div>
+      <div class="detail-row"><span class="label">保证金</span><span class="value" id="mer-detail-deposit" data-testid="mer-detail-deposit"></span></div>
+      <div class="detail-row"><span class="label">营业执照附件</span><span class="value" id="mer-detail-file" data-testid="mer-detail-file"></span></div>
+      <div class="detail-row" id="row-credit-limit"><span class="label">信用额度</span><span class="value" id="mer-detail-credit" data-testid="mer-detail-credit">—</span></div>
+
+      <!-- 合规审查区 -->
+      <div id="section-compliance-approve" class="hidden mt-4">
+        <h2 style="font-size:15px;margin-bottom:12px;">合规资质审查</h2>
+        <div class="field">
+          <label for="comp-comment">合规意见 / 驳回理由</label>
+          <textarea id="comp-comment" data-testid="comp-comment" rows="2" placeholder="请输入合规意见（如果驳回请说明理由）"></textarea>
+        </div>
+        <div class="gap-2">
+          <button class="btn btn-success" role="button" data-testid="btn-compliance-approve" onclick="complianceApprove()">初审通过</button>
+          <button class="btn btn-danger" role="button" data-testid="btn-compliance-reject" onclick="complianceReject()">退回修改</button>
+        </div>
+      </div>
+
+      <!-- 退回修改区 (商户) -->
+      <div id="section-merchant-modify" class="hidden mt-4">
+        <h2 style="font-size:15px;margin-bottom:12px;color:#dc2626">退回修改申请</h2>
+        <div class="field">
+          <label style="color:#dc2626">合规驳回意见：<span id="merchant-reject-reason" data-testid="merchant-reject-reason" style="font-weight:bold"></span></label>
+        </div>
+        <div class="field">
+          <label for="merchant-shop-new">新店铺名称</label>
+          <input id="merchant-shop-new" type="text" data-testid="merchant-shop-new">
+        </div>
+        <div class="field mt-4">
+          <label for="merchant-file-new">重新上传营业执照</label>
+          <input type="file" id="merchant-file-new" data-testid="merchant-file-new" onchange="mockMerchantUploadNew()">
+          <span id="merchant-upload-status-new" data-testid="merchant-upload-status-new" class="badge badge-approved hidden" style="margin-top:8px">上传成功</span>
+        </div>
+        <div class="gap-2 mt-4">
+          <button class="btn btn-primary" role="button" data-testid="btn-resubmit-merchant" onclick="resubmitMerchant()">重新提交申请</button>
+        </div>
+      </div>
+
+      <!-- 财务核准区 -->
+      <div id="section-finance-approve-mer" class="hidden mt-4">
+        <h2 style="font-size:15px;margin-bottom:12px;">财务入驻核准</h2>
+        <div class="field">
+          <label for="mer-credit-limit">授信额度（元）</label>
+          <input id="mer-credit-limit" type="number" data-testid="mer-credit-limit" value="50000">
+        </div>
+        <div class="field">
+          <label for="mer-fin-comment">商户入驻财务意见</label>
+          <textarea id="mer-fin-comment" data-testid="mer-fin-comment" rows="2" placeholder="请输入财务意见"></textarea>
+        </div>
+        <div class="gap-2">
+          <button class="btn btn-success" role="button" data-testid="btn-finance-approve-mer" onclick="financeApproveMer()">财务确认入驻</button>
+        </div>
+      </div>
+
+      <!-- 合同签署区 -->
+      <div id="section-merchant-sign" class="hidden mt-4">
+        <h2 style="font-size:15px;margin-bottom:12px;">在线签署电子入驻协议</h2>
+        <p style="font-size:13px;color:#4b5563;margin-bottom:12px;">您的入驻申请已核准。信用额度为 <span id="sign-credit-val" style="font-weight:bold;color:#1e40af"></span> 元。请签署电子合同以正式开通商户后台。</p>
+        <button class="btn btn-success" role="button" data-testid="btn-sign-contract" onclick="signContract()">在线签署合同</button>
+      </div>
+
+      <!-- 结果区 -->
+      <div id="section-merchant-result" class="hidden mt-4">
+        <div class="toast toast-success show" id="merchant-result-msg" data-testid="merchant-result-msg"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -265,6 +373,8 @@ const USERS = {
   finance:   { password: 'fin_pass', name: '王五（财务）',   role: 'finance'   },
   'submitter@co.com': { password: 'sub_pass', name: '赵六（发票提交人）', role: 'submitter' },
   'reviewer@co.com':  { password: 'rev_pass', name: '钱七（发票审核人）', role: 'reviewer'  },
+  merchant:  { password: 'mer_pass', name: '大牛商户', role: 'merchant' },
+  compliance: { password: 'comp_pass', name: '合规审查专员', role: 'compliance' }
 };
 
 // ── Session（本 Context 内）
@@ -296,6 +406,8 @@ function route() {
   else if (path.startsWith('/purchase/')) { showPage('purchase-detail'); renderDetail(path.split('/')[2]); }
   else if (path === '/invoice/new')  showPage('invoice-new');
   else if (path.startsWith('/invoice/'))  { showPage('invoice-detail'); renderInvoiceDetail(path.split('/')[2]); }
+  else if (path === '/merchant/new') showPage('merchant-new');
+  else if (path.startsWith('/merchant/')) { showPage('merchant-detail'); renderMerchantDetail(path.split('/')[2]); }
   else goto('/dashboard');
 }
 function showPage(n) { document.getElementById('page-' + n)?.classList.remove('hidden'); }
@@ -321,6 +433,12 @@ async function renderDashboard() {
   const session = getSession();
   const allPurchases = await api('GET', '/api/purchases').catch(() => []);
 
+  // 重置新建按钮
+  const actionArea = document.querySelector('#section-requester .mt-4');
+  if (actionArea) {
+    actionArea.innerHTML = `<button class="btn btn-primary" role="button" data-testid="btn-new-purchase" onclick="goto('/purchase/new')">＋ 新建采购申请</button>`;
+  }
+
   if (session.role === 'requester') {
     document.getElementById('section-requester').classList.remove('hidden');
     const mine = allPurchases.filter(p => p.createdBy === session.username);
@@ -332,6 +450,21 @@ async function renderDashboard() {
         </div>
         <span class="badge ${badgeClass(p.status)}" data-testid="status-${p.id}">${statusLabel(p.status)}</span>
         </div>`).join('');
+
+  } else if (session.role === 'merchant') {
+    document.getElementById('section-requester').classList.remove('hidden');
+    const allMerchants = (await api('GET', '/api/merchants').catch(() => null))?.data || [];
+    document.getElementById('my-list').innerHTML = allMerchants.length === 0
+      ? '<p style="color:#6b7280;font-size:14px">暂无入驻申请记录</p>'
+      : allMerchants.map(m => `<div class="list-item"><div>
+          <div class="title">${m.shopName}</div>
+          <div class="meta">单号: ${m.id} · 保证金: ¥${m.deposit}</div>
+        </div>
+        <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" data-testid="btn-view-merchant-${m.id}" onclick="goto('/merchant/${m.id}')">查看</button>
+        </div>`).join('');
+    if (actionArea) {
+      actionArea.innerHTML = `<button class="btn btn-primary" role="button" data-testid="btn-new-merchant" onclick="goto('/merchant/new')">＋ 申请商户入驻</button>`;
+    }
 
   } else if (session.role === 'approver') {
     document.getElementById('section-approver').classList.remove('hidden');
@@ -345,18 +478,45 @@ async function renderDashboard() {
         <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="goto('/purchase/${p.id}')">审批</button>
         </div>`).join('');
 
+  } else if (session.role === 'compliance') {
+    document.getElementById('section-approver').classList.remove('hidden');
+    document.getElementById('inbox-title').textContent = '📥 待合规资质审查';
+    const allMerchants = (await api('GET', '/api/merchants').catch(() => null))?.data || [];
+    const pending = allMerchants.filter(m => m.status === 'pending_compliance');
+    document.getElementById('inbox-list').innerHTML = pending.length === 0
+      ? '<p style="color:#6b7280;font-size:14px">暂无待合规审查事项</p>'
+      : pending.map(m => `<div class="list-item"><div>
+          <div class="title">${m.shopName}</div>
+          <div class="meta">单号: ${m.id} · 保证金: ¥${m.deposit}</div>
+        </div>
+        <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" data-testid="btn-audit-merchant-${m.id}" onclick="goto('/merchant/${m.id}')">审查</button>
+        </div>`).join('');
+
   } else if (session.role === 'finance') {
     document.getElementById('section-approver').classList.remove('hidden');
     document.getElementById('inbox-title').textContent = '📥 待我财务审核';
-    const pending = allPurchases.filter(p => p.status === 'pending_finance');
-    document.getElementById('inbox-list').innerHTML = pending.length === 0
-      ? '<p style="color:#6b7280;font-size:14px">暂无待财务审核事项</p>'
-      : pending.map(p => `<div class="list-item"><div>
-          <div class="title">${p.title}</div>
+    const pendingPurchases = allPurchases.filter(p => p.status === 'pending_finance');
+    const allMerchants = (await api('GET', '/api/merchants').catch(() => null))?.data || [];
+    const pendingMerchants = allMerchants.filter(m => m.status === 'pending_finance');
+
+    let html = '';
+    if (pendingPurchases.length === 0 && pendingMerchants.length === 0) {
+      html = '<p style="color:#6b7280;font-size:14px">暂无待财务审核事项</p>';
+    } else {
+      html += pendingPurchases.map(p => `<div class="list-item"><div>
+          <div class="title">[采购] ${p.title}</div>
           <div class="meta">¥${p.amount}</div>
         </div>
         <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="goto('/purchase/${p.id}')">审核</button>
         </div>`).join('');
+      html += pendingMerchants.map(m => `<div class="list-item"><div>
+          <div class="title">[商户] ${m.shopName}</div>
+          <div class="meta">单号: ${m.id} · 保证金: ¥${m.deposit}</div>
+        </div>
+        <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" data-testid="btn-finance-merchant-${m.id}" onclick="goto('/merchant/${m.id}')">审核</button>
+        </div>`).join('');
+    }
+    document.getElementById('inbox-list').innerHTML = html;
   }
 }
 
@@ -567,6 +727,236 @@ function invoiceStatusLabel(s) {
 
 function invoiceBadgeClass(s) {
   return { pending_review: 'badge-pending', approved: 'badge-approved' }[s] || '';
+}
+
+// ── 商户相关的 JS 函数
+function mockMerchantUpload() {
+  const uploadStatus = document.getElementById('merchant-upload-status');
+  uploadStatus.classList.remove('hidden');
+  uploadStatus.textContent = '上传成功';
+  document.getElementById('merchant-file').dataset.filename = 'license_v1.pdf';
+}
+
+function mockMerchantUploadNew() {
+  const uploadStatus = document.getElementById('merchant-upload-status-new');
+  uploadStatus.classList.remove('hidden');
+  uploadStatus.textContent = '上传成功';
+  document.getElementById('merchant-file-new').dataset.filename = 'license_v2.pdf';
+}
+
+async function submitMerchant() {
+  const shopName = document.getElementById('merchant-shop').value.trim();
+  const deposit = document.getElementById('merchant-deposit').value;
+  const filename = document.getElementById('merchant-file').dataset.filename;
+  const toastEl = document.getElementById('merchant-toast');
+
+  if (!shopName || !deposit || !filename) {
+    toastEl.textContent = '请填写店铺名称、保证金并上传营业执照';
+    toastEl.className = 'toast toast-error show'; return;
+  }
+
+  try {
+    const result = await api('POST', '/api/merchants', {
+      shopName, deposit: Number(deposit), licenseFile: filename,
+    });
+    goto('/merchant/' + result.data.id + '?submitted=1');
+  } catch (err) {
+    toastEl.textContent = '提交失败：' + err.message;
+    toastEl.className = 'toast toast-error show';
+  }
+}
+
+async function renderMerchantDetail(id) {
+  const session = getSession();
+  const res = await api('GET', '/api/merchants/' + id).catch(() => null);
+  if (!res || !res.data) { document.getElementById('mer-detail-id').textContent = '商户不存在'; return; }
+  const m = res.data;
+
+  document.getElementById('mer-detail-id').textContent = m.id;
+  document.getElementById('mer-detail-shop').textContent = m.shopName;
+  document.getElementById('mer-detail-deposit').textContent = '¥' + m.deposit;
+  document.getElementById('mer-detail-file').textContent = m.licenseFile || '未上传';
+
+  // 信用额度
+  if (m.creditLimit) {
+    document.getElementById('mer-detail-credit').textContent = '¥' + m.creditLimit;
+    document.getElementById('sign-credit-val').textContent = m.creditLimit;
+  } else {
+    document.getElementById('mer-detail-credit').textContent = '—';
+  }
+
+  const badge = document.getElementById('merchant-status-badge');
+  badge.textContent = merchantStatusLabel(m.status);
+  badge.className = 'badge merchant-status ' + merchantBadgeClass(m.status);
+  updateMerchantSteps(m.status, m.contractSigned);
+
+  // 隐藏所有特定区块
+  document.getElementById('section-compliance-approve').classList.add('hidden');
+  document.getElementById('section-merchant-modify').classList.add('hidden');
+  document.getElementById('section-finance-approve-mer').classList.add('hidden');
+  document.getElementById('section-merchant-sign').classList.add('hidden');
+  document.getElementById('section-merchant-result').classList.add('hidden');
+
+  // URL 参数带 submitted=1 显示成功消息
+  if (new URLSearchParams(location.search).get('submitted') === '1') {
+    document.getElementById('merchant-result-msg').textContent = '入驻申请已提交';
+    document.getElementById('section-merchant-result').classList.remove('hidden');
+  }
+
+  // 1. 合规资质审查（机审评分展示）
+  if (m.status === 'pending_compliance') {
+    // 异步拉取机审分
+    const scoreRes = await api('GET', `/api/compliance/check/${id}`).catch(() => null);
+    if (scoreRes) {
+      const titleEl = document.querySelector('#section-compliance-approve h2');
+      titleEl.textContent = `合规资质审查 (机审评估得分: ${scoreRes.score} 分)`;
+      titleEl.dataset.score = scoreRes.score;
+    }
+    
+    if (session.role === 'compliance') {
+      document.getElementById('section-compliance-approve').classList.remove('hidden');
+    }
+  }
+
+  // 2. 商户资质退回修改
+  if (m.status === 'compliance_rejected') {
+    document.getElementById('merchant-reject-reason').textContent = m.complianceComment || '营业执照不合规';
+    document.getElementById('merchant-shop-new').value = m.shopName;
+    if (session.role === 'merchant') {
+      document.getElementById('section-merchant-modify').classList.remove('hidden');
+    }
+  }
+
+  // 3. 财务入驻核准
+  if (m.status === 'pending_finance' && session.role === 'finance') {
+    document.getElementById('section-finance-approve-mer').classList.remove('hidden');
+  }
+
+  // 4. 合同签署
+  if (m.status === 'approved' && !m.contractSigned && session.role === 'merchant') {
+    document.getElementById('section-merchant-sign').classList.remove('hidden');
+  }
+
+  // 最终状态
+  if (m.status === 'approved' && m.contractSigned) {
+    document.getElementById('merchant-result-msg').textContent = '🎉 入驻已核准，电子合同已签署，商户服务已启用';
+    document.getElementById('section-merchant-result').classList.remove('hidden');
+  }
+
+  document.getElementById('page-merchant-detail').dataset.merchantId = id;
+}
+
+async function complianceApprove() {
+  const id = document.getElementById('page-merchant-detail').dataset.merchantId;
+  const comment = document.getElementById('comp-comment').value.trim();
+  await api('PATCH', '/api/merchants/' + id, { status: 'pending_finance', complianceComment: comment });
+  document.getElementById('section-compliance-approve').classList.add('hidden');
+  await renderMerchantDetail(id);
+}
+
+async function complianceReject() {
+  const id = document.getElementById('page-merchant-detail').dataset.merchantId;
+  const comment = document.getElementById('comp-comment').value.trim() || '营业执照已过期，请重新上传最新执照';
+  await api('PATCH', '/api/merchants/' + id, { status: 'compliance_rejected', complianceComment: comment });
+  document.getElementById('section-compliance-approve').classList.add('hidden');
+  await renderMerchantDetail(id);
+}
+
+async function resubmitMerchant() {
+  const id = document.getElementById('page-merchant-detail').dataset.merchantId;
+  const shopName = document.getElementById('merchant-shop-new').value.trim();
+  const filename = document.getElementById('merchant-file-new').dataset.filename;
+
+  if (!shopName || !filename) {
+    alert('请填写新的店铺名称并重新上传执照');
+    return;
+  }
+
+  await api('PATCH', '/api/merchants/' + id, {
+    status: 'pending_compliance',
+    shopName,
+    licenseFile: filename,
+    complianceComment: '' // 清除被驳回的日志
+  });
+  document.getElementById('section-merchant-modify').classList.add('hidden');
+  await renderMerchantDetail(id);
+  document.getElementById('merchant-result-msg').textContent = '入驻申请已重新提交';
+  document.getElementById('section-merchant-result').classList.remove('hidden');
+}
+
+async function financeApproveMer() {
+  const id = document.getElementById('page-merchant-detail').dataset.merchantId;
+  const creditLimit = document.getElementById('mer-credit-limit').value;
+  const comment = document.getElementById('mer-fin-comment').value.trim();
+
+  await api('PATCH', '/api/merchants/' + id, {
+    status: 'approved',
+    creditLimit: Number(creditLimit),
+    financeComment: comment,
+    contractSigned: false
+  });
+  document.getElementById('section-finance-approve-mer').classList.add('hidden');
+  await renderMerchantDetail(id);
+}
+
+async function signContract() {
+  const id = document.getElementById('page-merchant-detail').dataset.merchantId;
+  await api('PATCH', '/api/merchants/' + id, { contractSigned: true });
+  document.getElementById('section-merchant-sign').classList.add('hidden');
+  await renderMerchantDetail(id);
+}
+
+function updateMerchantSteps(status, contractSigned) {
+  const compEl = document.getElementById('step-mer-comp');
+  const finEl = document.getElementById('step-mer-fin');
+  const doneEl = document.getElementById('step-mer-done');
+
+  compEl.className = 'step';
+  compEl.textContent = '合规审查';
+  finEl.className = 'step';
+  finEl.textContent = '财务核准';
+  doneEl.className = 'step';
+  doneEl.textContent = '签署合同';
+
+  if (status === 'pending_compliance') {
+    compEl.className = 'step active';
+  } else if (status === 'compliance_rejected') {
+    compEl.className = 'step active';
+    compEl.textContent = '合规退回';
+    compEl.style.backgroundColor = '#fee2e2';
+    compEl.style.color = '#991b1b';
+  } else if (status === 'pending_finance') {
+    compEl.className = 'step done'; compEl.textContent = '✓ 合规初审';
+    compEl.style.backgroundColor = '';
+    compEl.style.color = '';
+    finEl.className = 'step active';
+  } else if (status === 'approved') {
+    compEl.className = 'step done'; compEl.textContent = '✓ 合规初审';
+    finEl.className = 'step done'; finEl.textContent = '✓ 财务核准';
+    if (contractSigned) {
+      doneEl.className = 'step done'; doneEl.textContent = '✓ 已完成';
+    } else {
+      doneEl.className = 'step active'; doneEl.textContent = '待签合同';
+    }
+  }
+}
+
+function merchantStatusLabel(s) {
+  return {
+    pending_compliance: '待合规审查',
+    compliance_rejected: '已驳回待修改',
+    pending_finance: '待财务核准',
+    approved: '已核准入驻'
+  }[s] || s;
+}
+
+function merchantBadgeClass(s) {
+  return {
+    pending_compliance: 'badge-pending',
+    compliance_rejected: 'badge-rejected',
+    pending_finance: 'badge-finance',
+    approved: 'badge-approved'
+  }[s] || '';
 }
 
 route();

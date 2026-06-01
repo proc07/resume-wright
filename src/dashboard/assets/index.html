@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="index.css?v=1.0.5">
 </head>
 <body>
   <div class="dashboard-layout">
@@ -144,7 +144,7 @@
               <span class="switch-subtitle">在测试运行时打开 Playwright 浏览器窗口以便观察步骤</span>
             </div>
             <div class="switch-control">
-              <input type="checkbox" id="opt-headed" checked>
+              <input type="checkbox" id="opt-headed" onchange="saveSettings()" checked>
               <span class="slider"></span>
             </div>
           </label>
@@ -154,7 +154,17 @@
               <span class="switch-subtitle">录制完整执行过程，并生成可在 Trace Viewer 中查看的 .zip 文件</span>
             </div>
             <div class="switch-control">
-              <input type="checkbox" id="opt-trace" checked>
+              <input type="checkbox" id="opt-trace" onchange="saveSettings()" checked>
+              <span class="slider"></span>
+            </div>
+          </label>
+          <label class="modal-switch-row">
+            <div class="switch-desc">
+              <span class="switch-title">断言成功时自动截图 (--screenshot-on-assert)</span>
+              <span class="switch-subtitle">在每一个 assert_exists 成功执行后自动保存页面快照</span>
+            </div>
+            <div class="switch-control">
+              <input type="checkbox" id="opt-screenshot-on-assert" onchange="saveSettings()" checked>
               <span class="slider"></span>
             </div>
           </label>
@@ -177,6 +187,6 @@
     <button class="lightbox-nav-btn next-btn" onclick="navigateLightbox(1)">&rsaquo;</button>
   </div>
   
-  <script src="index.js"></script>
+  <script src="index.js?v=1.0.5"></script>
 </body>
 </html>

@@ -7,9 +7,11 @@ let currentCase = null;
 let logEventSource = null;
 let currentStatusFilter = 'all';
 let selectedCasePaths = new Set();
+let terminalLogs = '';
 
 // 初始化加载
 document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
   loadCases();
 });
 
@@ -25,6 +27,14 @@ async function loadCases() {
     renderCaseList();
     updateCaseCount();
     
+    // 恢复先前选中的 Case
+    if (!currentCase) {
+      const savedName = localStorage.getItem('selectedCaseName');
+      if (savedName) {
+        currentCase = casesData.find(c => c.name === savedName) || null;
+      }
+    }
+
     // 如果有当前选中的 Case，重新渲染详情
     if (currentCase) {
       const updated = casesData.find(c => c.name === currentCase.name);
@@ -157,6 +167,7 @@ function selectCaseByName(encodedName) {
 
 async function selectCase(c) {
   currentCase = c;
+  localStorage.setItem('selectedCaseName', c.name);
   
   // 更新高亮样式
   renderCaseList();
@@ -287,7 +298,6 @@ function showSubSteps(stepId) {
           <span class="substep-title">主步骤脚本执行</span>
           <span class="substep-status ${step.completed ? 'completed' : 'pending'}">${step.completed ? '已完成' : '未运行'}</span>
         </div>
-        <p style="font-size:12px;color:var(--text-secondary)">此步骤不含 sub_steps 子步骤。执行时直接运行主 script 脚本并配置 API 网络响应拦截缓存。</p>
       </div>
     `;
   } else if (!detail || Object.keys(detail).length === 0) {
@@ -377,6 +387,7 @@ async function runCurrentCase(fromStart = false) {
 
   const headed = document.getElementById('opt-headed').checked;
   const trace = document.getElementById('opt-trace').checked;
+  const screenshotOnAssert = document.getElementById('opt-screenshot-on-assert').checked;
   const path = currentCase.filePath;
 
   // 状态改为 running
@@ -388,7 +399,7 @@ async function runCurrentCase(fromStart = false) {
   terminal.textContent = '';
 
   // 创建 EventSource
-  const url = `/api/run-stream?cases=${encodeURIComponent(path)}&headed=${headed}&trace=${trace}`;
+  const url = `/api/run-stream?cases=${encodeURIComponent(path)}&headed=${headed}&trace=${trace}&screenshotOnAssert=${screenshotOnAssert}`;
   if (logEventSource) {
     logEventSource.close();
   }
@@ -426,6 +437,7 @@ async function runAllSelected() {
 
   const headed = document.getElementById('opt-headed').checked;
   const trace = document.getElementById('opt-trace').checked;
+  const screenshotOnAssert = document.getElementById('opt-screenshot-on-assert').checked;
 
   // 状态修改为 running
   casesData.forEach(c => {
@@ -444,7 +456,7 @@ async function runAllSelected() {
   const terminal = document.getElementById('terminal-body');
   if (terminal) terminal.textContent = '';
 
-  const url = `/api/run-stream?cases=${encodeURIComponent(files.join(','))}&headed=${headed}&trace=${trace}`;
+  const url = `/api/run-stream?cases=${encodeURIComponent(files.join(','))}&headed=${headed}&trace=${trace}&screenshotOnAssert=${screenshotOnAssert}`;
   if (logEventSource) {
     logEventSource.close();
   }
@@ -528,23 +540,117 @@ async function resetAll() {
 
 // ── 终端控制 ──
 
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function colorizeLogs(text) {
+  const escaped = escapeHtml(text);
+  const lines = escaped.split('\n');
+  const coloredLines = lines.map(line => {
+    // 1. [dsl] commands
+    if (line.includes('[dsl]')) {
+      const dslMatch = line.match(/^(\[dsl\]\s+)(\??\s*)([a-zA-Z0-9_]+)(\s+.*)?$/);
+      if (dslMatch) {
+        const prefix = dslMatch[1];
+        const optional = dslMatch[2];
+        const cmd = dslMatch[3];
+        const rest = dslMatch[4] || '';
+        
+        let cmdColor = 'var(--text-primary)';
+        if (cmd === 'open') cmdColor = '#38bdf8'; // light blue
+        else if (cmd === 'input') cmdColor = '#f59e0b'; // amber/orange
+        else if (cmd === 'tap') cmdColor = '#10b981'; // emerald green
+        else if (cmd.startsWith('assert_')) cmdColor = '#c084fc'; // purple/violet
+        else if (cmd === 'screenshot') cmdColor = '#f472b6'; // pink
+        else if (cmd === 'wait') cmdColor = '#94a3b8'; // slate gray
+        else if (cmd === 'check' || cmd === 'upload') cmdColor = '#818cf8'; // indigo
+        else if (cmd.startsWith('do_')) cmdColor = '#f43f5e'; // rose
+        else if (cmd === 'macro') cmdColor = '#fb923c'; // orange
+        else if (cmd === 'keyboard' || cmd === 'hover' || cmd === 'scroll_to') cmdColor = '#2dd4bf'; // teal
+        else if (cmd === 'execute_script') cmdColor = '#eab308'; // yellow
+        
+        const optHtml = optional ? `<span style="color:#ef4444">${optional}</span>` : '';
+        return `<span style="color:#64748b">${prefix}</span>${optHtml}<span style="color:${cmdColor};font-weight:bold">${cmd}</span>${rest}`;
+      }
+
+      // Variable assignments
+      const assignMatch = line.match(/^(\[dsl\]\s+)(\s*)(\$[a-zA-Z0-9_]+)(\s*=\s*)(.*)$/);
+      if (assignMatch) {
+        const prefix = assignMatch[1];
+        const spaces = assignMatch[2];
+        const varName = assignMatch[3];
+        const equalSign = assignMatch[4];
+        const val = assignMatch[5];
+        return `<span style="color:#64748b">${prefix}</span>${spaces}<span style="color:#2dd4bf">${varName}</span><span style="color:#94a3b8">${equalSign}</span><span style="color:#cbd5e1">${val}</span>`;
+      }
+    }
+
+    // 2. [step] logs
+    if (line.includes('[step]')) {
+      if (line.includes('✓ Step completed')) {
+        return `<span style="color:#10b981;font-weight:bold">${line}</span>`;
+      }
+      if (line.includes('✗ Step failed') || line.includes('failed after')) {
+        return `<span style="color:#ef4444;font-weight:bold">${line}</span>`;
+      }
+      return `<span style="color:#38bdf8">${line}</span>`;
+    }
+
+    // 3. [runner] logs
+    if (line.includes('[runner]')) {
+      if (line.includes('✅ Case PASSED')) {
+        return `<span style="color:#10b981;font-weight:bold;font-size:13px">${line}</span>`;
+      }
+      if (line.includes('❌ Case FAILED')) {
+        return `<span style="color:#ef4444;font-weight:bold;font-size:13px">${line}</span>`;
+      }
+      return `<span style="color:#c084fc">${line}</span>`;
+    }
+
+    // 4. [network-interceptor] logs
+    if (line.includes('[network-interceptor]')) {
+      return `<span style="color:#64748b">${line}</span>`;
+    }
+
+    // 5. [checkpoint] logs
+    if (line.includes('[checkpoint]')) {
+      return `<span style="color:#f59e0b">${line}</span>`;
+    }
+
+    // 6. [role-pool] logs
+    if (line.includes('[role-pool]')) {
+      return `<span style="color:#eab308">${line}</span>`;
+    }
+
+    // 7. [system] logs
+    if (line.includes('[system]')) {
+      return `<span style="color:#94a3b8;font-style:italic">${line}</span>`;
+    }
+
+    return line;
+  });
+  return coloredLines.join('\n');
+}
+
 function appendTerminal(text) {
   const terminal = document.getElementById('terminal-body');
   if (!terminal) return;
   
-  // HTML 转义并转换为 ANSI 彩色输出格式为简易 HTML（可选扩展）
-  // 简易过滤 ANSI color codes
   const cleanedText = text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+  terminalLogs += cleanedText;
   
-  terminal.textContent += cleanedText;
-  
-  // 保持滚动在底部
+  terminal.innerHTML = colorizeLogs(terminalLogs);
   terminal.scrollTop = terminal.scrollHeight;
 }
 
 function clearTerminal() {
   const terminal = document.getElementById('terminal-body');
-  if (terminal) terminal.textContent = '';
+  if (terminal) terminal.innerHTML = '';
+  terminalLogs = '';
 }
 
 // ── 辅助映射 ──
@@ -630,6 +736,43 @@ async function playTrace(encodedCaseName, encodedTraceFile) {
 
 // ── 设置弹窗交互 ──
 
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    const settings = await res.json();
+    if (settings) {
+      const optHeaded = document.getElementById('opt-headed');
+      const optTrace = document.getElementById('opt-trace');
+      const optAssert = document.getElementById('opt-screenshot-on-assert');
+      if (optHeaded) optHeaded.checked = !!settings.headed;
+      if (optTrace) optTrace.checked = !!settings.trace;
+      if (optAssert) optAssert.checked = !!settings.screenshotOnAssert;
+    }
+  } catch (err) {
+    console.error('加载设置失败:', err);
+  }
+}
+
+async function saveSettings() {
+  const optHeaded = document.getElementById('opt-headed');
+  const optTrace = document.getElementById('opt-trace');
+  const optAssert = document.getElementById('opt-screenshot-on-assert');
+  
+  const headed = optHeaded ? optHeaded.checked : true;
+  const trace = optTrace ? optTrace.checked : true;
+  const screenshotOnAssert = optAssert ? optAssert.checked : false;
+
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headed, trace, screenshotOnAssert })
+    });
+  } catch (err) {
+    console.error('保存设置失败:', err);
+  }
+}
+
 function openSettingsModal() {
   const modal = document.getElementById('settings-modal');
   if (modal) modal.classList.remove('hidden');
@@ -638,6 +781,7 @@ function openSettingsModal() {
 function closeSettingsModal() {
   const modal = document.getElementById('settings-modal');
   if (modal) modal.classList.add('hidden');
+  saveSettings();
 }
 
 function closeSettingsModalOnOutsideClick(event) {
