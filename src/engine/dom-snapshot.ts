@@ -38,11 +38,12 @@ export class DomSnapshotManager {
     let stateIndicator: string | undefined;
     try {
       title = await page.title();
-      stateIndicator = await page
-        .locator('[data-state]')
-        .first()
-        .getAttribute('data-state')
-        .catch(() => undefined) ?? undefined;
+      const stateLoc = page.locator('[data-state]').first();
+      if (await stateLoc.count() > 0) {
+        stateIndicator = await stateLoc
+          .getAttribute('data-state', { timeout: 1000 })
+          .catch(() => undefined) ?? undefined;
+      }
     } catch { /* ignore */ }
 
     const snapshot: DomSnapshot = {

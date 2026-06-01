@@ -111,7 +111,11 @@ export function resolveLocator(page: Page, parsed: ParsedLocator): Locator {
 
   switch (parsed.type) {
     case 'text':
-      locator = page.getByText(parsed.value, { exact: true });
+      if (hasWildcard(parsed.value)) {
+        locator = page.getByText(wildcardToRegex(parsed.value));
+      } else {
+        locator = page.getByText(parsed.value, { exact: true });
+      }
       break;
 
     case 'text_contains':
@@ -123,28 +127,54 @@ export function resolveLocator(page: Page, parsed: ParsedLocator): Locator {
       break;
 
     case 'label':
-      locator = page.getByLabel(parsed.value, { exact: true });
+      if (hasWildcard(parsed.value)) {
+        locator = page.getByLabel(wildcardToRegex(parsed.value));
+      } else {
+        locator = page.getByLabel(parsed.value, { exact: true });
+      }
       break;
 
     case 'placeholder':
-      locator = page.getByPlaceholder(parsed.value, { exact: true });
+      if (hasWildcard(parsed.value)) {
+        locator = page.getByPlaceholder(wildcardToRegex(parsed.value));
+      } else {
+        locator = page.getByPlaceholder(parsed.value, { exact: true });
+      }
       break;
 
     case 'testid':
-      locator = page.getByTestId(parsed.value);
+      if (hasWildcard(parsed.value)) {
+        locator = page.getByTestId(wildcardToRegex(parsed.value));
+      } else {
+        locator = page.getByTestId(parsed.value);
+      }
       break;
 
     case 'title':
-      locator = page.getByTitle(parsed.value, { exact: true });
+      if (hasWildcard(parsed.value)) {
+        locator = page.getByTitle(wildcardToRegex(parsed.value));
+      } else {
+        locator = page.getByTitle(parsed.value, { exact: true });
+      }
       break;
 
     case 'alt':
-      locator = page.getByAltText(parsed.value, { exact: true });
+      if (hasWildcard(parsed.value)) {
+        locator = page.getByAltText(wildcardToRegex(parsed.value));
+      } else {
+        locator = page.getByAltText(parsed.value, { exact: true });
+      }
       break;
 
     case 'role': {
-      const roleOpts = parsed.roleName ? { name: parsed.roleName } : {};
-      locator = page.getByRole(parsed.value as Parameters<typeof page.getByRole>[0], roleOpts);
+      if (parsed.roleName) {
+        const nameOpt = hasWildcard(parsed.roleName)
+          ? wildcardToRegex(parsed.roleName)
+          : parsed.roleName;
+        locator = page.getByRole(parsed.value as Parameters<typeof page.getByRole>[0], { name: nameOpt });
+      } else {
+        locator = page.getByRole(parsed.value as Parameters<typeof page.getByRole>[0]);
+      }
       break;
     }
 
@@ -186,9 +216,7 @@ export function resolveLocator(page: Page, parsed: ParsedLocator): Locator {
   return locator;
 }
 
-/**
- * 从原始字符串（可能带引号）直接解析并返回 Locator
- */
+// ── 从原始字符串（可能带引号）直接解析并返回 Locator ──────────────
 export function resolveLocatorFromString(page: Page, raw: string): Locator {
   const cleaned = stripQuotes(raw);
   return resolveLocator(page, parseLocator(cleaned));
@@ -209,4 +237,14 @@ export function stripQuotes(s: string): string {
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasWildcard(s: string): boolean {
+  return s.includes('*');
+}
+
+function wildcardToRegex(s: string): RegExp {
+  const escaped = escapeRegex(s);
+  const regexStr = '^' + escaped.replace(/\\\*/g, '[\\s\\S]*') + '$';
+  return new RegExp(regexStr);
 }

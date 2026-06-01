@@ -12,7 +12,8 @@
     "run:invoice": "npx tsx ../run.ts run cases/invoice-review-substeps.yaml",
     "validate": "npx tsx ../run.ts validate --cases-dir cases",
     "status": "npx tsx ../run.ts status",
-    "reset": "npx tsx ../run.ts reset --all"
+    "reset": "npx tsx ../run.ts reset --all",
+    "dashboard": "npx tsx ../run.ts dashboard"
   },
   "dependencies": {
     "resumewright": "file:../"

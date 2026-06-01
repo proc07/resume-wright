@@ -161,5 +161,19 @@ describe('Locator Resolver — parseLocator()', () => {
       expect(p.type).toBe('testid');
       expect(p.modifier?.last).toBe(true);
     });
+
+    it('前缀/后缀/中位 * 模糊匹配保持 text 类型，由 resolveLocator 处理', () => {
+      const p1 = parseLocator('采购*');
+      expect(p1.type).toBe('text');
+      expect(p1.value).toBe('采购*');
+
+      const p2 = parseLocator('*采购');
+      expect(p2.type).toBe('text');
+      expect(p2.value).toBe('*采购');
+
+      const p3 = parseLocator('采*购');
+      expect(p3.type).toBe('text');
+      expect(p3.value).toBe('采*购');
+    });
   });
 });

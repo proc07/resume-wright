@@ -1,0 +1,709 @@
+/* ============================================================
+   index.js — Dashboard 客户端逻辑
+   ============================================================ */
+
+let casesData = [];
+let currentCase = null;
+let logEventSource = null;
+let currentStatusFilter = 'all';
+let selectedCasePaths = new Set();
+
+// 初始化加载
+document.addEventListener('DOMContentLoaded', () => {
+  loadCases();
+});
+
+// ── 核心数据获取 ──
+
+async function loadCases() {
+  try {
+    const res = await fetch('/api/cases');
+    const data = await res.json();
+    casesData = data.cases || [];
+    // 默认不要全部选中
+    updateFilterCountBadges();
+    renderCaseList();
+    updateCaseCount();
+    
+    // 如果有当前选中的 Case，重新渲染详情
+    if (currentCase) {
+      const updated = casesData.find(c => c.name === currentCase.name);
+      if (updated) {
+        selectCase(updated);
+      }
+    }
+  } catch (err) {
+    console.error('加载用例失败:', err);
+    document.getElementById('case-list').innerHTML = `<div class="empty-msg" style="color:var(--color-error)">加载失败，请检查后端服务是否启动。</div>`;
+  }
+}
+
+function updateCaseCount() {
+  document.getElementById('case-count').textContent = casesData.length;
+}
+
+function updateFilterCountBadges() {
+  document.getElementById('pill-count-all').textContent = casesData.length;
+  document.getElementById('pill-count-passed').textContent = casesData.filter(c => c.status === 'passed').length;
+  document.getElementById('pill-count-failed').textContent = casesData.filter(c => c.status === 'failed').length;
+  document.getElementById('pill-count-paused').textContent = casesData.filter(c => c.status === 'paused').length;
+  document.getElementById('pill-count-never').textContent = casesData.filter(c => c.status === 'never_run' || c.status === 'running').length;
+}
+
+// ── 渲染用例列表 ──
+
+function renderCaseList() {
+  const container = document.getElementById('case-list');
+  const filterVal = document.getElementById('case-search-input').value.toLowerCase().trim();
+
+  let filtered = casesData;
+
+  // 1. 过滤状态
+  if (currentStatusFilter !== 'all') {
+    if (currentStatusFilter === 'never_run') {
+      filtered = filtered.filter(c => c.status === 'never_run' || c.status === 'running');
+    } else {
+      filtered = filtered.filter(c => c.status === currentStatusFilter);
+    }
+  }
+
+  // 2. 过滤检索词
+  if (filterVal) {
+    filtered = filtered.filter(c => c.name.toLowerCase().includes(filterVal) || c.filePath.toLowerCase().includes(filterVal));
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-msg">未找到匹配的用例</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(c => {
+    const isActive = currentCase && currentCase.name === c.name ? 'active' : '';
+    const progressText = `${c.completedCount}/${c.totalSteps} 步骤`;
+    const fileName = c.filePath.split('/').pop() || c.filePath;
+    const isChecked = selectedCasePaths.has(c.filePath) ? 'checked' : '';
+    return `
+      <div class="case-item ${isActive}" onclick="selectCaseByName('${encodeURIComponent(c.name)}')">
+        <div class="case-item-title">
+          <div class="case-title-left">
+            <input type="checkbox" class="case-select-checkbox" onclick="toggleCaseSelection(event, '${c.filePath}')" ${isChecked}>
+            <span class="case-item-name-text" title="${c.name}">${c.name}</span>
+          </div>
+          <span class="status-dot ${c.status}"></span>
+        </div>
+        <div class="case-item-meta">
+          <span>${progressText}</span>
+          <span><code>${fileName}</code></span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  updateSelectAllState();
+}
+
+function toggleCaseSelection(event, filePath) {
+  event.stopPropagation();
+  const checkbox = event.target;
+  if (checkbox.checked) {
+    selectedCasePaths.add(filePath);
+  } else {
+    selectedCasePaths.delete(filePath);
+  }
+  updateSelectAllState();
+}
+
+function toggleSelectAll(event) {
+  event.stopPropagation();
+  const checkbox = event.target;
+  if (checkbox.checked) {
+    casesData.forEach(c => selectedCasePaths.add(c.filePath));
+  } else {
+    selectedCasePaths.clear();
+  }
+  renderCaseList();
+  updateSelectAllState();
+}
+
+function updateSelectAllState() {
+  const selectAllCheckbox = document.getElementById('select-all-checkbox');
+  if (selectAllCheckbox) {
+    const allChecked = casesData.length > 0 && casesData.every(c => selectedCasePaths.has(c.filePath));
+    selectAllCheckbox.checked = allChecked;
+  }
+}
+
+function filterCases() {
+  renderCaseList();
+}
+
+function filterByStatus(status) {
+  currentStatusFilter = status;
+  document.querySelectorAll('.filter-pill').forEach(pill => {
+    pill.classList.remove('active');
+  });
+  event.currentTarget.classList.add('active');
+  renderCaseList();
+}
+
+function selectCaseByName(encodedName) {
+  const caseName = decodeURIComponent(encodedName);
+  const c = casesData.find(item => item.name === caseName);
+  if (c) {
+    selectCase(c);
+  }
+}
+
+// ── 渲染单例详情 ──
+
+async function selectCase(c) {
+  currentCase = c;
+  
+  // 更新高亮样式
+  renderCaseList();
+
+  // 隐藏欢迎，显示详情
+  document.getElementById('welcome-view').classList.add('hidden');
+  document.getElementById('details-view').classList.remove('hidden');
+
+  // 填充基本信息
+  document.getElementById('detail-case-name').textContent = c.name;
+  document.getElementById('detail-case-desc').textContent = c.description || '无用例描述';
+  document.getElementById('detail-case-path').textContent = c.filePath;
+
+  const badge = document.getElementById('detail-status-badge');
+  badge.textContent = statusLabel(c.status);
+  badge.className = `badge ${c.status}`;
+
+  // 控制按钮状态
+  updateButtonStates(c.status);
+
+  // 渲染步骤列表
+  renderSteps(c);
+
+  // 异步获取运行历史详情 (截图/子步骤/录像)
+  try {
+    const res = await fetch(`/api/case/${encodeURIComponent(c.name)}/details`);
+    const details = await res.json();
+    currentScreenshotsList = details.screenshots || [];
+    renderTraces(c.name, details.traces || []);
+    // 保存 sub-steps 状态用于点击步骤展开
+    c.subStepsDetail = details.subSteps || {};
+    renderSteps(c);
+    
+    // 默认展示当前未完成的或第一个步骤的子步骤详情
+    const firstActiveStep = c.steps.find(s => !s.completed) || c.steps[0];
+    if (firstActiveStep) {
+      showSubSteps(firstActiveStep.id);
+    }
+  } catch (err) {
+    console.error('获取用例详情失败:', err);
+  }
+}
+
+function updateButtonStates(status) {
+  const btnRun = document.getElementById('btn-run-case');
+  const btnRestart = document.getElementById('btn-restart-case');
+  const btnReset = document.getElementById('btn-reset-case');
+  const btnStop = document.getElementById('btn-stop-case');
+
+  if (status === 'running') {
+    btnRun.disabled = true;
+    btnRestart.disabled = true;
+    btnReset.disabled = true;
+    btnStop.classList.remove('hidden');
+  } else {
+    btnRun.disabled = false;
+    btnRestart.disabled = false;
+    btnReset.disabled = false;
+    btnStop.classList.add('hidden');
+
+    if (status === 'passed') {
+      btnRun.textContent = '▶ 重新执行';
+    } else if (status === 'paused' || status === 'failed') {
+      btnRun.textContent = '▶ 继续执行';
+    } else {
+      btnRun.textContent = '▶ 开始执行';
+    }
+  }
+}
+
+// ── 渲染用例步骤列表 ──
+
+function renderSteps(c) {
+  const container = document.getElementById('steps-timeline');
+  container.innerHTML = c.steps.map((s, index) => {
+    let stepClass = 'step-node';
+    const detail = c.subStepsDetail?.[s.id];
+    const hasFailedSubStep = detail && Object.values(detail).some(sub => sub.status === 'failed');
+    const isFailedStep = hasFailedSubStep || (c.status === 'failed' && c.completedCount === index);
+
+    if (isFailedStep) {
+      stepClass += ' failed';
+    } else if (s.completed) {
+      stepClass += ' completed';
+    } else if (c.status === 'running' && c.completedCount === index) {
+      stepClass += ' running';
+    }
+
+    return `
+      <div class="${stepClass}" id="step-node-${s.id}" onclick="showSubSteps('${s.id}')">
+        <div class="step-indicator">
+          ${isFailedStep ? '✗' : (s.completed ? '✓' : index + 1)}
+        </div>
+        <div class="step-info">
+          <div class="step-header-row">
+            <div class="step-id">${s.id}</div>
+          </div>
+          <div class="step-role">角色: ${s.role}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── 展示 SubSteps 详细缓存与快照 ──
+
+function showSubSteps(stepId) {
+  // 设置选中高亮
+  document.querySelectorAll('.step-node').forEach(el => el.classList.remove('active-step'));
+  const activeEl = document.getElementById(`step-node-${stepId}`);
+  if (activeEl) activeEl.classList.add('active-step');
+
+  const panel = document.getElementById('substeps-panel');
+  if (!currentCase) return;
+
+  const step = currentCase.steps.find(s => s.id === stepId);
+  const detail = currentCase.subStepsDetail?.[stepId];
+
+  if (!step) return;
+
+  let html = '';
+
+  if (step.subStepsCount === 0) {
+    // 该 Step 无 sub_steps，可能只有 script
+    html = `
+      <div class="substep-card">
+        <div class="substep-header">
+          <span class="substep-title">主步骤脚本执行</span>
+          <span class="substep-status ${step.completed ? 'completed' : 'pending'}">${step.completed ? '已完成' : '未运行'}</span>
+        </div>
+        <p style="font-size:12px;color:var(--text-secondary)">此步骤不含 sub_steps 子步骤。执行时直接运行主 script 脚本并配置 API 网络响应拦截缓存。</p>
+      </div>
+    `;
+  } else if (!detail || Object.keys(detail).length === 0) {
+    html = `
+      <p class="empty-msg">该步骤包含 ${step.subStepsCount} 个子步骤，但目前尚无历史执行记录。</p>
+    `;
+  } else {
+    // 渲染子步骤卡片列表
+    html = Object.entries(detail).map(([subId, state]) => {
+      const statusClass = state.status;
+      const cacheFile = state.apiCache || [];
+
+      return `
+        <div class="substep-card">
+          <div class="substep-header">
+            <span class="substep-title">子步骤: <code>${subId}</code></span>
+            <span class="substep-status ${statusClass}">${statusLabel(state.status)}</span>
+          </div>
+          ${state.retryCount ? `<div style="font-size:11px;color:var(--color-warning)">重试次数: ${state.retryCount}</div>` : ''}
+          ${state.error ? `<div style="font-size:12px;color:var(--color-error);word-break:break-all">${state.error}</div>` : ''}
+          
+          <!-- API 响应缓存列表 -->
+          <div class="api-cache-list mt-2">
+            <div class="api-cache-title">接口缓存命中 (API Response Cache)</div>
+            ${cacheFile.length === 0 ? '<div style="font-size:11px;color:#cbd5e1">暂无 API 缓存</div>' : 
+              cacheFile.map(c => `
+                <div class="api-cache-item">
+                  <div>
+                    <span class="api-cache-method">${c.method}</span>
+                    <span class="api-cache-url" title="${c.url}">${c.url}</span>
+                  </div>
+                  <span class="api-cache-badge">${c.status}</span>
+                </div>
+              `).join('')
+            }
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 过滤属于该步骤的截图 (根据文件名 startsWith stepId + '-')
+  const stepScreenshots = (currentScreenshotsList || []).filter(src => {
+    const parts = src.split('/');
+    const filename = parts[parts.length - 1];
+    return filename.startsWith(stepId + '-');
+  });
+
+  if (stepScreenshots.length > 0) {
+    html += `
+      <div class="step-screenshots-section mt-4">
+        <div class="api-cache-title" style="margin-bottom: 8px;">📸 步骤运行快照 (${stepScreenshots.length})</div>
+        <div class="screenshots-gallery">
+          ${stepScreenshots.map(src => {
+            const origIndex = currentScreenshotsList.indexOf(src);
+            const parts = src.split('/');
+            const name = parts[parts.length - 1];
+            return `
+              <div class="screenshot-card" onclick="openLightbox(${origIndex})">
+                <img src="${src}" alt="Snapshot" loading="lazy">
+                <div class="screenshot-name" title="${name}">${name}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  panel.innerHTML = html;
+}
+
+// ── 截图相册状态 ──
+
+let currentScreenshotsList = [];
+let currentLightboxIndex = -1;
+
+// ── 用例执行逻辑 (Server-Sent Events) ──
+
+async function runCurrentCase(fromStart = false) {
+  if (!currentCase) return;
+
+  if (fromStart) {
+    // 重新跑，先清断点
+    await resetCurrentCase(true);
+  }
+
+  const headed = document.getElementById('opt-headed').checked;
+  const trace = document.getElementById('opt-trace').checked;
+  const path = currentCase.filePath;
+
+  // 状态改为 running
+  currentCase.status = 'running';
+  selectCase(currentCase);
+
+  // 清空终端
+  const terminal = document.getElementById('terminal-body');
+  terminal.textContent = '';
+
+  // 创建 EventSource
+  const url = `/api/run-stream?cases=${encodeURIComponent(path)}&headed=${headed}&trace=${trace}`;
+  if (logEventSource) {
+    logEventSource.close();
+  }
+
+  logEventSource = new EventSource(url);
+
+  logEventSource.addEventListener('log', (e) => {
+    const data = JSON.parse(e.data);
+    appendTerminal(data.text);
+  });
+
+  logEventSource.addEventListener('finish', (e) => {
+    const data = JSON.parse(e.data);
+    appendTerminal(`\n\n[system] Process exited with code: ${data.exitCode}\n`);
+    logEventSource.close();
+    logEventSource = null;
+    loadCases(); // 重新加载列表更新状态
+  });
+
+  logEventSource.onerror = (err) => {
+    appendTerminal(`\n\n[system] EventSource 遇到错误连接断开。\n`);
+    logEventSource.close();
+    logEventSource = null;
+    loadCases();
+  };
+}
+
+async function runAllSelected() {
+  // 运行勾选的用例
+  const files = Array.from(selectedCasePaths);
+  if (files.length === 0) {
+    alert('请先勾选需要运行的测试用例！');
+    return;
+  }
+
+  const headed = document.getElementById('opt-headed').checked;
+  const trace = document.getElementById('opt-trace').checked;
+
+  // 状态修改为 running
+  casesData.forEach(c => {
+    if (selectedCasePaths.has(c.filePath)) {
+      c.status = 'running';
+    }
+  });
+  renderCaseList();
+
+  // 如果选中了具体详情页，且在勾选的用例中，重置详情状态为 running
+  if (currentCase && selectedCasePaths.has(currentCase.filePath)) {
+    currentCase.status = 'running';
+    selectCase(currentCase);
+  }
+
+  const terminal = document.getElementById('terminal-body');
+  if (terminal) terminal.textContent = '';
+
+  const url = `/api/run-stream?cases=${encodeURIComponent(files.join(','))}&headed=${headed}&trace=${trace}`;
+  if (logEventSource) {
+    logEventSource.close();
+  }
+
+  logEventSource = new EventSource(url);
+
+  logEventSource.addEventListener('log', (e) => {
+    const data = JSON.parse(e.data);
+    appendTerminal(data.text);
+  });
+
+  logEventSource.addEventListener('finish', (e) => {
+    const data = JSON.parse(e.data);
+    appendTerminal(`\n\n[system] All cases completed. Exit code: ${data.exitCode}\n`);
+    logEventSource.close();
+    logEventSource = null;
+    loadCases();
+  });
+
+  logEventSource.onerror = () => {
+    logEventSource.close();
+    logEventSource = null;
+    loadCases();
+  };
+}
+
+async function stopExecution() {
+  try {
+    const res = await fetch('/api/stop', { method: 'POST' });
+    const data = await res.json();
+    appendTerminal(`\n[system] Stop signal sent: ${data.message}\n`);
+  } catch (err) {
+    console.error('停止进程失败:', err);
+  }
+}
+
+async function resetCurrentCase(silent = false) {
+  if (!currentCase) return;
+  if (!silent && !confirm(`确认要重置用例 "${currentCase.name}" 的断点数据吗？重置后将清除全部已完成的步骤记录，下次执行时会从第 1 步重新开始。`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caseName: currentCase.name })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (!silent) {
+        appendTerminal(`\n[system] Checkpoint and snapshots for "${currentCase.name}" cleared.\n`);
+        loadCases();
+      }
+    }
+  } catch (err) {
+    console.error('重置断点失败:', err);
+  }
+}
+
+async function resetAll() {
+  if (!confirm('警告：确认要重置全部用例的断点数据吗？此操作会物理清除所有 Checkpoint 存档文件。')) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true })
+    });
+    const data = await res.json();
+    if (data.success) {
+      appendTerminal(`\n[system] All checkpoints cleared.\n`);
+      loadCases();
+    }
+  } catch (err) {
+    console.error('重置所有断点失败:', err);
+  }
+}
+
+// ── 终端控制 ──
+
+function appendTerminal(text) {
+  const terminal = document.getElementById('terminal-body');
+  if (!terminal) return;
+  
+  // HTML 转义并转换为 ANSI 彩色输出格式为简易 HTML（可选扩展）
+  // 简易过滤 ANSI color codes
+  const cleanedText = text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+  
+  terminal.textContent += cleanedText;
+  
+  // 保持滚动在底部
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function clearTerminal() {
+  const terminal = document.getElementById('terminal-body');
+  if (terminal) terminal.textContent = '';
+}
+
+// ── 辅助映射 ──
+
+function statusLabel(s) {
+  return {
+    passed: '执行通过',
+    failed: '执行失败',
+    paused: '断点暂停',
+    never_run: '未运行',
+    running: '正在执行...'
+  }[s] || s;
+}
+
+// ── 运行录像渲染与播放 ──
+
+function renderTraces(caseName, traces) {
+  const container = document.getElementById('trace-buttons-container');
+  if (!container) return;
+
+  if (traces.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="dropdown">
+      <button class="btn btn-outline dropdown-toggle" id="btn-play-trace" onclick="toggleTraceDropdown(event)" style="border-color: rgba(99, 102, 241, 0.4); color: var(--color-brand);">
+        🎞 播放录像 ▾
+      </button>
+      <div class="dropdown-menu" id="trace-dropdown-menu">
+        ${traces.map(file => {
+          const roleName = file.replace('-trace.zip', '');
+          return `
+            <button class="dropdown-item" onclick="playTrace('${encodeURIComponent(caseName)}', '${encodeURIComponent(file)}'); closeTraceDropdown();">
+              ${roleName}
+            </button>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleTraceDropdown(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('trace-dropdown-menu');
+  if (menu) {
+    menu.classList.toggle('show');
+  }
+}
+
+function closeTraceDropdown() {
+  const menu = document.getElementById('trace-dropdown-menu');
+  if (menu) {
+    menu.classList.remove('show');
+  }
+}
+
+document.addEventListener('click', () => {
+  closeTraceDropdown();
+});
+
+async function playTrace(encodedCaseName, encodedTraceFile) {
+  const caseName = decodeURIComponent(encodedCaseName);
+  const traceFile = decodeURIComponent(encodedTraceFile);
+
+  try {
+    const res = await fetch('/api/play-trace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caseName, traceFile })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert(`无法播放录像: ${data.error || data.message}`);
+    }
+  } catch (err) {
+    console.error('播放录像失败:', err);
+    alert('请求出错，请确保后端服务正常运行。');
+  }
+}
+
+// ── 设置弹窗交互 ──
+
+function openSettingsModal() {
+  const modal = document.getElementById('settings-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById('settings-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function closeSettingsModalOnOutsideClick(event) {
+  const modalContent = document.querySelector('#settings-modal .modal-content');
+  if (modalContent && !modalContent.contains(event.target)) {
+    closeSettingsModal();
+  }
+}
+
+// ── 幻灯片大图预览 (Lightbox) ──
+
+function openLightbox(index) {
+  if (index < 0 || index >= currentScreenshotsList.length) return;
+  currentLightboxIndex = index;
+  
+  const modal = document.getElementById('lightbox-modal');
+  const img = document.getElementById('lightbox-img');
+  const caption = document.getElementById('lightbox-caption');
+  
+  const src = currentScreenshotsList[index];
+  const parts = src.split('/');
+  const name = parts[parts.length - 1];
+  
+  img.src = src;
+  caption.textContent = name;
+  
+  modal.classList.remove('hidden');
+  
+  // 监听键盘按键
+  document.addEventListener('keydown', handleLightboxKeydown);
+}
+
+function closeLightbox() {
+  const modal = document.getElementById('lightbox-modal');
+  modal.classList.add('hidden');
+  document.removeEventListener('keydown', handleLightboxKeydown);
+}
+
+function closeLightboxOnOutsideClick(event) {
+  const img = document.getElementById('lightbox-img');
+  const prevBtn = document.querySelector('.prev-btn');
+  const nextBtn = document.querySelector('.next-btn');
+  if (event.target !== img && event.target !== prevBtn && event.target !== nextBtn) {
+    closeLightbox();
+  }
+}
+
+function navigateLightbox(direction) {
+  if (currentScreenshotsList.length <= 1) return;
+  
+  let newIndex = currentLightboxIndex + direction;
+  if (newIndex < 0) {
+    newIndex = currentScreenshotsList.length - 1; // 环绕回末尾
+  } else if (newIndex >= currentScreenshotsList.length) {
+    newIndex = 0; // 环绕回到开头
+  }
+  
+  openLightbox(newIndex);
+}
+
+function handleLightboxKeydown(e) {
+  if (e.key === 'ArrowRight') {
+    navigateLightbox(1);
+  } else if (e.key === 'ArrowLeft') {
+    navigateLightbox(-1);
+  } else if (e.key === 'Escape') {
+    closeLightbox();
+  }
+}

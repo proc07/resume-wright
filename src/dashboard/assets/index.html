@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResumeWright — 可恢复执行状态控制面板</title>
+  <!-- 引入 Google Fonts Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    
+    <!-- 左侧栏：全局配置与用例列表 -->
+    <aside class="sidebar">
+      <div class="brand-container">
+        <div class="brand">
+          <span class="brand-logo">⚓</span>
+          <div>
+            <h1>ResumeWright</h1>
+            <p>可恢复工作流自动化</p>
+          </div>
+        </div>
+        <button id="btn-settings" class="btn-settings-icon" onclick="openSettingsModal()" title="执行设置">⚙</button>
+      </div>
+      
+      <!-- 全局快速操作 -->
+      <div class="sidebar-section">
+        <h2>全局控制</h2>
+        <div class="global-actions">
+          <button id="btn-run-all" class="btn btn-primary" onclick="runAllSelected()">▶ 运行已选</button>
+          <button id="btn-reset-all" class="btn btn-outline-danger" onclick="resetAll()">⟲ 重置所有</button>
+        </div>
+      </div>
+
+      <!-- 用例列表 -->
+      <div class="sidebar-section list-section">
+        <div class="section-header">
+          <h2>测试用例</h2>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="select-all-checkbox" class="case-select-checkbox" onclick="toggleSelectAll(event)" title="全选 / 取消全选">
+            <span style="font-size: 11.5px; color: var(--text-secondary); cursor: pointer;" onclick="document.getElementById('select-all-checkbox').click()">全选</span>
+            <span class="case-count-badge" id="case-count">0</span>
+          </div>
+        </div>
+        <div class="case-search">
+          <input type="text" id="case-search-input" placeholder="搜索用例名称..." oninput="filterCases()">
+        </div>
+        
+        <!-- 用例分类过滤 -->
+        <div class="status-filters">
+          <span class="filter-pill active" onclick="filterByStatus('all')">全部 (<span id="pill-count-all">0</span>)</span>
+          <span class="filter-pill" onclick="filterByStatus('passed')">通过 (<span id="pill-count-passed">0</span>)</span>
+          <span class="filter-pill" onclick="filterByStatus('failed')">失败 (<span id="pill-count-failed">0</span>)</span>
+          <span class="filter-pill" onclick="filterByStatus('paused')">中断 (<span id="pill-count-paused">0</span>)</span>
+          <span class="filter-pill" onclick="filterByStatus('never_run')">未运行 (<span id="pill-count-never">0</span>)</span>
+        </div>
+        
+        <div id="case-list" class="case-list">
+          <!-- 动态加载用例列表 -->
+          <div class="loading-placeholder">加载用例中...</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧主面板：详细信息与终端日志 -->
+    <main class="main-content">
+      <div id="welcome-view" class="welcome-container">
+        <div class="welcome-card">
+          <span class="welcome-icon">⚡</span>
+          <h2>欢迎使用 ResumeWright 可视化控制台</h2>
+          <p>在左侧选择测试用例，即可查看详细断点完成进度、重跑用例、进行断点续跑并实时观看终端流式执行日志。</p>
+        </div>
+      </div>
+
+      <div id="details-view" class="details-container hidden">
+        <header class="case-header">
+          <div class="case-title-row">
+            <span id="detail-status-badge" class="badge">未知</span>
+            <h2 id="detail-case-name">用例名称</h2>
+          </div>
+          <p id="detail-case-desc" class="case-desc">这里是描述描述描述描述</p>
+          <p class="case-meta">文件路径: <code id="detail-case-path">cases/path.yaml</code></p>
+          
+          <div class="case-actions mt-4">
+            <button id="btn-run-case" class="btn btn-primary" onclick="runCurrentCase(false)">▶ 开始执行</button>
+            <button id="btn-restart-case" class="btn btn-outline" onclick="runCurrentCase(true)">⟲ 重新跑 (清断点)</button>
+            <button id="btn-reset-case" class="btn btn-outline-danger" onclick="resetCurrentCase()">清除断点</button>
+            <span id="trace-buttons-container" class="gap-2"></span>
+            <button id="btn-stop-case" class="btn btn-danger hidden" onclick="stopExecution()">■ 终止</button>
+          </div>
+        </header>
+
+        <!-- 详细卡片网格 -->
+        <div class="details-grid">
+          
+          <!-- 步骤进度列表 -->
+          <div class="card card-steps">
+            <h3>用例步骤树</h3>
+            <div id="steps-timeline" class="steps-timeline">
+              <!-- 动态加载步骤 -->
+            </div>
+          </div>
+
+          <!-- 子步骤详情 -->
+          <div class="card card-substeps">
+            <h3>子步骤 (SubStep) 与 API 缓存</h3>
+            <div id="substeps-panel" class="substeps-panel">
+              <p class="empty-msg">请选择上面的步骤，或在有子步骤的步骤运行后在此处查看缓存与快照状态。</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 虚拟终端日志 -->
+        <div class="terminal-container mt-6">
+          <div class="terminal-header">
+            <span class="terminal-title">📟 实时控制台输出 (Stream Logs)</span>
+            <button class="btn-clear-terminal" onclick="clearTerminal()">清空屏幕</button>
+          </div>
+          <pre id="terminal-body" class="terminal-body">等待指令...</pre>
+        </div>
+
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay hidden" onclick="closeSettingsModalOnOutsideClick(event)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>⚙ 执行配置选项</h3>
+        <button class="modal-close-btn" onclick="closeSettingsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-run-options">
+          <label class="modal-switch-row">
+            <div class="switch-desc">
+              <span class="switch-title">显示浏览器 (--headed)</span>
+              <span class="switch-subtitle">在测试运行时打开 Playwright 浏览器窗口以便观察步骤</span>
+            </div>
+            <div class="switch-control">
+              <input type="checkbox" id="opt-headed" checked>
+              <span class="slider"></span>
+            </div>
+          </label>
+          <label class="modal-switch-row">
+            <div class="switch-desc">
+              <span class="switch-title">收集执行录像 (--trace)</span>
+              <span class="switch-subtitle">录制完整执行过程，并生成可在 Trace Viewer 中查看的 .zip 文件</span>
+            </div>
+            <div class="switch-control">
+              <input type="checkbox" id="opt-trace" checked>
+              <span class="slider"></span>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeSettingsModal()">确认并关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Gallery Modal -->
+  <div id="lightbox-modal" class="lightbox-overlay hidden" onclick="closeLightboxOnOutsideClick(event)">
+    <button class="lightbox-close-btn" onclick="closeLightbox()">&times;</button>
+    <button class="lightbox-nav-btn prev-btn" onclick="navigateLightbox(-1)">&lsaquo;</button>
+    <div class="lightbox-content">
+      <img id="lightbox-img" src="" alt="Lightbox Preview">
+      <div id="lightbox-caption" class="lightbox-caption">文件名.png</div>
+    </div>
+    <button class="lightbox-nav-btn next-btn" onclick="navigateLightbox(1)">&rsaquo;</button>
+  </div>
+  
+  <script src="index.js"></script>
+</body>
+</html>

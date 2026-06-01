@@ -9,6 +9,7 @@ import { ContextStore } from './context-store.js';
 import { Checkpoint } from './checkpoint.js';
 import { RolePool } from './role-pool.js';
 import { StepExecutor } from './step-executor.js';
+import { getFormattedDateTime } from './datetime-utils.js';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -155,7 +156,7 @@ export class WorkflowRunner {
     fs.mkdirSync(dir, { recursive: true });
     const ssPath = path.join(
       dir,
-      `${caseName.replace(/[/?<>\\:*|"]/g, '_')}-error-${Date.now()}.png`
+      `${caseName.replace(/[/?<>\\:*|"]/g, '_')}-error-${getFormattedDateTime()}.png`
     );
 
     // 对所有活跃角色都截图

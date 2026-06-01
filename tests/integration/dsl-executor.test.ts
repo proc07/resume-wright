@@ -185,6 +185,17 @@ describe('DSL 执行器集成测试', () => {
       // 不抛出即为通过
     });
 
+    it('断言模糊匹配元素存在', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        input "断言测试" to "label:申请标题"
+        input "500" to "testid:amount-input"
+        tap "role:button[提交申请]"
+        assert_exists "*已提交*" 5s
+      `, page, ctx, {});
+    });
+
     it('断言不存在 — loading 消失', async () => {
       const ctx = makeCtx();
       await executeScript(`

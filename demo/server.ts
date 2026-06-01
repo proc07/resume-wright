@@ -33,6 +33,9 @@ const serverDB: {
   invoices: {},
 };
 
+let uiFailCount = 0;
+let apiFailCount = 0;
+
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     let body = '';
@@ -52,6 +55,59 @@ function jsonRes(res: http.ServerResponse, code: number, data: unknown) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url!, `http://${req.headers.host}`);
   const pathname = url.pathname;
+
+  // ── UI Locator Fail Demo
+  if (pathname === '/ui-locator-fail' && req.method === 'GET') {
+    uiFailCount++;
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    const isFirstRun = (uiFailCount % 2 === 1);
+    
+    const buttonHtml = isFirstRun
+      ? `<button class="btn btn-primary" id="wrong-btn" disabled style="background:#4b5563;">请等待... (第 ${uiFailCount} 次请求，未就绪)</button>`
+      : `<button class="btn btn-success" id="confirm-btn" style="background:#10b981;color:white;" onclick="document.getElementById('result').textContent='成功完成'">点击确认</button>`;
+      
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>UI Locator Retry Demo</title>
+        <style>
+          body { font-family: system-ui, sans-serif; background: #0b0f19; color: #f8fafc; padding: 40px; text-align: center; }
+          .card { background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 28px; max-width: 450px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+          .btn { padding: 10px 20px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; margin-top: 20px; font-size: 14px; }
+          #result { margin-top: 20px; font-weight: bold; color: #10b981; font-size: 18px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>UI 节点获取重试演示</h2>
+          <p style="color:#94a3b8;font-size:13px;line-height:1.5;margin-top:10px;">
+            如果是第一次执行，页面上将不存在 id 为 <code style="color:#38bdf8;">confirm-btn</code> 的可点击按钮，从而触发测试失败。<br>
+            再次运行（或续跑/重新跑）时，按钮将正确出现，完成测试。
+          </p>
+          ${buttonHtml}
+          <div id="result"></div>
+        </div>
+      </body>
+      </html>
+    `);
+    return;
+  }
+
+  // ── API Fail Once Demo
+  if (pathname === '/api/fail-once' && req.method === 'GET') {
+    apiFailCount++;
+    if (apiFailCount % 2 === 1) {
+      res.writeHead(500, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify({ error: `Internal Server Error (Fail count: ${apiFailCount})` }));
+      return;
+    }
+    return jsonRes(res, 200, { status: "ok", count: apiFailCount });
+  }
 
   // ── CORS preflight
   if (req.method === 'OPTIONS') {

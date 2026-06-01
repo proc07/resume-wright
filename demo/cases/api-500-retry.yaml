@@ -1,0 +1,15 @@
+name: "API请求500错误重试演示"
+description: "第一次运行由于API服务500报错而失败，再次运行成功"
+timeout: 60000
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  - id: step1_api_test
+    role: requester
+    script: |
+      open "http://127.0.0.1:61775/login"
+      $res = do_get "http://127.0.0.1:61775/api/fail-once"
+      assert_text_equal "$res.status" "ok"
+      screenshot

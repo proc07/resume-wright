@@ -7,6 +7,7 @@ import type { StepExecutionContext } from '../types/engine.types.js';
 import { NetworkInterceptor } from './network-interceptor.js';
 import { SubStepExecutor } from './sub-step-executor.js';
 import { executeScript } from '../dsl/executor.js';
+import { getFormattedDateTime } from './datetime-utils.js';
 import path from 'node:path';
 
 /**
@@ -53,7 +54,7 @@ export class StepExecutor {
             const ssDir = screenshotDir;
             const { mkdirSync } = await import('node:fs');
             mkdirSync(ssDir, { recursive: true });
-            const ssPath = path.join(ssDir, `${step.id}-error-${Date.now()}.png`);
+            const ssPath = path.join(ssDir, `${step.id}-error-${getFormattedDateTime()}.png`);
             await page.screenshot({ path: ssPath });
             console.log(`[step] 📸 Error screenshot: ${ssPath}`);
           } catch { /* ignore */ }

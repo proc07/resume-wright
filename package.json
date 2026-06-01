@@ -44,7 +44,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "dashboard": "tsx run.ts dashboard"
   },
   "dependencies": {
     "@playwright/test": "^1.44.0",

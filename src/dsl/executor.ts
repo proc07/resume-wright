@@ -12,6 +12,7 @@ import { parseScript } from './parser.js';
 import { loadMacro } from './macro-loader.js';
 import { resolveLocatorFromString, stripQuotes } from './locator-resolver.js';
 import type { ContextStore } from '../engine/context-store.js';
+import { getFormattedDateTime } from '../engine/datetime-utils.js';
 
 export interface ExecutorOptions {
   screenshotDir?: string;
@@ -245,7 +246,7 @@ async function executeCommand(
     case 'screenshot': {
       const dir = opts.screenshotDir ?? '.resumewright/screenshots';
       fs.mkdirSync(dir, { recursive: true });
-      const timestamp = Date.now();
+      const timestamp = getFormattedDateTime();
       const stepId = opts.stepId ?? 'unknown';
       const screenshotPath = path.join(dir, `${stepId}-${timestamp}.png`);
       await page.screenshot({ path: screenshotPath, fullPage: false });
@@ -337,9 +338,19 @@ async function executeCommand(
       const rightVal = right.startsWith('$')
         ? String(ctx.getPath(right.slice(1)) ?? right)
         : right;
-      if (leftVal !== rightVal) {
+
+      const isMatch = (val: string, pattern: string): boolean => {
+        if (pattern.includes('*')) {
+          const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regexStr = '^' + escaped.replace(/\\\*/g, '[\\s\\S]*') + '$';
+          return new RegExp(regexStr).test(val);
+        }
+        return val === pattern;
+      };
+
+      if (!isMatch(leftVal, rightVal)) {
         throw new Error(
-          `assert_text_equal failed: "${leftVal}" !== "${rightVal}"`
+          `assert_text_equal failed: "${leftVal}" does not match pattern "${rightVal}"`
         );
       }
       break;

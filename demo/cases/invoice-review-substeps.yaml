@@ -76,5 +76,5 @@ steps:
       assert_exists "已审核通过" 5s
       $final = ".invoice-status"
       assert_text_equal "$final" "已审核通过"
-      ? assert_exists "已入账" 3s
+      ? assert_exists "*已入账*" 3s
       screenshot

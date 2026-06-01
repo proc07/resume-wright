@@ -1,0 +1,15 @@
+name: "UI节点获取失败重试演示"
+description: "第一次运行由于按钮未加载出来而失败，再次运行成功"
+timeout: 60000
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  - id: step1_ui_test
+    role: requester
+    script: |
+      open "http://127.0.0.1:61775/ui-locator-fail"
+      tap "#confirm-btn"
+      assert_exists "成功完成" 5s
+      screenshot

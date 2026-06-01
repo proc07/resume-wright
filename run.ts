@@ -13,7 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { Scheduler } from './src/engine/scheduler.js';
 import { WorkflowRunner } from './src/engine/workflow-runner.js';
-import { listCheckpoints, resetAllCheckpoints, Checkpoint } from './src/engine/checkpoint.js';
+import { listCheckpoints, Checkpoint } from './src/engine/checkpoint.js';
 import { loadCase } from './src/adapters/yaml-loader.js';
 import { formatDuration } from './src/engine/workflow-runner.js';
 
@@ -116,12 +116,16 @@ program
 
 program
   .command('reset [file]')
-  .description('Clear checkpoint for a specific case or all cases')
-  .option('--all', 'Reset all checkpoints')
+  .description('Clear checkpoint and runtime directories for a specific case or all cases')
+  .option('--all', 'Reset all checkpoints and runtime directories')
   .action((file: string | undefined, opts) => {
     if (opts.all) {
-      resetAllCheckpoints();
-      console.log('[reset] All checkpoints cleared.');
+      // 彻底物理清理 .resumewright 目录下所有的内容（包含子步骤状态、API 缓存、截图、录像等）
+      const baseDir = path.join(process.cwd(), '.resumewright');
+      if (fs.existsSync(baseDir)) {
+        fs.rmSync(baseDir, { recursive: true, force: true });
+      }
+      console.log('[reset] All checkpoints and runtime directories cleared.');
       return;
     }
 
@@ -133,9 +137,15 @@ program
     try {
       const filePath = path.resolve(file);
       const definition = loadCase(filePath);
-      const checkpoint = new Checkpoint(definition.name);
-      checkpoint.reset();
-      console.log(`[reset] Checkpoint cleared for: ${definition.name}`);
+
+      // 彻底物理清理该 case 的隔离运行目录（包含 checkpoint.json、子步骤状态、API 缓存等）
+      const safeCaseName = definition.name.replace(/[/?<>\\:*|"]/g, '_');
+      const caseDir = path.join(process.cwd(), '.resumewright', safeCaseName);
+      if (fs.existsSync(caseDir)) {
+        fs.rmSync(caseDir, { recursive: true, force: true });
+      }
+
+      console.log(`[reset] Checkpoint and runtime directory cleared for: ${definition.name}`);
     } catch (err) {
       console.error(`[reset] Error: ${String(err)}`);
       process.exit(1);
@@ -201,6 +211,17 @@ program
       }
       console.log('');
     }
+  });
+
+// ── dashboard 命令 ─────────────────────────────────────────────
+
+program
+  .command('dashboard')
+  .description('Start the Web Dashboard to monitor and control execution')
+  .option('-p, --port <port>', 'Port to run the dashboard on', '3000')
+  .action(async (opts) => {
+    const { startDashboardServer } = await import('./src/dashboard/server.js');
+    await startDashboardServer(parseInt(opts.port, 10));
   });
 
 program.parse(process.argv);
