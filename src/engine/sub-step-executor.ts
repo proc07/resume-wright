@@ -14,6 +14,7 @@ export interface SubStepExecutorOptions {
   screenshotDir?: string;
   macrosDir?: string;
   subStepsBaseDir?: string;
+  defaultOnFailure?: import('../types/case.types.js').OnFailureConfig;
 }
 
 /**
@@ -57,7 +58,7 @@ export class SubStepExecutor {
   }
 
   private async executeOne(subStep: SubStep): Promise<void> {
-    const { id, script, on_failure, snapshot_before_submit } = subStep;
+    const { id, script, snapshot_before_submit } = subStep;
 
     // 已完成则跳过
     if (this.store.isCompleted(id)) {
@@ -65,6 +66,7 @@ export class SubStepExecutor {
       return;
     }
 
+    const on_failure = subStep.on_failure ?? this.opts.defaultOnFailure;
     const maxRetries = on_failure?.max_retries ?? 3;
     const retryDelay = on_failure?.retry_delay ?? 3000;
     const restoreSnapshot = on_failure?.restore_snapshot ?? false;

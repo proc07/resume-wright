@@ -42,6 +42,7 @@ const CaseSchema = z.object({
   description: z.string().optional(),
   timeout: z.number().int().positive().optional(),
   roles: z.record(z.string(), RoleSchema),
+  on_failure: OnFailureSchema.optional(),
   steps: z.array(StepSchema).min(1),
 });
 

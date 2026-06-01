@@ -31,9 +31,12 @@ export class StepExecutor {
     console.log(`[step] ▶ Executing step: ${step.id} (role: ${step.role})`);
     console.log(`${'═'.repeat(60)}`);
 
-    const maxRetries = step.on_failure?.max_retries ?? 0;
-    const retryDelay = step.on_failure?.retry_delay ?? 3000;
-    const strategy = step.on_failure?.strategy ?? 'retry';
+    const defaultOnFailure = this.execCtx.defaultOnFailure;
+    const stepOnFailure = step.on_failure ?? defaultOnFailure;
+
+    const maxRetries = stepOnFailure?.max_retries ?? 0;
+    const retryDelay = stepOnFailure?.retry_delay ?? 3000;
+    const strategy = stepOnFailure?.strategy ?? 'retry';
     let attempt = 0;
 
     while (true) {
@@ -112,6 +115,7 @@ export class StepExecutor {
           screenshotDir,
           macrosDir: 'macros',
           subStepsBaseDir: path.join(caseDir, 'sub-steps'),
+          defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
         }
       );
       await subExec.executeAll(step.sub_steps);

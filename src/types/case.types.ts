@@ -34,5 +34,6 @@ export interface CaseDefinition {
   description?: string;
   timeout?: number;                        // 整体超时 ms
   roles: Record<string, RoleCredential>;
+  on_failure?: OnFailureConfig;
   steps: Step[];
 }

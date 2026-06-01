@@ -80,6 +80,7 @@ export class WorkflowRunner {
       checkpoint,
       caseName,
       screenshotDir: this.opts.screenshotOnFail ? screenshotDir : '',
+      defaultOnFailure: this.definition.on_failure,
     });
 
     let completedSteps = checkpoint.completedCount();

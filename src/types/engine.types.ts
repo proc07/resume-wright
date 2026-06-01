@@ -33,6 +33,7 @@ export interface StepExecutionContext {
   checkpoint: import('../engine/checkpoint.js').Checkpoint;
   caseName: string;
   screenshotDir: string;
+  defaultOnFailure?: import('./case.types.js').OnFailureConfig;
 }
 
 /** Case 执行结果 */

@@ -5,6 +5,12 @@ name: "发票审核全流程"
 description: "含子步骤的发票上传与多级审核，演示 SubStep 断点续跑"
 timeout: 480000
 
+# 全局默认失败重试配置，该 Case 下所有 Steps 和 SubSteps 均默认继承
+on_failure:
+  strategy: retry
+  max_retries: 2
+  restore_snapshot: true
+
 roles:
   submitter: { username: "submitter@co.com", password: "sub_pass" }
   reviewer:  { username: "reviewer@co.com",  password: "rev_pass" }
@@ -12,9 +18,6 @@ roles:
 steps:
   - id: step1_upload_invoice
     role: submitter
-    on_failure:
-      strategy: retry
-      max_retries: 2
     sub_steps:
       - id: fill_basic_info
         script: |
@@ -22,9 +25,6 @@ steps:
           input "2024年Q3差旅报销" to "label:发票标题"
           input "12580" to "label:金额"
           input "差旅费" to "label:费用类型"
-        on_failure:
-          strategy: retry
-          max_retries: 3
 
       - id: upload_files
         snapshot_before_submit: true
@@ -33,10 +33,6 @@ steps:
           assert_exists "上传成功" 15s
           upload "./fixtures/invoice_002.pdf"
           assert_exists "上传成功" 15s
-        on_failure:
-          strategy: retry
-          max_retries: 2
-          restore_snapshot: true
 
       - id: submit_invoice
         snapshot_before_submit: true
@@ -46,17 +42,9 @@ steps:
           $invoice_url = current_url
           $invoice_id  = url_match "/invoice/([\w-]+)"
           screenshot
-        on_failure:
-          strategy: retry
-          max_retries: 2
-          restore_snapshot: true
 
   - id: step2_review
     role: reviewer
-    on_failure:
-      strategy: retry
-      max_retries: 3
-      restore_snapshot: true
     script: |
       open "$invoice_url"
 
