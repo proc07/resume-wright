@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadCase } from '../adapters/yaml-loader.js';
-import { Checkpoint, listCheckpoints, resetAllCheckpoints } from '../engine/checkpoint.js';
+import { Checkpoint, listCheckpoints, resetAllCheckpoints, resetCaseRuntime, resetAllRuntimes } from '../engine/checkpoint.js';
 
 // 获取当前目录路径（ESM 规范下替代 __dirname）
 const __filename = fileURLToPath(import.meta.url);
@@ -40,6 +40,27 @@ function loadDashboardSettings(): DashboardSettings {
     trace: true,
     screenshotOnAssert: true
   };
+}
+
+function markHistoryAsTerminated(caseName: string, exitCode: number | null): void {
+  try {
+    const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+    const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
+    if (fs.existsSync(historyFile)) {
+      const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+      let modified = false;
+      for (const run of history) {
+        if (run.status === 'running') {
+          run.status = 'failed';
+          run.error = `进程终止 (退出码: ${exitCode ?? '未知'})`;
+          modified = true;
+        }
+      }
+      if (modified) {
+        fs.writeFileSync(historyFile, JSON.stringify(history, null, 2), 'utf-8');
+      }
+    }
+  } catch { /* ignore */ }
 }
 
 function saveDashboardSettings(settings: DashboardSettings): void {
@@ -114,12 +135,14 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         return jsonRes(res, 200, { cases: [] });
       }
 
-      const files = fs.readdirSync(casesDir).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
+      const { default: fg } = await import('fast-glob');
+      const pattern = path.join(casesDir, '**/*.{yaml,yml}').replace(/\\/g, '/');
+      const files = await fg(pattern);
       const checkpoints = listCheckpoints();
 
       const cases = files.map((file) => {
-        const filePath = path.join(casesDir, file);
-        const relativePath = path.join('cases', file);
+        const filePath = path.resolve(file);
+        const relativePath = path.relative(process.cwd(), file).replace(/\\/g, '/');
         try {
           const definition = loadCase(filePath);
           const cp = new Checkpoint(definition.name);
@@ -156,7 +179,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
           };
         } catch (err) {
           return {
-            name: file,
+            name: path.basename(file),
             description: `解析失败: ${String(err)}`,
             filePath: relativePath,
             steps: [],
@@ -260,36 +283,73 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
   }
 
+  // ── REST API: GET /api/case/:caseName/history — 获取运行历史记录 ──
+  if (pathname.startsWith('/api/case/') && pathname.endsWith('/history') && req.method === 'GET') {
+    try {
+      const segments = pathname.split('/');
+      const encodedCaseName = segments[3];
+      if (!encodedCaseName) return jsonRes(res, 400, { error: 'Missing caseName' });
+
+      const caseName = decodeURIComponent(encodedCaseName);
+      const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+      const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
+
+      if (fs.existsSync(historyFile)) {
+        const data = fs.readFileSync(historyFile, 'utf-8');
+        return jsonRes(res, 200, JSON.parse(data));
+      }
+      return jsonRes(res, 200, []);
+    } catch (err: any) {
+      return jsonRes(res, 500, { error: err.message });
+    }
+  }
+
+  // ── REST API: GET /api/case/:caseName/history/:runId/log — 获取特定运行日志 ──
+  if (pathname.startsWith('/api/case/') && pathname.includes('/history/') && pathname.endsWith('/log') && req.method === 'GET') {
+    try {
+      const segments = pathname.split('/');
+      const encodedCaseName = segments[3];
+      const runId = segments[5];
+      if (!encodedCaseName || !runId) return jsonRes(res, 400, { error: 'Missing caseName or runId' });
+
+      const caseName = decodeURIComponent(encodedCaseName);
+      const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+      const logFile = path.join('.resumewright', safeCaseName, 'history', `${runId}.log`);
+
+      if (fs.existsSync(logFile)) {
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        fs.createReadStream(logFile).pipe(res);
+        return;
+      }
+      return jsonRes(res, 404, { error: 'Log file not found' });
+    } catch (err: any) {
+      return jsonRes(res, 500, { error: err.message });
+    }
+  }
+
   // ── REST API: POST /api/reset — 重置 Checkpoint ──
   if (pathname === '/api/reset' && req.method === 'POST') {
     try {
       const body = await readJsonBody(req);
       if (body.all) {
-        resetAllCheckpoints();
+        resetAllRuntimes();
         // 清除内存缓存
         for (const k of Object.keys(lastRunStatuses)) {
           delete lastRunStatuses[k];
         }
-        // 彻底物理清理 .resumewright 目录下所有的内容（包含子步骤状态、截图、录像等）
-        const baseDir = path.join(process.cwd(), '.resumewright');
-        if (fs.existsSync(baseDir)) {
-          fs.rmSync(baseDir, { recursive: true, force: true });
-        }
-        return jsonRes(res, 200, { success: true, message: 'All checkpoints and runtime directories reset' });
+        return jsonRes(res, 200, { success: true, message: 'All checkpoints and runtime directories reset (history preserved)' });
       }
 
       if (body.caseName) {
         const cp = new Checkpoint(body.caseName);
         cp.reset();
         delete lastRunStatuses[body.caseName];
-        // 彻底清空其所在的 caseRuntimeDir 下的 screenshots 等，确保重新运行是从头全新运行
+        // 清空其所在的 caseRuntimeDir 下的 screenshots 等，保留 history 目录
         const safeCaseName = body.caseName.replace(/[/?<>\\:*|"]/g, '_');
         const caseDir = path.join('.resumewright', safeCaseName);
-        if (fs.existsSync(caseDir)) {
-          fs.rmSync(caseDir, { recursive: true, force: true });
-        }
+        resetCaseRuntime(caseDir);
 
-        return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName}` });
+        return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (history preserved)` });
       }
 
       return jsonRes(res, 400, { error: 'Provide caseName or all: true' });
@@ -366,15 +426,36 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     });
     activeProcess = proc;
 
-    proc.stdout.on('data', (chunk) => {
-      sendEvent('log', { text: chunk.toString() });
-    });
+    let buffer = '';
+    const handleLogData = (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
 
-    proc.stderr.on('data', (chunk) => {
-      sendEvent('log', { text: chunk.toString() });
-    });
+      for (const line of lines) {
+        const match = line.match(/^\[case:([^\]]+)\](.*)$/);
+        if (match) {
+          const safeCaseName = match[1]!;
+          const text = match[2]!;
+          sendEvent('log', { case: safeCaseName, text: text + '\n' });
+        } else {
+          sendEvent('log', { text: line + '\n' });
+        }
+      }
+    };
+
+    proc.stdout.on('data', handleLogData);
+    proc.stderr.on('data', handleLogData);
 
     proc.on('close', (code) => {
+      if (buffer) {
+        const match = buffer.match(/^\[case:([^\]]+)\](.*)$/);
+        if (match) {
+          sendEvent('log', { case: match[1]!, text: match[2]! });
+        } else {
+          sendEvent('log', { text: buffer });
+        }
+      }
       activeProcess = null;
       const status = code === 0 ? 'passed' : 'failed';
 
@@ -384,6 +465,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
           const absolute = path.resolve(process.cwd(), f);
           const def = loadCase(absolute);
           lastRunStatuses[def.name] = status;
+          markHistoryAsTerminated(def.name, code);
         } catch { /* ignore */ }
       });
 
@@ -407,10 +489,11 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     if (activeProcess) {
       activeProcess.kill();
       activeProcess = null;
-      // 重置所有 running 状态为 failed
+      // 重置所有 running 状态为 failed并标记运行历史为终止
       for (const k of Object.keys(lastRunStatuses)) {
         if (lastRunStatuses[k] === 'running') {
           lastRunStatuses[k] = 'failed';
+          markHistoryAsTerminated(k, -1);
         }
       }
       return jsonRes(res, 200, { success: true, message: 'Process terminated' });

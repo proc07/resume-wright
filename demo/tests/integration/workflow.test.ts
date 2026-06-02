@@ -331,14 +331,14 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
   const DIR = path.join(import.meta.dirname, '../../cases');
 
   it('purchase-approval.yaml 结构正确', () => {
-    const def = loadCase(path.join(DIR, 'purchase-approval.yaml'));
+    const def = loadCase(path.join(DIR, 'workflows/purchase-approval.yaml'));
     expect(def.name).toBe('采购申请全流程审批');
     expect(def.steps).toHaveLength(4);
     expect(Object.keys(def.roles)).toEqual(['requester', 'manager', 'finance']);
   });
 
   it('invoice-review-substeps.yaml 子步骤结构正确', () => {
-    const def = loadCase(path.join(DIR, 'invoice-review-substeps.yaml'));
+    const def = loadCase(path.join(DIR, 'workflows/invoice/invoice-review-substeps.yaml'));
     expect(def.steps[0]!.sub_steps).toHaveLength(3);
     expect(def.steps[0]!.sub_steps![1]!.snapshot_before_submit).toBe(true);
   });

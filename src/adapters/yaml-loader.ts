@@ -37,6 +37,15 @@ const RoleSchema = z.object({
   password: z.string(),
 });
 
+const HookSchema = z.union([z.string(), z.array(z.string())])
+  .transform((val) => {
+    if (Array.isArray(val)) {
+      return val.join('\n');
+    }
+    return val;
+  })
+  .optional();
+
 const CaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -44,6 +53,8 @@ const CaseSchema = z.object({
   roles: z.record(z.string(), RoleSchema),
   on_failure: OnFailureSchema.optional(),
   steps: z.array(StepSchema).min(1),
+  before_hooks: HookSchema,
+  after_hooks: HookSchema,
 });
 
 // ── Loader ────────────────────────────────────────────────────

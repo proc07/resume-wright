@@ -231,7 +231,7 @@ describe('DSL 执行器集成测试', () => {
 
       const files = fs.readdirSync(tempDir);
       expect(files.length).toBe(1);
-      expect(files[0]).toContain('test_assert_step-assert-');
+      expect(files[0]).toBe('工作流申请表单-test_assert_step.png');
       expect(files[0]?.endsWith('.png')).toBe(true);
 
       fs.rmSync(tempDir, { recursive: true, force: true });

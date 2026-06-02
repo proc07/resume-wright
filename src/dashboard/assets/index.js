@@ -7,12 +7,18 @@ let currentCase = null;
 let logEventSource = null;
 let currentStatusFilter = 'all';
 let selectedCasePaths = new Set();
-let terminalLogs = '';
+const caseLogs = {};
+const collapsedFolders = new Set();
+
+function getSafeCaseName(name) {
+  return name.replace(/[/?<>\\:*|"]/g, '_');
+}
 
 // 初始化加载
 document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   loadCases();
+  initTerminalResizer();
 });
 
 // ── 核心数据获取 ──
@@ -62,6 +68,161 @@ function updateFilterCountBadges() {
 
 // ── 渲染用例列表 ──
 
+function buildTree(cases) {
+  const root = { name: 'Root', type: 'folder', path: 'cases', children: [] };
+
+  for (const c of cases) {
+    const relativePath = c.filePath.replace(/^cases\//, '');
+    const parts = relativePath.split('/');
+    
+    let currentNode = root;
+    let currentPath = 'cases';
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      currentPath = currentPath + '/' + part;
+      const isLast = (i === parts.length - 1);
+
+      if (isLast) {
+        currentNode.children.push({
+          name: c.name,
+          type: 'case',
+          path: c.filePath,
+          caseData: c
+        });
+      } else {
+        let folder = currentNode.children.find(child => child.type === 'folder' && child.name === part);
+        if (!folder) {
+          folder = {
+            name: part,
+            type: 'folder',
+            path: currentPath,
+            children: []
+          };
+          currentNode.children.push(folder);
+        }
+        currentNode = folder;
+      }
+    }
+  }
+  
+  return root.children;
+}
+
+function sortTree(nodes) {
+  nodes.sort((a, b) => {
+    if (a.type !== b.type) {
+      return a.type === 'folder' ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  
+  for (const node of nodes) {
+    if (node.type === 'folder' && node.children) {
+      sortTree(node.children);
+    }
+  }
+}
+
+function renderTreeNode(node, depth = 0) {
+  const indent = depth * 12;
+  
+  if (node.type === 'case') {
+    const c = node.caseData;
+    const isActive = currentCase && currentCase.name === c.name ? 'active' : '';
+    const progressText = `${c.completedCount}/${c.totalSteps} 步骤`;
+    const fileName = c.filePath.split('/').pop() || c.filePath;
+    const isChecked = selectedCasePaths.has(c.filePath) ? 'checked' : '';
+    
+    return `
+      <div class="case-item ${isActive}" style="margin-left: ${indent}px;" onclick="selectCaseByName('${encodeURIComponent(c.name)}')">
+        <div class="case-item-title">
+          <div class="case-title-left">
+            <input type="checkbox" class="case-select-checkbox" onclick="toggleCaseSelection(event, '${c.filePath}')" ${isChecked}>
+            <span class="case-item-name-text" title="${c.name}">${c.name}</span>
+          </div>
+          <span class="status-dot ${c.status}"></span>
+        </div>
+        <div class="case-item-meta">
+          <span class="case-meta-left">${progressText}</span>
+          <span class="case-meta-right" title="${fileName}"><code>${fileName}</code></span>
+        </div>
+      </div>
+    `;
+  } else {
+    const isCollapsed = collapsedFolders.has(node.path) ? 'collapsed' : '';
+    const childrenHtml = node.children.map(child => renderTreeNode(child, depth + 1)).join('');
+    
+    return `
+      <div class="folder-node ${isCollapsed}">
+        <div class="folder-header" style="padding-left: ${indent}px" onclick="toggleFolderCollapse(event, '${node.path}')">
+          <span class="folder-toggle-icon">▼</span>
+          <input type="checkbox" class="folder-select-checkbox" data-folder-path="${node.path}" onclick="toggleFolderSelection(event, '${node.path}')">
+          <span class="folder-icon">📁</span>
+          <span class="folder-name-text" title="${node.name}">${node.name}</span>
+        </div>
+        <div class="folder-children">
+          ${childrenHtml}
+        </div>
+      </div>
+    `;
+  }
+}
+
+function toggleFolderCollapse(event, folderPath) {
+  event.stopPropagation();
+  const folderHeader = event.currentTarget;
+  const folderEl = folderHeader.closest('.folder-node');
+  if (folderEl) {
+    folderEl.classList.toggle('collapsed');
+    if (folderEl.classList.contains('collapsed')) {
+      collapsedFolders.add(folderPath);
+    } else {
+      collapsedFolders.delete(folderPath);
+    }
+  }
+}
+
+function toggleFolderSelection(event, folderPath) {
+  event.stopPropagation();
+  const checkbox = event.target;
+  const isChecked = checkbox.checked;
+  
+  const prefix = folderPath + '/';
+  casesData.forEach(c => {
+    if (c.filePath.startsWith(prefix)) {
+      if (isChecked) {
+        selectedCasePaths.add(c.filePath);
+      } else {
+        selectedCasePaths.delete(c.filePath);
+      }
+    }
+  });
+
+  renderCaseList();
+}
+
+function updateFolderCheckboxesIndeterminateState() {
+  const checkboxes = document.querySelectorAll('.folder-select-checkbox');
+  checkboxes.forEach(cb => {
+    const folderPath = cb.getAttribute('data-folder-path');
+    const prefix = folderPath + '/';
+    const descendants = casesData.filter(c => c.filePath.startsWith(prefix));
+    const checkedCount = descendants.filter(c => selectedCasePaths.has(c.filePath)).length;
+
+    if (checkedCount > 0 && checkedCount < descendants.length) {
+      cb.checked = false;
+      cb.indeterminate = true;
+    } else if (checkedCount === descendants.length && descendants.length > 0) {
+      cb.checked = true;
+      cb.indeterminate = false;
+    } else {
+      cb.checked = false;
+      cb.indeterminate = false;
+    }
+  });
+}
+
 function renderCaseList() {
   const container = document.getElementById('case-list');
   const filterVal = document.getElementById('case-search-input').value.toLowerCase().trim();
@@ -87,27 +248,10 @@ function renderCaseList() {
     return;
   }
 
-  container.innerHTML = filtered.map(c => {
-    const isActive = currentCase && currentCase.name === c.name ? 'active' : '';
-    const progressText = `${c.completedCount}/${c.totalSteps} 步骤`;
-    const fileName = c.filePath.split('/').pop() || c.filePath;
-    const isChecked = selectedCasePaths.has(c.filePath) ? 'checked' : '';
-    return `
-      <div class="case-item ${isActive}" onclick="selectCaseByName('${encodeURIComponent(c.name)}')">
-        <div class="case-item-title">
-          <div class="case-title-left">
-            <input type="checkbox" class="case-select-checkbox" onclick="toggleCaseSelection(event, '${c.filePath}')" ${isChecked}>
-            <span class="case-item-name-text" title="${c.name}">${c.name}</span>
-          </div>
-          <span class="status-dot ${c.status}"></span>
-        </div>
-        <div class="case-item-meta">
-          <span>${progressText}</span>
-          <span><code>${fileName}</code></span>
-        </div>
-      </div>
-    `;
-  }).join('');
+  const tree = buildTree(filtered);
+  sortTree(tree);
+  container.innerHTML = tree.map(node => renderTreeNode(node, 0)).join('');
+  updateFolderCheckboxesIndeterminateState();
   updateSelectAllState();
 }
 
@@ -119,6 +263,7 @@ function toggleCaseSelection(event, filePath) {
   } else {
     selectedCasePaths.delete(filePath);
   }
+  renderCaseList();
   updateSelectAllState();
 }
 
@@ -191,6 +336,10 @@ async function selectCase(c) {
   // 渲染步骤列表
   renderSteps(c);
 
+  // 默认切换到实时输出，并且更新内容
+  switchTerminalTab('stream');
+  updateStreamTerminalForSelectedCase();
+
   // 异步获取运行历史详情 (截图/子步骤/录像)
   try {
     const res = await fetch(`/api/case/${encodeURIComponent(c.name)}/details`);
@@ -199,6 +348,7 @@ async function selectCase(c) {
     renderTraces(c.name, details.traces || []);
     // 保存 sub-steps 状态用于点击步骤展开
     c.subStepsDetail = details.subSteps || {};
+    c.traces = details.traces || [];
     renderSteps(c);
     
     // 默认展示当前未完成的或第一个步骤的子步骤详情
@@ -209,6 +359,9 @@ async function selectCase(c) {
   } catch (err) {
     console.error('获取用例详情失败:', err);
   }
+
+  // 加载运行历史
+  loadRunHistory();
 }
 
 function updateButtonStates(status) {
@@ -256,6 +409,11 @@ function renderSteps(c) {
       stepClass += ' running';
     }
 
+    const hasTrace = c.traces && c.traces.includes(`${s.id}-trace.zip`);
+    const playButtonHtml = (s.completed && hasTrace) 
+      ? `<button class="btn-step-play-trace" onclick="playStepTrace(event, '${encodeURIComponent(c.name)}', '${encodeURIComponent(s.id + '-trace.zip')}')" title="播放该步骤录像">🎞</button>`
+      : '';
+
     return `
       <div class="${stepClass}" id="step-node-${s.id}" onclick="showSubSteps('${s.id}')">
         <div class="step-indicator">
@@ -264,6 +422,7 @@ function renderSteps(c) {
         <div class="step-info">
           <div class="step-header-row">
             <div class="step-id">${s.id}</div>
+            ${playButtonHtml}
           </div>
           <div class="step-role">角色: ${s.role}</div>
         </div>
@@ -274,7 +433,7 @@ function renderSteps(c) {
 
 // ── 展示 SubSteps 详细缓存与快照 ──
 
-function showSubSteps(stepId) {
+async function showSubSteps(stepId) {
   // 设置选中高亮
   document.querySelectorAll('.step-node').forEach(el => el.classList.remove('active-step'));
   const activeEl = document.getElementById(`step-node-${stepId}`);
@@ -282,6 +441,17 @@ function showSubSteps(stepId) {
 
   const panel = document.getElementById('substeps-panel');
   if (!currentCase) return;
+
+  // 尝试获取最新的详情以更新截图和子步骤缓存，保持界面实时更新
+  try {
+    const res = await fetch(`/api/case/${encodeURIComponent(currentCase.name)}/details`);
+    const details = await res.json();
+    currentScreenshotsList = details.screenshots || [];
+    currentCase.subStepsDetail = details.subSteps || {};
+    currentCase.traces = details.traces || [];
+  } catch (err) {
+    console.error('更新步骤详情失败:', err);
+  }
 
   const step = currentCase.steps.find(s => s.id === stepId);
   const detail = currentCase.subStepsDetail?.[stepId];
@@ -339,11 +509,11 @@ function showSubSteps(stepId) {
     }).join('');
   }
 
-  // 过滤属于该步骤的截图 (根据文件名 startsWith stepId + '-')
+  // 过滤属于该步骤的截图 (根据文件名 startsWith stepId + '-'，或包含 '-' + stepId + '-'，或以 '-' + stepId + '.png' 结尾)
   const stepScreenshots = (currentScreenshotsList || []).filter(src => {
     const parts = src.split('/');
-    const filename = parts[parts.length - 1];
-    return filename.startsWith(stepId + '-');
+    const filename = decodeURIComponent(parts[parts.length - 1]);
+    return filename.startsWith(stepId + '-') || filename.includes('-' + stepId + '-') || filename.endsWith('-' + stepId + '.png');
   });
 
   if (stepScreenshots.length > 0) {
@@ -354,7 +524,7 @@ function showSubSteps(stepId) {
           ${stepScreenshots.map(src => {
             const origIndex = currentScreenshotsList.indexOf(src);
             const parts = src.split('/');
-            const name = parts[parts.length - 1];
+            const name = decodeURIComponent(parts[parts.length - 1]);
             return `
               <div class="screenshot-card" onclick="openLightbox(${origIndex})">
                 <img src="${src}" alt="Snapshot" loading="lazy">
@@ -395,8 +565,9 @@ async function runCurrentCase(fromStart = false) {
   selectCase(currentCase);
 
   // 清空终端
-  const terminal = document.getElementById('terminal-body');
-  terminal.textContent = '';
+  const safeName = getSafeCaseName(currentCase.name);
+  caseLogs[safeName] = '';
+  updateStreamTerminalForSelectedCase();
 
   // 创建 EventSource
   const url = `/api/run-stream?cases=${encodeURIComponent(path)}&headed=${headed}&trace=${trace}&screenshotOnAssert=${screenshotOnAssert}`;
@@ -408,22 +579,74 @@ async function runCurrentCase(fromStart = false) {
 
   logEventSource.addEventListener('log', (e) => {
     const data = JSON.parse(e.data);
-    appendTerminal(data.text);
+    const text = data.text;
+    const cleanedText = text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+
+    if (data.case) {
+      const safeCase = data.case;
+      if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+      caseLogs[safeCase] += cleanedText;
+      
+      if (currentCase && getSafeCaseName(currentCase.name) === safeCase) {
+        appendTerminal(cleanedText);
+      }
+    } else {
+      const runningCases = casesData.filter(c => c.status === 'running');
+      if (runningCases.length > 0) {
+        runningCases.forEach(c => {
+          const safeCase = getSafeCaseName(c.name);
+          if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+          caseLogs[safeCase] += cleanedText;
+        });
+      } else if (currentCase) {
+        const safeCase = getSafeCaseName(currentCase.name);
+        if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+        caseLogs[safeCase] += cleanedText;
+      }
+      if (currentCase) {
+        appendTerminal(cleanedText);
+      }
+    }
   });
 
   logEventSource.addEventListener('finish', (e) => {
     const data = JSON.parse(e.data);
-    appendTerminal(`\n\n[system] Process exited with code: ${data.exitCode}\n`);
+    const finishText = `\n\n[system] Process exited with code: ${data.exitCode}\n`;
+    
+    const runningCases = casesData.filter(c => c.status === 'running');
+    runningCases.forEach(c => {
+      const safeCase = getSafeCaseName(c.name);
+      if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+      caseLogs[safeCase] += finishText;
+    });
+    if (currentCase) {
+      const currentSafe = getSafeCaseName(currentCase.name);
+      const isRunning = runningCases.some(c => getSafeCaseName(c.name) === currentSafe);
+      if (!isRunning) {
+        if (!caseLogs[currentSafe]) caseLogs[currentSafe] = '';
+        caseLogs[currentSafe] += finishText;
+      }
+      appendTerminal(finishText);
+    }
+
     logEventSource.close();
     logEventSource = null;
     loadCases(); // 重新加载列表更新状态
+    loadRunHistory(); // 刷新运行历史
   });
 
   logEventSource.onerror = (err) => {
-    appendTerminal(`\n\n[system] EventSource 遇到错误连接断开。\n`);
+    const errorText = `\n\n[system] EventSource 遇到错误连接断开。\n`;
+    if (currentCase) {
+      const safeCase = getSafeCaseName(currentCase.name);
+      if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+      caseLogs[safeCase] += errorText;
+      appendTerminal(errorText);
+    }
     logEventSource.close();
     logEventSource = null;
     loadCases();
+    loadRunHistory();
   };
 }
 
@@ -453,8 +676,14 @@ async function runAllSelected() {
     selectCase(currentCase);
   }
 
-  const terminal = document.getElementById('terminal-body');
-  if (terminal) terminal.textContent = '';
+  // 清空选中运行用例的终端日志
+  files.forEach(filePath => {
+    const c = casesData.find(item => item.filePath === filePath);
+    if (c) {
+      caseLogs[getSafeCaseName(c.name)] = '';
+    }
+  });
+  updateStreamTerminalForSelectedCase();
 
   const url = `/api/run-stream?cases=${encodeURIComponent(files.join(','))}&headed=${headed}&trace=${trace}&screenshotOnAssert=${screenshotOnAssert}`;
   if (logEventSource) {
@@ -465,21 +694,74 @@ async function runAllSelected() {
 
   logEventSource.addEventListener('log', (e) => {
     const data = JSON.parse(e.data);
-    appendTerminal(data.text);
+    const text = data.text;
+    const cleanedText = text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+
+    if (data.case) {
+      const safeCase = data.case;
+      if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+      caseLogs[safeCase] += cleanedText;
+      
+      if (currentCase && getSafeCaseName(currentCase.name) === safeCase) {
+        appendTerminal(cleanedText);
+      }
+    } else {
+      const runningCases = casesData.filter(c => c.status === 'running');
+      if (runningCases.length > 0) {
+        runningCases.forEach(c => {
+          const safeCase = getSafeCaseName(c.name);
+          if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+          caseLogs[safeCase] += cleanedText;
+        });
+      } else if (currentCase) {
+        const safeCase = getSafeCaseName(c.name);
+        if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+        caseLogs[safeCase] += cleanedText;
+      }
+      if (currentCase) {
+        appendTerminal(cleanedText);
+      }
+    }
   });
 
   logEventSource.addEventListener('finish', (e) => {
     const data = JSON.parse(e.data);
-    appendTerminal(`\n\n[system] All cases completed. Exit code: ${data.exitCode}\n`);
+    const finishText = `\n\n[system] All cases completed. Exit code: ${data.exitCode}\n`;
+    
+    const runningCases = casesData.filter(c => c.status === 'running');
+    runningCases.forEach(c => {
+      const safeCase = getSafeCaseName(c.name);
+      if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+      caseLogs[safeCase] += finishText;
+    });
+    if (currentCase) {
+      const currentSafe = getSafeCaseName(currentCase.name);
+      const isRunning = runningCases.some(c => getSafeCaseName(c.name) === currentSafe);
+      if (!isRunning) {
+        if (!caseLogs[currentSafe]) caseLogs[currentSafe] = '';
+        caseLogs[currentSafe] += finishText;
+      }
+      appendTerminal(finishText);
+    }
+
     logEventSource.close();
     logEventSource = null;
     loadCases();
+    loadRunHistory();
   });
 
   logEventSource.onerror = () => {
+    const errorText = `\n\n[system] EventSource 遇到错误连接断开。\n`;
+    if (currentCase) {
+      const safeCase = getSafeCaseName(currentCase.name);
+      if (!caseLogs[safeCase]) caseLogs[safeCase] = '';
+      caseLogs[safeCase] += errorText;
+      appendTerminal(errorText);
+    }
     logEventSource.close();
     logEventSource = null;
     loadCases();
+    loadRunHistory();
   };
 }
 
@@ -638,19 +920,146 @@ function colorizeLogs(text) {
 
 function appendTerminal(text) {
   const terminal = document.getElementById('terminal-body');
-  if (!terminal) return;
-  
-  const cleanedText = text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
-  terminalLogs += cleanedText;
-  
-  terminal.innerHTML = colorizeLogs(terminalLogs);
+  if (!terminal || !currentCase) return;
+  const safeName = getSafeCaseName(currentCase.name);
+  terminal.innerHTML = colorizeLogs(caseLogs[safeName] || '');
   terminal.scrollTop = terminal.scrollHeight;
 }
 
 function clearTerminal() {
   const terminal = document.getElementById('terminal-body');
   if (terminal) terminal.innerHTML = '';
-  terminalLogs = '';
+  if (currentCase) {
+    const safeName = getSafeCaseName(currentCase.name);
+    caseLogs[safeName] = '';
+  }
+}
+
+function updateStreamTerminalForSelectedCase() {
+  const terminal = document.getElementById('terminal-body');
+  if (!terminal || !currentCase) return;
+  const safeName = getSafeCaseName(currentCase.name);
+  const logs = caseLogs[safeName] || '';
+  terminal.innerHTML = colorizeLogs(logs);
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function switchTerminalTab(tab) {
+  const btnStream = document.getElementById('tab-btn-stream');
+  const btnHistory = document.getElementById('tab-btn-history');
+  const paneStream = document.getElementById('pane-stream');
+  const paneHistory = document.getElementById('pane-history');
+  const btnClear = document.getElementById('btn-clear-terminal');
+
+  if (tab === 'stream') {
+    btnStream.classList.add('active');
+    btnHistory.classList.remove('active');
+    paneStream.classList.remove('hidden');
+    paneHistory.classList.add('hidden');
+    if (btnClear) btnClear.classList.remove('hidden');
+  } else {
+    btnStream.classList.remove('active');
+    btnHistory.classList.add('active');
+    paneStream.classList.add('hidden');
+    paneHistory.classList.remove('hidden');
+    if (btnClear) btnClear.classList.add('hidden');
+    
+    loadRunHistory();
+  }
+}
+
+function formatFriendlyDateTime(isoString) {
+  if (!isoString) return '--';
+  try {
+    const date = new Date(isoString);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  } catch {
+    return isoString;
+  }
+}
+
+let activeHistoryRunId = null;
+
+async function loadRunHistory() {
+  const sidebar = document.getElementById('history-sidebar');
+  if (!sidebar || !currentCase) return;
+
+  try {
+    const res = await fetch(`/api/case/${encodeURIComponent(currentCase.name)}/history`);
+    const history = await res.json();
+    
+    if (!history || history.length === 0) {
+      sidebar.innerHTML = '<div class="empty-msg">暂无运行历史</div>';
+      document.getElementById('history-log-body').innerHTML = '选择左侧运行记录以查看日志...';
+      activeHistoryRunId = null;
+      return;
+    }
+
+    sidebar.innerHTML = history.map(run => {
+      const isActive = activeHistoryRunId === run.runId ? 'active' : '';
+      let statusText = '未知';
+      if (run.status === 'passed') statusText = '通过';
+      else if (run.status === 'failed') statusText = '失败';
+      else if (run.status === 'running') statusText = '运行中';
+
+      const durationText = run.duration ? `${(run.duration / 1000).toFixed(1)}s` : '--';
+
+      return `
+        <div class="history-run-item ${isActive}" data-run-id="${run.runId}" onclick="selectHistoryRun('${run.runId}')">
+          <div class="run-header">
+            <span class="run-status-badge ${run.status}">${statusText}</span>
+            <span class="run-time">${formatFriendlyDateTime(run.timestamp)}</span>
+          </div>
+          <div class="run-meta">
+            <span>耗时: ${durationText}</span>
+            ${run.error ? `<span class="run-error-indicator" title="${run.error}">⚠️ 异常</span>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (activeHistoryRunId && history.some(r => r.runId === activeHistoryRunId)) {
+      selectHistoryRun(activeHistoryRunId);
+    } else {
+      selectHistoryRun(history[0].runId);
+    }
+  } catch (err) {
+    console.error('加载运行历史失败:', err);
+    sidebar.innerHTML = '<div class="empty-msg" style="color:var(--color-error)">加载失败</div>';
+  }
+}
+
+async function selectHistoryRun(runId) {
+  activeHistoryRunId = runId;
+  
+  document.querySelectorAll('.history-run-item').forEach(el => {
+    if (el.getAttribute('data-run-id') === runId) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
+  });
+
+  const logBody = document.getElementById('history-log-body');
+  if (!logBody || !currentCase) return;
+
+  logBody.textContent = '加载日志中...';
+
+  try {
+    const res = await fetch(`/api/case/${encodeURIComponent(currentCase.name)}/history/${runId}/log`);
+    if (res.status === 404) {
+      logBody.textContent = '日志文件已被清理或不存在。';
+      return;
+    }
+    const text = await res.text();
+    const cleanedText = text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+    logBody.innerHTML = colorizeLogs(cleanedText);
+    logBody.scrollTop = 0;
+  } catch (err) {
+    console.error('获取运行日志失败:', err);
+    logBody.textContent = '加载运行日志失败。';
+  }
 }
 
 // ── 辅助映射 ──
@@ -669,50 +1078,15 @@ function statusLabel(s) {
 
 function renderTraces(caseName, traces) {
   const container = document.getElementById('trace-buttons-container');
-  if (!container) return;
-
-  if (traces.length === 0) {
+  if (container) {
     container.innerHTML = '';
-    return;
   }
-
-  container.innerHTML = `
-    <div class="dropdown">
-      <button class="btn btn-outline dropdown-toggle" id="btn-play-trace" onclick="toggleTraceDropdown(event)" style="border-color: rgba(99, 102, 241, 0.4); color: var(--color-brand);">
-        🎞 播放录像 ▾
-      </button>
-      <div class="dropdown-menu" id="trace-dropdown-menu">
-        ${traces.map(file => {
-          const roleName = file.replace('-trace.zip', '');
-          return `
-            <button class="dropdown-item" onclick="playTrace('${encodeURIComponent(caseName)}', '${encodeURIComponent(file)}'); closeTraceDropdown();">
-              ${roleName}
-            </button>
-          `;
-        }).join('')}
-      </div>
-    </div>
-  `;
 }
 
-function toggleTraceDropdown(event) {
+function playStepTrace(event, caseName, file) {
   event.stopPropagation();
-  const menu = document.getElementById('trace-dropdown-menu');
-  if (menu) {
-    menu.classList.toggle('show');
-  }
+  playTrace(caseName, file);
 }
-
-function closeTraceDropdown() {
-  const menu = document.getElementById('trace-dropdown-menu');
-  if (menu) {
-    menu.classList.remove('show');
-  }
-}
-
-document.addEventListener('click', () => {
-  closeTraceDropdown();
-});
 
 async function playTrace(encodedCaseName, encodedTraceFile) {
   const caseName = decodeURIComponent(encodedCaseName);
@@ -803,7 +1177,7 @@ function openLightbox(index) {
   
   const src = currentScreenshotsList[index];
   const parts = src.split('/');
-  const name = parts[parts.length - 1];
+  const name = decodeURIComponent(parts[parts.length - 1]);
   
   img.src = src;
   caption.textContent = name;
@@ -850,4 +1224,53 @@ function handleLightboxKeydown(e) {
   } else if (e.key === 'Escape') {
     closeLightbox();
   }
+}
+
+// ── 终端上下拖动调整大小 ───────────────────────────────────────
+function initTerminalResizer() {
+  const resizer = document.getElementById('terminal-resizer');
+  const container = document.getElementById('terminal-container');
+  if (!resizer || !container) return;
+
+  // 加载用户首选高度
+  const savedHeight = localStorage.getItem('terminalHeightPreference');
+  if (savedHeight) {
+    container.style.height = `${savedHeight}px`;
+  }
+
+  let startY = 0;
+  let startHeight = 0;
+
+  function onMouseDown(e) {
+    startY = e.clientY;
+    startHeight = parseInt(document.defaultView.getComputedStyle(container).height, 10);
+    
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    resizer.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+  }
+
+  function onMouseMove(e) {
+    const deltaY = startY - e.clientY; // 往上拖动 deltaY 为正
+    let newHeight = startHeight + deltaY;
+
+    // 限制高度范围
+    const minHeight = 100;
+    const maxHeight = window.innerHeight * 0.85;
+    if (newHeight < minHeight) newHeight = minHeight;
+    if (newHeight > maxHeight) newHeight = maxHeight;
+
+    container.style.height = `${newHeight}px`;
+    localStorage.setItem('terminalHeightPreference', newHeight);
+  }
+
+  function onMouseUp() {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    resizer.classList.remove('dragging');
+    document.body.style.userSelect = '';
+  }
+
+  resizer.addEventListener('mousedown', onMouseDown);
 }

@@ -14,6 +14,13 @@ import { resolveLocatorFromString, stripQuotes } from './locator-resolver.js';
 import type { ContextStore } from '../engine/context-store.js';
 import { getFormattedDateTime } from '../engine/datetime-utils.js';
 
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[\\\/\?\:\*\"\<\|\>\s\'\`]/g, '_')
+    .replace(/__+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 export interface ExecutorOptions {
   screenshotDir?: string;
   macrosDir?: string;
@@ -319,9 +326,9 @@ async function executeCommand(
       if (opts.screenshotOnAssert) {
         const dir = opts.screenshotDir ?? '.resumewright/screenshots';
         fs.mkdirSync(dir, { recursive: true });
-        const timestamp = getFormattedDateTime();
         const stepId = opts.stepId ?? 'unknown';
-        const screenshotPath = path.join(dir, `${stepId}-assert-${timestamp}.png`);
+        const sanitizedArg = sanitizeFilename(locStr) || 'target';
+        const screenshotPath = path.join(dir, `${sanitizedArg}-${stepId}.png`);
         await page.screenshot({ path: screenshotPath, fullPage: false });
         console.log(`[dsl]   📸 Assert screenshot saved: ${screenshotPath}`);
       }

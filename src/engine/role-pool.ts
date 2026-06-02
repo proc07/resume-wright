@@ -71,9 +71,6 @@ export class RolePool {
     const cachedState = this.loadCachedState(roleName);
     if (cachedState) {
       const { context, page } = await this.createContextFromState(cachedState);
-      if (this.opts.enableTrace) {
-        await context.tracing.start({ screenshots: true, snapshots: true, sources: true }).catch(() => {});
-      }
       // 验证缓存 Session 是否有效
       if (await this.isSessionValid(page)) {
         this.contexts.set(roleName, context);
@@ -111,9 +108,6 @@ export class RolePool {
     const context = await this.browser.newContext({
       ignoreHTTPSErrors: true,
     });
-    if (this.opts.enableTrace) {
-      await context.tracing.start({ screenshots: true, snapshots: true, sources: true }).catch(() => {});
-    }
     const page = await context.newPage();
 
     if (this.opts.loginUrl) {
@@ -258,6 +252,13 @@ export class RolePool {
     return path.join(this.statesDir, `${safe}.json`);
   }
 
+  /**
+   * 获取指定角色的凭证信息
+   */
+  getCredentials(roleName: string): RoleCredential | undefined {
+    return this.roles[roleName];
+  }
+
   // ── 清理 ─────────────────────────────────────────────────
 
   /**
@@ -266,13 +267,6 @@ export class RolePool {
   async closeRole(roleName: string): Promise<void> {
     const ctx = this.contexts.get(roleName);
     if (ctx) {
-      if (this.opts.enableTrace) {
-        const traceDir = this.opts.traceDir ?? '.resumewright/traces';
-        fs.mkdirSync(traceDir, { recursive: true });
-        const tracePath = path.join(traceDir, `${roleName}-trace.zip`);
-        await ctx.tracing.stop({ path: tracePath }).catch(() => {});
-        console.log(`[role-pool] ✓ Tracing file saved: ${tracePath}`);
-      }
       await ctx.close().catch(() => {});
       this.contexts.delete(roleName);
       this.pages.delete(roleName);

@@ -234,7 +234,7 @@ steps:
 
   describe('项目示例文件', () => {
     it('purchase-approval.yaml 合法', () => {
-      const filePath = 'demo/cases/purchase-approval.yaml';
+      const filePath = 'demo/cases/workflows/purchase-approval.yaml';
       const def = loadCase(filePath);
       expect(def.name).toBe('采购申请全流程审批');
       expect(def.steps).toHaveLength(4);
@@ -242,7 +242,7 @@ steps:
     });
 
     it('invoice-review-substeps.yaml 合法', () => {
-      const filePath = 'demo/cases/invoice-review-substeps.yaml';
+      const filePath = 'demo/cases/workflows/invoice/invoice-review-substeps.yaml';
       const def = loadCase(filePath);
       expect(def.steps[0]!.sub_steps).toBeDefined();
       expect(def.steps[0]!.sub_steps).toHaveLength(3);

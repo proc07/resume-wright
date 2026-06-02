@@ -92,6 +92,13 @@ export class StepExecutor {
     // 获取角色的 Page 和 BrowserContext
     const { page, context } = await rolePool.getRoleContext(step.role);
 
+    // 动态注入当前角色的凭证信息，便于 DSL 脚本和宏直接读取，无需显式传参
+    const creds = rolePool.getCredentials(step.role);
+    if (creds) {
+      contextStore.set('username', creds.username);
+      contextStore.set('password', creds.password);
+    }
+
     // 基于 caseName 计算该 case 的专属根路径
     const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
     const caseDir = path.join('.resumewright', safeCaseName);
@@ -104,39 +111,87 @@ export class StepExecutor {
       'api-cache.json'
     );
 
-    if (step.sub_steps && step.sub_steps.length > 0) {
-      // ── 有子步骤：使用 SubStepExecutor ──
-      const subExec = new SubStepExecutor(
-        step.id,
-        page,
-        context,
-        contextStore,
-        {
-          screenshotDir,
-          macrosDir: 'macros',
-          subStepsBaseDir: path.join(caseDir, 'sub-steps'),
-          screenshotOnAssert,
-          defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
-        }
-      );
-      await subExec.executeAll(step.sub_steps);
-    } else if (step.script) {
-      // ── 无子步骤：直接执行 script，并挂载 NetworkInterceptor ──
-      const interceptor = new NetworkInterceptor(page, apiCachePath);
-      await interceptor.attach();
+    let tracingStarted = false;
+    const traceDir = path.join(caseDir, 'traces');
+    const tracePath = path.join(traceDir, `${step.id}-trace.zip`);
 
+    if (this.execCtx.enableTrace) {
       try {
-        await executeScript(step.script, page, contextStore, {
+        const fs = await import('node:fs');
+        fs.mkdirSync(traceDir, { recursive: true });
+        await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+        tracingStarted = true;
+      } catch (err) {
+        console.error(`[step] Failed to start tracing: ${err}`);
+      }
+    }
+
+    try {
+      if (this.execCtx.beforeHooks) {
+        await executeScript(this.execCtx.beforeHooks, page, contextStore, {
           screenshotDir,
           macrosDir: 'macros',
-          stepId: step.id,
+          stepId: `${step.id}-before`,
           screenshotOnAssert,
         });
-      } finally {
-        await interceptor.detach();
       }
-    } else {
-      console.warn(`[step] Step "${step.id}" has no script or sub_steps — skipping`);
+
+      try {
+        if (step.sub_steps && step.sub_steps.length > 0) {
+          // ── 有子步骤：使用 SubStepExecutor ──
+          const subExec = new SubStepExecutor(
+            step.id,
+            page,
+            context,
+            contextStore,
+            {
+              screenshotDir,
+              macrosDir: 'macros',
+              subStepsBaseDir: path.join(caseDir, 'sub-steps'),
+              screenshotOnAssert,
+              defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
+            }
+          );
+          await subExec.executeAll(step.sub_steps);
+        } else if (step.script) {
+          // ── 无子步骤：直接执行 script，并挂载 NetworkInterceptor ──
+          const interceptor = new NetworkInterceptor(page, apiCachePath);
+          await interceptor.attach();
+
+          try {
+            await executeScript(step.script, page, contextStore, {
+              screenshotDir,
+              macrosDir: 'macros',
+              stepId: step.id,
+              screenshotOnAssert,
+            });
+          } finally {
+            await interceptor.detach();
+          }
+        } else {
+          console.warn(`[step] Step "${step.id}" has no script or sub_steps — skipping`);
+        }
+      } finally {
+        if (this.execCtx.afterHooks) {
+          await executeScript(this.execCtx.afterHooks, page, contextStore, {
+            screenshotDir,
+            macrosDir: 'macros',
+            stepId: `${step.id}-after`,
+            screenshotOnAssert,
+          }).catch((err) => {
+            console.error(`[step] Failed to execute after_step hook: ${err}`);
+          });
+        }
+      }
+    } finally {
+      if (tracingStarted) {
+        try {
+          await context.tracing.stop({ path: tracePath });
+          console.log(`[step] ✓ Tracing file saved: ${tracePath}`);
+        } catch (err) {
+          console.error(`[step] Failed to stop tracing: ${err}`);
+        }
+      }
     }
   }
 }

@@ -11,6 +11,9 @@ on_failure:
   max_retries: 2
   restore_snapshot: true
 
+before_hooks:
+  - macro login_role
+
 roles:
   merchant:   { username: "merchant",   password: "mer_pass" }
   compliance: { username: "compliance", password: "comp_pass" }
@@ -21,12 +24,6 @@ steps:
   - id: step1_merchant_submit
     role: merchant
     script: |
-      open "http://127.0.0.1:61775/login"
-      input "merchant" to "testid:login-username"
-      input "mer_pass" to "testid:login-password"
-      tap "role:button[登录]"
-      assert_exists "已登录工作台" 5s
-      
       open "http://127.0.0.1:61775/merchant/new"
       input "大牛旗舰店" to "testid:merchant-shop"
       input "10000" to "testid:merchant-deposit"
@@ -42,12 +39,6 @@ steps:
   - id: step2_compliance_reject
     role: compliance
     script: |
-      open "http://127.0.0.1:61775/login"
-      input "compliance" to "testid:login-username"
-      input "comp_pass" to "testid:login-password"
-      tap "role:button[登录]"
-      assert_exists "已登录工作台" 5s
-      
       open "$merchant_url"
       assert_exists "合规资质审查 (机审评估得分: 52 分)" 10s
       input "营业执照已过期，请重新上传最新执照" to "testid:comp-comment"
@@ -58,12 +49,6 @@ steps:
   - id: step3_merchant_modify
     role: merchant
     script: |
-      open "http://127.0.0.1:61775/login"
-      input "merchant" to "testid:login-username"
-      input "mer_pass" to "testid:login-password"
-      tap "role:button[登录]"
-      assert_exists "已登录工作台" 5s
-      
       open "$merchant_url"
       assert_exists "营业执照已过期，请重新上传最新执照" 10s
       input "大牛旗舰店整改店" to "testid:merchant-shop-new"
@@ -76,12 +61,6 @@ steps:
   - id: step4_compliance_approve
     role: compliance
     script: |
-      open "http://127.0.0.1:61775/login"
-      input "compliance" to "testid:login-username"
-      input "comp_pass" to "testid:login-password"
-      tap "role:button[登录]"
-      assert_exists "已登录工作台" 5s
-      
       open "$merchant_url"
       assert_exists "合规资质审查 (机审评估得分: 95 分)" 10s
       input "资质已补正，同意初审通过" to "testid:comp-comment"
@@ -92,12 +71,6 @@ steps:
   - id: step5_finance_approve
     role: finance
     script: |
-      open "http://127.0.0.1:61775/login"
-      input "finance" to "testid:login-username"
-      input "fin_pass" to "testid:login-password"
-      tap "role:button[登录]"
-      assert_exists "已登录工作台" 5s
-      
       open "$merchant_url"
       assert_exists "财务入驻核准" 5s
       input "50000" to "testid:mer-credit-limit"
@@ -110,12 +83,6 @@ steps:
   - id: step6_merchant_sign
     role: merchant
     script: |
-      open "http://127.0.0.1:61775/login"
-      input "merchant" to "testid:login-username"
-      input "mer_pass" to "testid:login-password"
-      tap "role:button[登录]"
-      assert_exists "已登录工作台" 5s
-      
       open "$merchant_url"
       $credit_val = "testid:mer-detail-credit"
       assert_text_equal "$credit_val" "¥50000"

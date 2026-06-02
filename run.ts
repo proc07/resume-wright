@@ -13,7 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { Scheduler } from './src/engine/scheduler.js';
 import { WorkflowRunner } from './src/engine/workflow-runner.js';
-import { listCheckpoints, Checkpoint } from './src/engine/checkpoint.js';
+import { listCheckpoints, Checkpoint, resetCaseRuntime, resetAllRuntimes } from './src/engine/checkpoint.js';
 import { loadCase } from './src/adapters/yaml-loader.js';
 import { formatDuration } from './src/engine/workflow-runner.js';
 
@@ -124,12 +124,9 @@ program
   .option('--all', 'Reset all checkpoints and runtime directories')
   .action((file: string | undefined, opts) => {
     if (opts.all) {
-      // 彻底物理清理 .resumewright 目录下所有的内容（包含子步骤状态、API 缓存、截图、录像等）
-      const baseDir = path.join(process.cwd(), '.resumewright');
-      if (fs.existsSync(baseDir)) {
-        fs.rmSync(baseDir, { recursive: true, force: true });
-      }
-      console.log('[reset] All checkpoints and runtime directories cleared.');
+      // 清空所有的运行状态（包含子步骤状态、API 缓存、截图、录像等），但保留 history 目录以确保运行历史不丢失
+      resetAllRuntimes();
+      console.log('[reset] All checkpoints and runtime directories cleared (history preserved).');
       return;
     }
 
@@ -142,14 +139,12 @@ program
       const filePath = path.resolve(file);
       const definition = loadCase(filePath);
 
-      // 彻底物理清理该 case 的隔离运行目录（包含 checkpoint.json、子步骤状态、API 缓存等）
+      // 清理该 case 的运行状态，但保留 history 目录以确保运行历史不丢失
       const safeCaseName = definition.name.replace(/[/?<>\\:*|"]/g, '_');
       const caseDir = path.join(process.cwd(), '.resumewright', safeCaseName);
-      if (fs.existsSync(caseDir)) {
-        fs.rmSync(caseDir, { recursive: true, force: true });
-      }
+      resetCaseRuntime(caseDir);
 
-      console.log(`[reset] Checkpoint and runtime directory cleared for: ${definition.name}`);
+      console.log(`[reset] Checkpoint and runtime directory cleared (history preserved) for: ${definition.name}`);
     } catch (err) {
       console.error(`[reset] Error: ${String(err)}`);
       process.exit(1);

@@ -194,3 +194,38 @@ export function resetAllCheckpoints(baseDir = BASE_DIR): void {
   } catch { /* ignore */ }
   console.log(`[checkpoint] Reset all (${count} checkpoints cleared)`);
 }
+
+/**
+ * 清除单个 Case 的运行状态（如断点、子步骤、截图、录像、状态等），但保留 history 目录以确保运行历史不丢失
+ */
+export function resetCaseRuntime(caseDir: string): void {
+  if (!fs.existsSync(caseDir)) return;
+  try {
+    const items = fs.readdirSync(caseDir);
+    for (const item of items) {
+      if (item === 'history') continue;
+      const itemPath = path.join(caseDir, item);
+      fs.rmSync(itemPath, { recursive: true, force: true });
+    }
+  } catch (err) {
+    console.error(`[checkpoint] Failed to reset case runtime at ${caseDir}:`, err);
+  }
+}
+
+/**
+ * 清除所有 Case 的运行状态，但保留所有 history 目录以确保运行历史不丢失
+ */
+export function resetAllRuntimes(baseDir = BASE_DIR): void {
+  if (!fs.existsSync(baseDir)) return;
+  try {
+    const files = fs.readdirSync(baseDir);
+    for (const f of files) {
+      const dirPath = path.join(baseDir, f);
+      if (fs.statSync(dirPath).isDirectory()) {
+        resetCaseRuntime(dirPath);
+      }
+    }
+  } catch (err) {
+    console.error(`[checkpoint] Failed to reset all runtimes:`, err);
+  }
+}

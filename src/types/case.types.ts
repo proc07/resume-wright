@@ -36,4 +36,6 @@ export interface CaseDefinition {
   roles: Record<string, RoleCredential>;
   on_failure?: OnFailureConfig;
   steps: Step[];
+  before_hooks?: string;
+  after_hooks?: string;
 }

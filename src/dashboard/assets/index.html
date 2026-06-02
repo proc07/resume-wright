@@ -76,54 +76,81 @@
       </div>
 
       <div id="details-view" class="details-container hidden">
-        <header class="case-header">
-          <div class="case-title-row">
-            <span id="detail-status-badge" class="badge">未知</span>
-            <h2 id="detail-case-name">用例名称</h2>
-          </div>
-          <p id="detail-case-desc" class="case-desc">这里是描述描述描述描述</p>
-          <p class="case-meta">文件路径: <code id="detail-case-path">cases/path.yaml</code></p>
-          
-          <div class="case-actions mt-4">
-            <button id="btn-run-case" class="btn btn-primary" onclick="runCurrentCase(false)">▶ 开始执行</button>
-            <button id="btn-restart-case" class="btn btn-outline" onclick="runCurrentCase(true)">⟲ 重新跑 (清断点)</button>
-            <button id="btn-reset-case" class="btn btn-outline-danger" onclick="resetCurrentCase()">清除断点</button>
-            <span id="trace-buttons-container" class="gap-2"></span>
-            <button id="btn-stop-case" class="btn btn-danger hidden" onclick="stopExecution()">■ 终止</button>
-          </div>
-        </header>
-
-        <!-- 详细卡片网格 -->
-        <div class="details-grid">
-          
-          <!-- 步骤进度列表 -->
-          <div class="card card-steps">
-            <h3>用例步骤树</h3>
-            <div id="steps-timeline" class="steps-timeline">
-              <!-- 动态加载步骤 -->
+        <div class="details-scroll-area">
+          <header class="case-header">
+            <div class="case-title-row">
+              <span id="detail-status-badge" class="badge">未知</span>
+              <h2 id="detail-case-name">用例名称</h2>
             </div>
-          </div>
-
-          <!-- 子步骤详情 -->
-          <div class="card card-substeps">
-            <h3>子步骤 (SubStep) 与 API 缓存</h3>
-            <div id="substeps-panel" class="substeps-panel">
-              <p class="empty-msg">请选择上面的步骤，或在有子步骤的步骤运行后在此处查看缓存与快照状态。</p>
+            <p id="detail-case-desc" class="case-desc">这里是描述描述描述描述</p>
+            <p class="case-meta">文件路径: <code id="detail-case-path">cases/path.yaml</code></p>
+            
+            <div class="case-actions mt-4">
+              <button id="btn-run-case" class="btn btn-primary" onclick="runCurrentCase(false)">▶ 开始执行</button>
+              <button id="btn-restart-case" class="btn btn-outline" onclick="runCurrentCase(true)">⟲ 重新跑 (清断点)</button>
+              <button id="btn-reset-case" class="btn btn-outline-danger" onclick="resetCurrentCase()">清除断点</button>
+              <span id="trace-buttons-container" class="gap-2"></span>
+              <button id="btn-stop-case" class="btn btn-danger hidden" onclick="stopExecution()">■ 终止</button>
             </div>
-          </div>
+          </header>
 
+          <!-- 详细卡片网格 -->
+          <div class="details-grid">
+            
+            <!-- 步骤进度列表 -->
+            <div class="card card-steps">
+              <h3>用例步骤树</h3>
+              <div id="steps-timeline" class="steps-timeline">
+                <!-- 动态加载步骤 -->
+              </div>
+            </div>
+
+            <!-- 子步骤详情 -->
+            <div class="card card-substeps">
+              <h3>子步骤 (SubStep) 与 API 缓存</h3>
+              <div id="substeps-panel" class="substeps-panel">
+                <p class="empty-msg">请选择上面的步骤，或在有子步骤的步骤运行后在此处查看缓存与快照状态。</p>
+              </div>
+            </div>
+
+          </div>
         </div>
 
+        <!-- 终端上下拖拽条 -->
+        <div class="terminal-resizer" id="terminal-resizer" title="上下拖拽调整终端大小">
+          <div class="terminal-resizer-line"></div>
+        </div>
         <!-- 虚拟终端日志 -->
-        <div class="terminal-container mt-6">
+        <div class="terminal-container" id="terminal-container">
           <div class="terminal-header">
-            <span class="terminal-title">📟 实时控制台输出 (Stream Logs)</span>
-            <button class="btn-clear-terminal" onclick="clearTerminal()">清空屏幕</button>
+            <div class="terminal-tabs">
+              <button class="terminal-tab-btn active" id="tab-btn-stream" onclick="switchTerminalTab('stream')">📟 实时控制台输出 (Stream Logs)</button>
+              <button class="terminal-tab-btn" id="tab-btn-history" onclick="switchTerminalTab('history')">⏳ 运行历史记录 (Run History)</button>
+            </div>
+            <div class="terminal-actions">
+              <button class="btn-clear-terminal" id="btn-clear-terminal" onclick="clearTerminal()">清空屏幕</button>
+            </div>
           </div>
-          <pre id="terminal-body" class="terminal-body">等待指令...</pre>
+          <div class="terminal-body-wrapper">
+            <!-- 实时日志面板 -->
+            <div id="pane-stream" class="terminal-pane">
+              <pre id="terminal-body" class="terminal-body">等待指令...</pre>
+            </div>
+            <!-- 历史日志面板 -->
+            <div id="pane-history" class="terminal-pane hidden">
+              <div class="history-split-layout">
+                <!-- 左栏：运行历史列表 -->
+                <div class="history-sidebar" id="history-sidebar">
+                  <div class="empty-msg">暂无运行历史</div>
+                </div>
+                <!-- 右栏：选中的历史日志 -->
+                <div class="history-content">
+                  <pre id="history-log-body" class="terminal-body history-log-body">选择左侧运行记录以查看日志...</pre>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-
-
       </div>
     </main>
 
@@ -187,6 +214,6 @@
     <button class="lightbox-nav-btn next-btn" onclick="navigateLightbox(1)">&rsaquo;</button>
   </div>
   
-  <script src="index.js?v=1.0.5"></script>
+  <script src="index.js?v=1.0.6"></script>
 </body>
 </html>
