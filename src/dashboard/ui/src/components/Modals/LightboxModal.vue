@@ -77,7 +77,9 @@ onUnmounted(() => {
       class="lightbox-nav-btn prev-btn"
       @click="navigate(-1)"
     >
-      &lsquo;
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
     </button>
     <div class="lightbox-content">
       <img id="lightbox-img" :src="currentImageSrc" alt="Lightbox Preview">
@@ -88,7 +90,9 @@ onUnmounted(() => {
       class="lightbox-nav-btn next-btn"
       @click="navigate(1)"
     >
-      &rsquo;
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
     </button>
   </div>
 </template>

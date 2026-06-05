@@ -760,13 +760,6 @@ code, pre {
   background-color: rgba(255, 255, 255, 0.03);
 }
 
-.step-node.active-step {
-  border-color: rgba(99, 102, 241, 0.7);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(99, 102, 241, 0.06) 100%);
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3), 0 3px 12px rgba(99, 102, 241, 0.15);
-  border-left: 3px solid var(--color-brand);
-}
-
 .step-node.completed {
   border-color: rgba(16, 185, 129, 0.25);
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(16, 185, 129, 0.01) 100%);
@@ -781,6 +774,29 @@ code, pre {
   border-color: rgba(59, 130, 246, 0.35);
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(59, 130, 246, 0.02) 100%);
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
+}
+
+.step-node.active-step {
+  border-color: var(--color-brand);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(99, 102, 241, 0.08) 100%);
+  box-shadow: 0 0 0 1px var(--color-brand), 0 4px 14px rgba(99, 102, 241, 0.25);
+  border-left: 4px solid var(--color-brand);
+  padding-left: 9px;
+  transform: translateX(4px);
+}
+
+.step-node.active-step .step-id {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.step-node.active-step .step-role {
+  color: #e2e8f0;
+}
+
+.step-node.active-step .step-indicator {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 6px var(--color-brand);
 }
 
 .step-indicator {
@@ -912,6 +928,10 @@ code, pre {
 .substep-status.pending { 
   background-color: rgba(255, 255, 255, 0.06);
   color: #cbd5e1; 
+}
+.substep-status.running {
+  background-color: var(--color-info-bg);
+  color: var(--color-info);
 }
 
 .api-cache-list {
@@ -1869,3 +1889,126 @@ code, pre {
   position: relative;
   overflow: visible;
 }
+
+/* API Cache Details Hover Popover */
+.api-cache-item-wrapper {
+  position: relative;
+}
+
+.api-cache-details-popover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  background-color: #0f172a; /* Dark slate */
+  border: 1px solid #334155; /* Slate 700 */
+  border-radius: 6px;
+  padding: 10px 12px;
+  width: 380px;
+  max-height: 220px;
+  overflow: auto;
+  z-index: 1010;
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.6), 0 4px 8px -2px rgba(0, 0, 0, 0.6);
+  pointer-events: none; /* Avoid mouse hover blocking */
+  text-align: left;
+}
+
+.api-cache-item-wrapper:hover .api-cache-details-popover {
+  display: block;
+}
+
+.api-cache-popover-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b; /* Slate 500 */
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 2px;
+}
+
+.api-cache-popover-content {
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  color: #cbd5e1; /* Slate 300 */
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* ── 变量可视化列表网格 ── */
+.variables-list-pane {
+  padding: 16px;
+  overflow-y: auto;
+  height: 100%;
+  background-color: #04060a;
+}
+
+.variables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+.variable-card {
+  background-color: #0b0f19;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: var(--transition);
+}
+
+.variable-card:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.variable-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  text-align: left;
+}
+
+.variable-card-name {
+  font-weight: 700;
+  color: var(--color-brand);
+}
+
+.variable-card-equal {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.variable-card-value {
+  color: #cbd5e1;
+  word-break: break-all;
+  font-family: monospace;
+  text-align: left;
+}
+
+.variable-card-object-value {
+  margin: 4px 0 0 0;
+  background-color: #05070c;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  padding: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  color: #818cf8; /* nice color for object values */
+  white-space: pre-wrap;
+  word-break: break-all;
+  text-align: left;
+  line-height: 1.4;
+}
+
+

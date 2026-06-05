@@ -90,6 +90,14 @@ export interface DomSnapshot {
     title: string;
     stateIndicator?: string;  // [data-state] 属性值
   };
+  formState?: Array<{
+    selector: string;
+    tagName: string;
+    type: string;
+    value: string;
+    checked: boolean;
+    index: number;
+  }>;
 }
 
 /** API 缓存条目 */
@@ -101,6 +109,7 @@ export interface ApiCacheEntry {
   headers: Record<string, string>;
   body: string;               // JSON 字符串
   cachedAt: string;           // ISO 8601
+  subStepId?: string;
 }
 
 /** 角色 Session 缓存 */

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export type TerminalTab = 'stream' | 'history'
+export type TerminalTab = 'stream' | 'history' | 'variables'
 
 export const useTerminalStore = defineStore('terminal', () => {
   const activeTab = ref<TerminalTab>('stream')

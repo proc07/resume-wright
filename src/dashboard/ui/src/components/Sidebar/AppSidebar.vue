@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useCasesStore } from '@/stores/cases'
 import { useRunnerStore } from '@/stores/runner'
 import { fetchSettings } from '@/api/settings'
 import StatusFilters from './StatusFilters.vue'
 import CaseTree from './CaseTree.vue'
+import ConfirmModal from '@/components/Common/ConfirmModal.vue'
 
 const emit = defineEmits(['open-settings'])
 
@@ -16,6 +17,9 @@ const isAllSelected = computed({
   get: () => casesStore.isAllSelected,
   set: (val) => casesStore.toggleSelectAll(val)
 })
+
+// Modal state
+const resetAllModalVisible = ref(false)
 
 async function handleRunAllSelected() {
   const files = Array.from(casesStore.selectedCasePaths)
@@ -55,15 +59,11 @@ async function handleRunAllSelected() {
   }
 }
 
-async function handleResetAll() {
-  if (!confirm('警告：确认要重置全部用例的断点数据吗？此操作会物理清除所有 Checkpoint 存档文件。')) {
-    return
-  }
+async function doResetAll() {
   try {
     const success = await runnerStore.resetAllCases()
     if (success) {
       casesStore.loadCases()
-      alert('所有用例断点已重置')
     }
   } catch (err) {
     console.error('重置所有断点失败:', err)
@@ -107,7 +107,7 @@ async function handleResetAll() {
           id="btn-reset-all"
           class="btn btn-outline-danger"
           :disabled="runnerStore.isRunning"
-          @click="handleResetAll"
+          @click="resetAllModalVisible = true"
         >
           ⟲ 重置所有
         </button>
@@ -145,6 +145,18 @@ async function handleResetAll() {
       <CaseTree />
     </div>
   </aside>
+
+  <!-- Reset All Confirm Modal -->
+  <ConfirmModal
+    :visible="resetAllModalVisible"
+    title="重置所有断点"
+    message="确认要重置全部用例的断点数据吗？"
+    sub-message="此操作将物理删除所有用例的 checkpoint.json、sub-steps 快照及接口缓存文件，且无法撤销。"
+    confirm-text="确认全部重置"
+    type="danger"
+    @confirm="resetAllModalVisible = false; doResetAll()"
+    @cancel="resetAllModalVisible = false"
+  />
 </template>
 
 <style scoped>

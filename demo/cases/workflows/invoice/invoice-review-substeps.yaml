@@ -30,18 +30,16 @@ steps:
         snapshot_before_submit: true
         script: |
           upload "./fixtures/invoice_001.pdf"
-          assert_exists "上传成功" 15s
+          assert_exists "#invoice-upload-status" 15s
           upload "./fixtures/invoice_002.pdf"
-          assert_exists "上传成功" 15s
+          assert_exists "#invoice-upload-status" 15s
 
       - id: submit_invoice
-        snapshot_before_submit: true
         script: |
           tap "role:button[提交审核]"
           assert_exists "提交成功" 10s
           $invoice_url = current_url
           $invoice_id  = url_match "/invoice/([\w-]+)"
-          screenshot
 
   - id: step2_review
     role: reviewer

@@ -73,8 +73,15 @@ export class SubStepExecutor {
     const restoreSnapshot = on_failure?.restore_snapshot ?? false;
     let retryCount = this.store.getRetryCount(id);
 
-    // 保存执行前快照
-    await this.snapshotMgr.save(`${id}-before`, this.page, this.context);
+    this.interceptor.activeSubStepId = id;
+
+    // 存在历史快照则恢复，否则保存当前状态为执行前快照
+    if (this.snapshotMgr.exists(`${id}-before`)) {
+      console.log(`[sub-step] Restoring snapshot before execution: ${id}-before`);
+      await this.snapshotMgr.restore(`${id}-before`, this.page, this.context);
+    } else {
+      await this.snapshotMgr.save(`${id}-before`, this.page, this.context);
+    }
 
     while (true) {
       try {

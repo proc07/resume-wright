@@ -24,6 +24,7 @@ export class NetworkInterceptor {
   private cache: Map<string, ApiCacheEntry> = new Map();
   private attached = false;
   private readonly handler: (route: Route, request: Request) => Promise<void>;
+  public activeSubStepId: string | null = null;
 
   constructor(
     private readonly page: Page,
@@ -100,6 +101,7 @@ export class NetworkInterceptor {
         headers: response.headers() as Record<string, string>,
         body: responseBody,
         cachedAt: new Date().toISOString(),
+        subStepId: this.activeSubStepId || undefined,
       };
       this.cache.set(fingerprint, entry);
       this.persistCache();

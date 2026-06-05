@@ -41,7 +41,7 @@ export const useCasesStore = defineStore('cases', () => {
   )
 
   function getSafeCaseName(name: string) {
-    return encodeURIComponent(name.replace(/[/?<>\\:*|"]/g, '_'))
+    return name.replace(/[/?<>\\:*|"]/g, '_')
   }
 
   async function loadCases() {
@@ -60,9 +60,10 @@ export const useCasesStore = defineStore('cases', () => {
       } else {
         const updated = cases.find(c => c.name === currentCase.value!.name)
         if (updated) {
-          // preserve subStepsDetail and traces which come from separate API
+          // preserve subStepsDetail, traces and variables which come from separate API
           updated.subStepsDetail = currentCase.value.subStepsDetail
           updated.traces = currentCase.value.traces
+          updated.variables = currentCase.value.variables
           currentCase.value = updated
           await refreshCaseDetails(updated.name)
         }
@@ -81,6 +82,8 @@ export const useCasesStore = defineStore('cases', () => {
       if (target) {
         target.subStepsDetail = details.subSteps
         target.traces = details.traces
+        target.error = details.error
+        target.variables = details.variables
         currentCase.value = { ...target }
       }
       useTerminalStore().setScreenshots(details.screenshots)
@@ -98,6 +101,8 @@ export const useCasesStore = defineStore('cases', () => {
       if (target) {
         target.subStepsDetail = details.subSteps
         target.traces = details.traces
+        target.error = details.error
+        target.variables = details.variables
         if (currentCase.value?.name === caseName) {
           currentCase.value = { ...target }
         }

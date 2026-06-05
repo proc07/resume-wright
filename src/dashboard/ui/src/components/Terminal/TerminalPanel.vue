@@ -5,6 +5,7 @@ import { useTerminalResizer } from '@/composables/useTerminalResizer'
 import TerminalResizer from './TerminalResizer.vue'
 import StreamPane from './StreamPane.vue'
 import HistoryPane from './HistoryPane.vue'
+import VariablesPane from './VariablesPane.vue'
 
 const terminalStore = useTerminalStore()
 const containerRef = ref<HTMLElement | null>(null)
@@ -14,7 +15,7 @@ const { onMouseDown } = useTerminalResizer(containerRef)
 
 const activeTab = computed(() => terminalStore.activeTab)
 
-function switchTab(tab: 'stream' | 'history') {
+function switchTab(tab: 'stream' | 'history' | 'variables') {
   terminalStore.setTab(tab)
 }
 
@@ -54,6 +55,14 @@ function handleClearTerminal() {
           >
             ⏳ 运行历史记录 (Run History)
           </button>
+          <button
+            class="terminal-tab-btn"
+            :class="{ active: activeTab === 'variables' }"
+            id="tab-btn-variables"
+            @click="switchTab('variables')"
+          >
+            📦 变量可视化 (Variables Inspector)
+          </button>
         </div>
         <div class="terminal-actions">
           <button
@@ -73,6 +82,9 @@ function handleClearTerminal() {
         />
         <HistoryPane
           v-show="activeTab === 'history'"
+        />
+        <VariablesPane
+          v-show="activeTab === 'variables'"
         />
       </div>
     </div>

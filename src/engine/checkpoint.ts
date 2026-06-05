@@ -13,8 +13,7 @@ const BASE_DIR = '.resumewright';
  * 获取安全的文件系统目录名称，规避非法路径字符，并对中文或特殊符号使用 URL 编码
  */
 export function getSafeCaseName(caseName: string): string {
-  const safe = caseName.replace(/[/?<>\\:*|"]/g, '_');
-  return encodeURIComponent(safe);
+  return caseName.replace(/[/?<>\\:*|"]/g, '_');
 }
 
 /**
@@ -86,6 +85,13 @@ export class Checkpoint {
    */
   completedCount(): number {
     return this.data.completedSteps.length;
+  }
+
+  /**
+   * 获取当前保存的 Context 变量
+   */
+  getContext(): Record<string, any> {
+    return this.data.context;
   }
 
   /**

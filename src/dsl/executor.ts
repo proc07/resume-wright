@@ -280,7 +280,14 @@ async function executeCommand(
     // ── 上传 ─────────────────────────────────────────────────
     case 'upload': {
       const filePath = path.resolve(process.cwd(), stripQuotes(args[0]!));
-      const fileInput = page.locator('input[type="file"]').filter({ visible: true }).first();
+      let fileInput;
+      if (args.length >= 3 && args[1] === 'to') {
+        fileInput = resolveLocatorFromString(page, args[2]!);
+      } else if (args.length >= 2) {
+        fileInput = resolveLocatorFromString(page, args[1]!);
+      } else {
+        fileInput = page.locator('input[type="file"]').filter({ visible: true }).first();
+      }
       await fileInput.setInputFiles(filePath);
       break;
     }

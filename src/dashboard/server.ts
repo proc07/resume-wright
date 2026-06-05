@@ -306,20 +306,66 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
           const stepDirs = fs.readdirSync(subStepsDir);
           for (const sDir of stepDirs) {
             const statePath = path.join(subStepsDir, sDir, 'state.json');
+            const cachePath = path.join(subStepsDir, sDir, 'api-cache.json');
             if (fs.existsSync(statePath)) {
               try {
-                subStepsData[sDir] = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+                const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+                if (fs.existsSync(cachePath)) {
+                  try {
+                    const cacheEntries = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as any[];
+                    for (const entry of cacheEntries) {
+                      const subId = entry.subStepId;
+                      if (subId && state[subId]) {
+                        if (!state[subId].apiCache) {
+                          state[subId].apiCache = [];
+                        }
+                        state[subId].apiCache.push({
+                          method: entry.method,
+                          url: entry.url,
+                          status: entry.status,
+                          body: entry.body,
+                        });
+                      }
+                    }
+                  } catch { /* ignore */ }
+                }
+                subStepsData[sDir] = state;
               } catch { /* ignore */ }
             }
           }
         } catch { /* ignore */ }
       }
 
+      // 读取最新的 error 信息
+      let latestError: string | undefined;
+      try {
+        const historyFile = path.join(caseDir, 'history', 'history.json');
+        if (fs.existsSync(historyFile)) {
+          const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+          if (history && history.length > 0) {
+            const latest = history[0];
+            if (latest.status === 'failed') {
+              latestError = latest.error || undefined;
+            }
+          }
+        }
+      } catch { /* ignore */ }
+
+      // 读取 checkpoint 中的本地变量 (context)
+      let variables: Record<string, any> = {};
+      try {
+        const cp = new Checkpoint(caseName);
+        cp.load();
+        variables = cp.getContext();
+      } catch { /* ignore */ }
+
       return jsonRes(res, 200, {
         caseName,
         screenshots,
         subSteps: subStepsData,
         traces,
+        error: latestError,
+        variables,
       });
     } catch (err: any) {
       return jsonRes(res, 500, { error: err.message });

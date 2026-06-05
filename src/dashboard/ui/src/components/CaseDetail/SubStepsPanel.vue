@@ -18,6 +18,23 @@ const subStepsDetail = computed(() => {
   return props.caseData.subStepsDetail[props.selectedStepId] || null
 })
 
+const stepIndex = computed(() => {
+  if (!props.selectedStepId) return -1
+  return props.caseData.steps.findIndex(s => s.id === props.selectedStepId)
+})
+
+const isStepFailed = computed(() => {
+  if (!step.value || stepIndex.value === -1) return false
+  const detail = props.caseData.subStepsDetail?.[step.value.id]
+  const hasFailedSubStep = detail && Object.values(detail).some((sub: any) => sub.status === 'failed')
+  return !!(hasFailedSubStep || (props.caseData.status === 'failed' && props.caseData.completedCount === stepIndex.value))
+})
+
+const isStepRunning = computed(() => {
+  if (!step.value || stepIndex.value === -1) return false
+  return props.caseData.status === 'running' && props.caseData.completedCount === stepIndex.value
+})
+
 function statusLabel(s: string) {
   return {
     completed: '通过',
@@ -25,6 +42,24 @@ function statusLabel(s: string) {
     pending: '等待中',
     running: '运行中'
   }[s] || s
+}
+
+function formatError(err: string | undefined): string {
+  if (!err) return ''
+  let cleaned = err.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
+  cleaned = cleaned.replace(/\[\d{1,2}m/g, '')
+  cleaned = cleaned.replace(/Call log:/g, '\n\nCall log:')
+  return cleaned.trim()
+}
+
+function formatJson(bodyStr: string | undefined): string {
+  if (!bodyStr) return ''
+  try {
+    const parsed = JSON.parse(bodyStr)
+    return JSON.stringify(parsed, null, 2)
+  } catch {
+    return bodyStr
+  }
 }
 </script>
 
@@ -42,11 +77,17 @@ function statusLabel(s: string) {
               <span class="substep-title">主步骤脚本执行</span>
               <span
                 class="substep-status"
-                :class="step.completed ? 'completed' : 'pending'"
+                :class="step.completed ? 'completed' : (isStepFailed ? 'failed' : (isStepRunning ? 'running' : 'pending'))"
               >
-                {{ step.completed ? '已完成' : '未运行' }}
+                {{ step.completed ? '已完成' : (isStepFailed ? '失败' : (isStepRunning ? '运行中' : '未运行')) }}
               </span>
             </div>
+            <pre
+              v-if="isStepFailed && props.caseData.error"
+              style="font-size: 11px; color: var(--color-error); word-break: break-all; white-space: pre-wrap; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); padding: 8px 12px; border-radius: 6px; margin-top: 8px; font-family: monospace; line-height: 1.5;"
+            >
+              {{ formatError(props.caseData.error) }}
+            </pre>
           </div>
         </template>
         <template v-else-if="!subStepsDetail || Object.keys(subStepsDetail).length === 0">
@@ -66,41 +107,51 @@ function statusLabel(s: string) {
                 {{ statusLabel(state.status) }}
               </span>
             </div>
-            <div
-              v-if="state.retryCount"
-              style="font-size: 11px; color: var(--color-warning)"
-            >
-              重试次数: {{ state.retryCount }}
-            </div>
-            <div
-              v-if="state.error"
-              style="font-size: 12px; color: var(--color-error); word-break: break-all"
-            >
-              {{ state.error }}
-            </div>
-            
-            <!-- API 响应缓存列表 -->
-            <div class="api-cache-list mt-2">
-              <div class="api-cache-title">接口缓存命中 (API Response Cache)</div>
+            <div class="substep-body">
               <div
-                v-if="!state.apiCache || state.apiCache.length === 0"
-                style="font-size: 11px; color: #cbd5e1"
+                v-if="state.retryCount"
+                style="font-size: 11px; color: var(--color-warning)"
               >
-                暂无 API 缓存
+                重试次数: {{ state.retryCount }}
               </div>
-              <div v-else>
+              <pre
+                v-if="state.error"
+                style="font-size: 11px; color: var(--color-error); word-break: break-all; white-space: pre-wrap; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); padding: 8px 12px; border-radius: 6px; margin-top: 8px; font-family: monospace; line-height: 1.5;"
+              >
+                {{ formatError(state.error) }}
+              </pre>
+              
+              <!-- API 响应缓存列表 -->
+              <div class="api-cache-list mt-2">
+                <div class="api-cache-title">接口缓存命中 (API Response Cache)</div>
                 <div
-                  v-for="(c, cIdx) in state.apiCache"
-                  :key="cIdx"
-                  class="api-cache-item"
+                  v-if="!state.apiCache || state.apiCache.length === 0"
+                  style="font-size: 11px; color: #cbd5e1"
                 >
-                  <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px;">
-                    <span class="api-cache-method" style="flex-shrink: 0;">{{ c.method }}</span>
-                    <div class="api-cache-url-container" :data-tooltip="c.url" style="flex-grow: 1; min-width: 0;">
-                      <span class="api-cache-url">{{ c.url }}</span>
+                  暂无 API 缓存
+                </div>
+                <div v-else>
+                  <div
+                    v-for="(c, cIdx) in state.apiCache"
+                    :key="cIdx"
+                    class="api-cache-item-wrapper"
+                  >
+                    <div class="api-cache-item">
+                      <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px;">
+                        <span class="api-cache-method" style="flex-shrink: 0;">{{ c.method }}</span>
+                        <div class="api-cache-url-container" :data-tooltip="c.url" style="flex-grow: 1; min-width: 0;">
+                          <span class="api-cache-url">{{ c.url }}</span>
+                        </div>
+                      </div>
+                      <span class="api-cache-badge" style="flex-shrink: 0;">{{ c.status }}</span>
+                    </div>
+                    
+                    <!-- 接口 Response 悬浮框 -->
+                    <div v-if="c.body" class="api-cache-details-popover">
+                      <div class="api-cache-popover-title">Response Body (JSON):</div>
+                      <pre class="api-cache-popover-content">{{ formatJson(c.body) }}</pre>
                     </div>
                   </div>
-                  <span class="api-cache-badge" style="flex-shrink: 0;">{{ c.status }}</span>
                 </div>
               </div>
             </div>

@@ -17,6 +17,8 @@ export interface CaseData {
   totalSteps: number
   subStepsDetail?: Record<string, Record<string, SubStepState>>
   traces?: string[]
+  error?: string
+  variables?: Record<string, any>
 }
 
 export interface SubStepState {
@@ -30,6 +32,7 @@ export interface ApiCacheEntry {
   method: string
   url: string
   status: number
+  body?: string
 }
 
 export interface CaseDetails {
@@ -37,6 +40,8 @@ export interface CaseDetails {
   screenshots: string[]
   subSteps: Record<string, Record<string, SubStepState>>
   traces: string[]
+  error?: string
+  variables?: Record<string, any>
 }
 
 export async function fetchCases(): Promise<CaseData[]> {

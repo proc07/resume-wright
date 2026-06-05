@@ -1,0 +1,26 @@
+# demo/cases/workflows/api-cache-demo.yaml
+# 演示用例：展示子步骤 API 缓存拦截与命中显示
+
+name: "API缓存功能演示"
+description: "通过子步骤创建采购申请，捕获并展示被拦截缓存的 POST API 请求"
+timeout: 300000
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  - id: create_purchase
+    role: requester
+    sub_steps:
+      - id: fill_info
+        script: |
+          open "http://127.0.0.1:61775/purchase/new"
+          input "API缓存演示采购" to "label:申请标题"
+          input "2500" to "label:申请金额"
+          input "测试拦截缓存" to "label:申请原因"
+
+      - id: submit
+        script: |
+          tap "role:button[提交申请]"
+          assert_exists "采购申请详情" 10s
+          screenshot
