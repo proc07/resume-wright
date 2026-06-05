@@ -61,14 +61,18 @@ async function handlePlayTrace(event: Event) {
     </div>
     <div class="step-info">
       <div class="step-header-row">
-        <div class="step-id">{{ step.id }}</div>
+        <div class="step-id-container" :data-tooltip="step.id">
+          <div class="step-id">{{ step.id }}</div>
+        </div>
         <button
           v-if="hasTrace"
           class="btn-step-play-trace"
           title="播放该步骤录像"
           @click="handlePlayTrace"
         >
-          🎞
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 10px; height: 10px;">
+            <polygon points="6 3 20 12 6 21 6 3" fill="currentColor"></polygon>
+          </svg>
         </button>
       </div>
       <div class="step-role">角色: {{ step.role }}</div>

@@ -15,7 +15,6 @@ const statusLabel = computed(() => {
   return {
     passed: '执行通过',
     failed: '执行失败',
-    paused: '断点暂停',
     never_run: '未运行',
     running: '正在执行...'
   }[status] || status
@@ -25,7 +24,7 @@ const runButtonText = computed(() => {
   if (!currentCase.value) return '▶ 开始执行'
   const status = currentCase.value.status
   if (status === 'passed') return '▶ 重新执行'
-  if (status === 'paused' || status === 'failed') return '▶ 继续执行'
+  if (status === 'failed') return '▶ 继续执行'
   return '▶ 开始执行'
 })
 

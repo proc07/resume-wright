@@ -7,6 +7,7 @@ import type { StepExecutionContext } from '../types/engine.types.js';
 import { NetworkInterceptor } from './network-interceptor.js';
 import { SubStepExecutor } from './sub-step-executor.js';
 import { executeScript } from '../dsl/executor.js';
+import { getSafeCaseName } from './checkpoint.js';
 import { getFormattedDateTime } from './datetime-utils.js';
 import path from 'node:path';
 
@@ -59,7 +60,7 @@ export class StepExecutor {
             mkdirSync(ssDir, { recursive: true });
             const ssPath = path.join(ssDir, `${step.id}-error-${getFormattedDateTime()}.png`);
             await page.screenshot({ path: ssPath });
-            console.log(`[step] 📸 Error screenshot: ${ssPath}`);
+            console.log(`[step] 📸 Error screenshot: ${decodeURIComponent(ssPath)}`);
           } catch { /* ignore */ }
         }
 
@@ -100,7 +101,7 @@ export class StepExecutor {
     }
 
     // 基于 caseName 计算该 case 的专属根路径
-    const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+    const safeCaseName = getSafeCaseName(caseName);
     const caseDir = path.join('.resumewright', safeCaseName);
 
     // API 缓存路径
@@ -187,7 +188,7 @@ export class StepExecutor {
       if (tracingStarted) {
         try {
           await context.tracing.stop({ path: tracePath });
-          console.log(`[step] ✓ Tracing file saved: ${tracePath}`);
+          console.log(`[step] ✓ Tracing file saved: ${decodeURIComponent(tracePath)}`);
         } catch (err) {
           console.error(`[step] Failed to stop tracing: ${err}`);
         }

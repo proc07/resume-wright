@@ -9,7 +9,7 @@ export const useRunnerStore = defineStore('runner', () => {
   let eventSource: EventSource | null = null
 
   function getSafeCaseName(name: string) {
-    return name.replace(/[/?<>\\:*|"]/g, '_')
+    return encodeURIComponent(name.replace(/[/?<>\\:*|"]/g, '_'))
   }
 
   function appendLog(safeCase: string, text: string) {

@@ -48,13 +48,17 @@ function handleCheckboxChange(event: Event) {
           @change="handleCheckboxChange"
           @click.stop
         >
-        <span class="case-item-name-text" :title="caseData.name">{{ caseData.name }}</span>
+        <div class="case-item-name-container" :data-tooltip="caseData.name">
+          <span class="case-item-name-text">{{ caseData.name }}</span>
+        </div>
       </div>
       <span class="status-dot" :class="caseData.status"></span>
     </div>
     <div class="case-item-meta">
       <span class="case-meta-left">{{ progressText }}</span>
-      <span class="case-meta-right" :title="caseData.filePath"><code>{{ fileName }}</code></span>
+      <div class="case-item-name-container" :data-tooltip="caseData.filePath" style="text-align: right;">
+        <span class="case-meta-right" style="display: block; width: 100%;"><code>{{ fileName }}</code></span>
+      </div>
     </div>
   </div>
 </template>

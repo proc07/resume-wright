@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Checkpoint } from '../../../src/engine/checkpoint.js';
+import { Checkpoint, getSafeCaseName } from '../../../src/engine/checkpoint.js';
 import { ContextStore } from '../../../src/engine/context-store.js';
 
 describe('Checkpoint', () => {
@@ -152,6 +152,17 @@ describe('Checkpoint', () => {
       const count = checkpoint.completedCount();
       checkpoint.syncContext(ctx);
       expect(checkpoint.completedCount()).toBe(count);
+    });
+  });
+
+  // ── getSafeCaseName ───────────────────────────────────────
+
+  describe('getSafeCaseName()', () => {
+    it('正确转换非法字符并进行 URL 编码', () => {
+      const caseName = '我的/测试:用例*名称?包含"非法"字符';
+      const safe = getSafeCaseName(caseName);
+      expect(safe).toBe(encodeURIComponent('我的_测试_用例_名称_包含_非法_字符'));
+      expect(decodeURIComponent(safe)).toBe('我的_测试_用例_名称_包含_非法_字符');
     });
   });
 });

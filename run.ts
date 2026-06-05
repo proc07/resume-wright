@@ -13,7 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { Scheduler } from './src/engine/scheduler.js';
 import { WorkflowRunner } from './src/engine/workflow-runner.js';
-import { listCheckpoints, Checkpoint, resetCaseRuntime, resetAllRuntimes } from './src/engine/checkpoint.js';
+import { listCheckpoints, Checkpoint, resetCaseRuntime, resetAllRuntimes, getSafeCaseName } from './src/engine/checkpoint.js';
 import { loadCase } from './src/adapters/yaml-loader.js';
 import { formatDuration } from './src/engine/workflow-runner.js';
 
@@ -140,7 +140,7 @@ program
       const definition = loadCase(filePath);
 
       // 清理该 case 的运行状态，但保留 history 目录以确保运行历史不丢失
-      const safeCaseName = definition.name.replace(/[/?<>\\:*|"]/g, '_');
+      const safeCaseName = getSafeCaseName(definition.name);
       const caseDir = path.join(process.cwd(), '.resumewright', safeCaseName);
       resetCaseRuntime(caseDir);
 

@@ -94,11 +94,13 @@ function statusLabel(s: string) {
                   :key="cIdx"
                   class="api-cache-item"
                 >
-                  <div>
-                    <span class="api-cache-method">{{ c.method }}</span>
-                    <span class="api-cache-url" :title="c.url">{{ c.url }}</span>
+                  <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px;">
+                    <span class="api-cache-method" style="flex-shrink: 0;">{{ c.method }}</span>
+                    <div class="api-cache-url-container" :data-tooltip="c.url" style="flex-grow: 1; min-width: 0;">
+                      <span class="api-cache-url">{{ c.url }}</span>
+                    </div>
                   </div>
-                  <span class="api-cache-badge">{{ c.status }}</span>
+                  <span class="api-cache-badge" style="flex-shrink: 0;">{{ c.status }}</span>
                 </div>
               </div>
             </div>

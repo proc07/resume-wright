@@ -258,7 +258,7 @@ async function executeCommand(
       const stepId = opts.stepId ?? 'unknown';
       const screenshotPath = path.join(dir, `${stepId}-${timestamp}.png`);
       await page.screenshot({ path: screenshotPath, fullPage: false });
-      console.log(`[dsl]   📸 Screenshot saved: ${screenshotPath}`);
+      console.log(`[dsl]   📸 Screenshot saved: ${decodeURIComponent(screenshotPath)}`);
       break;
     }
 
@@ -330,7 +330,7 @@ async function executeCommand(
         const sanitizedArg = sanitizeFilename(locStr) || 'target';
         const screenshotPath = path.join(dir, `${sanitizedArg}-${stepId}.png`);
         await page.screenshot({ path: screenshotPath, fullPage: false });
-        console.log(`[dsl]   📸 Assert screenshot saved: ${screenshotPath}`);
+        console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
       }
       break;
     }

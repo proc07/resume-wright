@@ -55,7 +55,9 @@ function handleCheckboxChange(event: Event) {
         @click.stop
       >
       <span class="folder-icon">📁</span>
-      <span class="folder-name-text" :title="node.name">{{ node.name }}</span>
+      <div class="folder-name-container" :data-tooltip="node.name">
+        <span class="folder-name-text">{{ node.name }}</span>
+      </div>
     </div>
     
     <div v-show="!isCollapsed" class="folder-children">

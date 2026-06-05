@@ -35,13 +35,7 @@ function setFilter(status: string) {
     >
       失败 (<span>{{ counts.failed }}</span>)
     </span>
-    <span
-      class="filter-pill"
-      :class="{ active: currentFilter === 'paused' }"
-      @click="setFilter('paused')"
-    >
-      中断 (<span>{{ counts.paused }}</span>)
-    </span>
+
     <span
       class="filter-pill"
       :class="{ active: currentFilter === 'never_run' }"

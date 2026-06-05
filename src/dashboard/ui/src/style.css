@@ -819,6 +819,7 @@ code, pre {
   flex-direction: column;
   gap: 2px;
   flex-grow: 1;
+  min-width: 0;
 }
 
 .step-header-row {
@@ -832,6 +833,10 @@ code, pre {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 
 .step-role {
@@ -1782,4 +1787,85 @@ code, pre {
   border-color: var(--color-brand);
   transform: scale(1.1);
   box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+}
+
+/* ── 全局高级 Tooltip (在上方显示) ── */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background-color: rgba(15, 23, 42, 0.95);
+  color: #ffffff;
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: normal;
+  word-break: break-all;
+  max-width: 250px;
+  width: max-content;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 999;
+  text-align: center;
+  line-height: 1.4;
+}
+
+[data-tooltip]::after {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border-width: 5px 5px 0;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.95) transparent transparent transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 999;
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.step-id-container {
+  min-width: 0;
+  flex: 1;
+  position: relative;
+}
+
+.case-item-name-container {
+  min-width: 0;
+  flex-grow: 1;
+  position: relative;
+}
+
+.folder-name-container {
+  min-width: 0;
+  flex-grow: 1;
+  position: relative;
+}
+
+.api-cache-url-container {
+  position: relative;
+  overflow: visible;
+  max-width: 240px;
+}
+
+.screenshot-card-wrapper {
+  position: relative;
+  overflow: visible;
 }

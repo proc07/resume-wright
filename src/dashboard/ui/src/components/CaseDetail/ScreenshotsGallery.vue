@@ -41,12 +41,17 @@ function openLightbox(originalIndex: number) {
       <div
         v-for="ss in stepScreenshots"
         :key="ss.src"
-        class="screenshot-card"
-        @click="openLightbox(ss.originalIndex)"
+        class="screenshot-card-wrapper"
+        :data-tooltip="getFileName(ss.src)"
       >
-        <img :src="ss.src" alt="Snapshot" loading="lazy">
-        <div class="screenshot-name" :title="getFileName(ss.src)">
-          {{ getFileName(ss.src) }}
+        <div
+          class="screenshot-card"
+          @click="openLightbox(ss.originalIndex)"
+        >
+          <img :src="ss.src" alt="Snapshot" loading="lazy">
+          <div class="screenshot-name">
+            {{ getFileName(ss.src) }}
+          </div>
         </div>
       </div>
     </div>

@@ -12,7 +12,7 @@ export interface CaseData {
   description: string
   filePath: string
   steps: CaseStep[]
-  status: 'passed' | 'failed' | 'paused' | 'never_run' | 'running'
+  status: 'passed' | 'failed' | 'never_run' | 'running'
   completedCount: number
   totalSteps: number
   subStepsDetail?: Record<string, Record<string, SubStepState>>

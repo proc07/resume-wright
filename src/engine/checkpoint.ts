@@ -10,6 +10,14 @@ import type { ContextStore } from './context-store.js';
 const BASE_DIR = '.resumewright';
 
 /**
+ * 获取安全的文件系统目录名称，规避非法路径字符，并对中文或特殊符号使用 URL 编码
+ */
+export function getSafeCaseName(caseName: string): string {
+  const safe = caseName.replace(/[/?<>\\:*|"]/g, '_');
+  return encodeURIComponent(safe);
+}
+
+/**
  * Checkpoint — 管理单个 Case 的断点续跑状态
  *
  * 使用原子写（先写 .tmp 再 rename）防止写一半崩溃导致数据损坏。
@@ -20,7 +28,7 @@ export class Checkpoint {
   private readonly tmpPath: string;
 
   constructor(caseName: string, baseDir?: string) {
-    const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+    const safeCaseName = getSafeCaseName(caseName);
     const actualBaseDir = baseDir ?? path.join(BASE_DIR, safeCaseName);
     this.filePath = path.join(actualBaseDir, 'checkpoint.json');
     this.tmpPath = `${this.filePath}.tmp`;

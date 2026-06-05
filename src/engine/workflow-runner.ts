@@ -6,7 +6,7 @@ import { chromium } from '@playwright/test';
 import type { CaseDefinition } from '../types/case.types.js';
 import type { CaseResult, WorkflowRunnerOptions } from '../types/engine.types.js';
 import { ContextStore } from './context-store.js';
-import { Checkpoint } from './checkpoint.js';
+import { Checkpoint, getSafeCaseName } from './checkpoint.js';
 import { RolePool } from './role-pool.js';
 import { StepExecutor } from './step-executor.js';
 import { getFormattedDateTime } from './datetime-utils.js';
@@ -100,7 +100,7 @@ export class WorkflowRunner {
   async run(): Promise<CaseResult> {
     const startTime = Date.now();
     const caseName = this.definition.name;
-    const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+    const safeCaseName = getSafeCaseName(caseName);
     const caseDir = path.join('.resumewright', safeCaseName);
     const historyDir = path.join(caseDir, 'history');
     fs.mkdirSync(historyDir, { recursive: true });
@@ -259,7 +259,7 @@ export class WorkflowRunner {
     fs.mkdirSync(dir, { recursive: true });
     const ssPath = path.join(
       dir,
-      `${caseName.replace(/[/?<>\\:*|"]/g, '_')}-error-${getFormattedDateTime()}.png`
+      `${getSafeCaseName(caseName)}-error-${getFormattedDateTime()}.png`
     );
 
     // 对所有活跃角色都截图

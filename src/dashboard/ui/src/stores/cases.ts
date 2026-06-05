@@ -33,7 +33,6 @@ export const useCasesStore = defineStore('cases', () => {
     all: casesData.value.length,
     passed: casesData.value.filter(c => c.status === 'passed').length,
     failed: casesData.value.filter(c => c.status === 'failed').length,
-    paused: casesData.value.filter(c => c.status === 'paused').length,
     never_run: casesData.value.filter(c => c.status === 'never_run' || c.status === 'running').length,
   }))
 
@@ -42,7 +41,7 @@ export const useCasesStore = defineStore('cases', () => {
   )
 
   function getSafeCaseName(name: string) {
-    return name.replace(/[/?<>\\:*|"]/g, '_')
+    return encodeURIComponent(name.replace(/[/?<>\\:*|"]/g, '_'))
   }
 
   async function loadCases() {

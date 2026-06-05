@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadCase } from '../adapters/yaml-loader.js';
-import { Checkpoint, listCheckpoints, resetAllCheckpoints, resetCaseRuntime, resetAllRuntimes } from '../engine/checkpoint.js';
+import { Checkpoint, listCheckpoints, resetAllCheckpoints, resetCaseRuntime, resetAllRuntimes, getSafeCaseName } from '../engine/checkpoint.js';
 
 // 获取当前目录路径（ESM 规范下替代 __dirname）
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +44,7 @@ function loadDashboardSettings(): DashboardSettings {
 
 function markHistoryAsTerminated(caseName: string, exitCode: number | null): void {
   try {
-    const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+    const safeCaseName = getSafeCaseName(caseName);
     const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
     if (fs.existsSync(historyFile)) {
       const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
@@ -75,6 +75,35 @@ function saveDashboardSettings(settings: DashboardSettings): void {
   }
 }
 
+export function getLocalNodeScript(...segments: string[]): string {
+  const localPath = path.join(process.cwd(), ...segments);
+  if (fs.existsSync(localPath)) {
+    return localPath;
+  }
+  const parentPath = path.join(process.cwd(), '..', ...segments);
+  if (fs.existsSync(parentPath)) {
+    return parentPath;
+  }
+  return localPath;
+}
+
+export function openDashboardInBrowser(url: string): void {
+  try {
+    let proc;
+    if (process.platform === 'win32') {
+      proc = spawn('cmd', ['/c', 'start', url]);
+    } else {
+      const openCmd = process.platform === 'darwin' ? 'open' : 'xdg-open';
+      proc = spawn(openCmd, [url]);
+    }
+    proc.on('error', (err) => {
+      console.error('[dashboard] Failed to open browser automatically:', err);
+    });
+  } catch (err) {
+    console.error('[dashboard] Error opening browser:', err);
+  }
+}
+
 export async function startDashboardServer(requestedPort: number): Promise<void> {
   const server = http.createServer(handleRequest);
 
@@ -93,11 +122,8 @@ export async function startDashboardServer(requestedPort: number): Promise<void>
       console.log(`  🚀 ResumeWright Dashboard running at: http://127.0.0.1:${port}/`);
       console.log(`==========================================================\n`);
 
-      // 自动打开浏览器
-      try {
-        const openCmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-        spawn(openCmd, [`http://127.0.0.1:${port}/`]);
-      } catch { /* ignore open browser errors */ }
+      // 自动打开浏览器并进行错误监听以规避 Windows 兼容问题
+      openDashboardInBrowser(`http://127.0.0.1:${port}/`);
       
       return;
     } catch (err: any) {
@@ -112,7 +138,7 @@ export async function startDashboardServer(requestedPort: number): Promise<void>
   throw new Error(`Could not find a free port for Dashboard Server after ${maxPortAttempts} attempts.`);
 }
 
-async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+export async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = new URL(req.url || '', `http://${req.headers.host}`);
   const pathname = url.pathname;
 
@@ -151,7 +177,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
           // 结合内存中最后运行的状态
           const completed = cp.completedCount();
           const total = definition.steps.length;
-          let status: 'passed' | 'failed' | 'paused' | 'never_run' | 'running' = 'never_run';
+          let status: 'passed' | 'failed' | 'never_run' | 'running' = 'never_run';
 
           if (completed === total && total > 0) {
             status = 'passed';
@@ -165,7 +191,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
             // 从历史记录中恢复状态（如果内存中没有）
             let historicalStatus: string | null = null;
             try {
-              const safeCaseName = definition.name.replace(/[/?<>\\:*|"]/g, '_');
+              const safeCaseName = getSafeCaseName(definition.name);
               const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
               if (fs.existsSync(historyFile)) {
                 const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
@@ -175,10 +201,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
               }
             } catch { /* ignore */ }
 
-            if (historicalStatus === 'failed') {
+            if (historicalStatus === 'failed' || completed > 0) {
               status = 'failed';
-            } else if (completed > 0) {
-              status = 'paused';
             }
           }
 
@@ -249,7 +273,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       if (!encodedCaseName) return jsonRes(res, 400, { error: 'Missing caseName' });
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+      const safeCaseName = getSafeCaseName(caseName);
       const caseDir = path.join('.resumewright', safeCaseName);
 
       // 读取 screenshots
@@ -310,7 +334,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       if (!encodedCaseName) return jsonRes(res, 400, { error: 'Missing caseName' });
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+      const safeCaseName = getSafeCaseName(caseName);
       const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
 
       if (fs.existsSync(historyFile)) {
@@ -332,7 +356,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       if (!encodedCaseName || !runId) return jsonRes(res, 400, { error: 'Missing caseName or runId' });
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+      const safeCaseName = getSafeCaseName(caseName);
       const logFile = path.join('.resumewright', safeCaseName, 'history', `${runId}.log`);
 
       if (fs.existsSync(logFile)) {
@@ -364,7 +388,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         cp.reset();
         delete lastRunStatuses[body.caseName];
         // 清空其所在的 caseRuntimeDir 下的 screenshots 等，保留 history 目录
-        const safeCaseName = body.caseName.replace(/[/?<>\\:*|"]/g, '_');
+        const safeCaseName = getSafeCaseName(body.caseName);
         const caseDir = path.join('.resumewright', safeCaseName);
         resetCaseRuntime(caseDir);
 
@@ -425,8 +449,17 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       cmdArgs.push('--screenshot-on-assert');
     }
 
-    const command = isTs ? 'npx' : 'node';
-    const finalArgs = isTs ? ['tsx', ...cmdArgs] : cmdArgs;
+    let command: string;
+    let finalArgs: string[];
+
+    if (isTs) {
+      command = process.execPath;
+      const tsxCli = getLocalNodeScript('node_modules', 'tsx', 'dist', 'cli.mjs');
+      finalArgs = [tsxCli, ...cmdArgs];
+    } else {
+      command = process.execPath;
+      finalArgs = cmdArgs;
+    }
 
     // 标记状态为 running
     caseFiles.forEach((f) => {
@@ -444,6 +477,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       env: { ...process.env, FORCE_COLOR: '1' }, // 保持彩色输出
     });
     activeProcess = proc;
+
+    let processEnded = false;
 
     let buffer = '';
     const handleLogData = (chunk: Buffer) => {
@@ -466,7 +501,27 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     proc.stdout.on('data', handleLogData);
     proc.stderr.on('data', handleLogData);
 
+    proc.on('error', (err) => {
+      if (processEnded) return;
+      processEnded = true;
+      console.error('[dashboard] Subprocess failed to start:', err);
+      sendEvent('log', { text: `[system] Failed to start process: ${err.message}\n` });
+      activeProcess = null;
+      caseFiles.forEach((f) => {
+        try {
+          const absolute = path.resolve(process.cwd(), f);
+          const def = loadCase(absolute);
+          lastRunStatuses[def.name] = 'failed';
+          markHistoryAsTerminated(def.name, -1);
+        } catch { /* ignore */ }
+      });
+      sendEvent('finish', { exitCode: -1, status: 'failed' });
+      res.end();
+    });
+
     proc.on('close', (code) => {
+      if (processEnded) return;
+      processEnded = true;
       if (buffer) {
         const match = buffer.match(/^\[case:([^\]]+)\](.*)$/);
         if (match) {
@@ -529,18 +584,22 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         return jsonRes(res, 400, { error: 'Missing caseName or traceFile' });
       }
 
-      const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+      const safeCaseName = getSafeCaseName(caseName);
       const tracePath = path.join('.resumewright', safeCaseName, 'traces', traceFile);
 
       if (!fs.existsSync(tracePath)) {
         return jsonRes(res, 404, { error: 'Trace file not found' });
       }
 
-      // 异步执行 npx playwright show-trace <tracePath>
-      const proc = spawn('npx', ['playwright', 'show-trace', tracePath], {
+      // 异步执行 playwright show-trace <tracePath> 并规避 Windows 下的 spawn 兼容问题
+      const cliPath = getLocalNodeScript('node_modules', '@playwright/test', 'cli.js');
+      const proc = spawn(process.execPath, [cliPath, 'show-trace', tracePath], {
         cwd: process.cwd(),
         detached: true,
         stdio: 'ignore',
+      });
+      proc.on('error', (err) => {
+        console.error(`[dashboard] Failed to spawn Playwright trace viewer:`, err);
       });
       proc.unref();
 
@@ -564,7 +623,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = caseName.replace(/[/?<>\\:*|"]/g, '_');
+      const safeCaseName = getSafeCaseName(caseName);
       const decodedFileName = decodeURIComponent(fileName);
       const filePath = path.join('.resumewright', safeCaseName, 'screenshots', decodedFileName);
 
