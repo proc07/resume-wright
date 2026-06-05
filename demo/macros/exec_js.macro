@@ -1,0 +1,21 @@
+# ============================================================
+# exec_js.macro — 在页面中执行 JavaScript 脚本的通用宏
+#
+# 用法:
+#   macro exec_js "javascript_code_string"
+#
+# 示例:
+#   macro exec_js "document.querySelector('button.submit').click();"
+#
+# 如果你需要获取执行结果，可以在脚本中使用 return 返回值，
+# 执行后结果会被自动保存到全局变量 `$js_result` 中。
+# 示例:
+#   macro exec_js "return document.title;"
+#   assert_text_equal "$js_result" "期待的页面标题"
+# ============================================================
+
+$js_result = execute_script "$1"
+"""
+const code = arguments[0];
+return new Function(code)();
+"""

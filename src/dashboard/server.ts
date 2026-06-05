@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 
 // 缓存当前正在执行的进程及状态
 let activeProcess: any = null;
-const lastRunStatuses: Record<string, 'passed' | 'failed' | 'running'> = {};
+const lastRunStatuses: Record<string, 'passed' | 'failed' | 'running' | 'never_run'> = {};
 
 const SETTINGS_FILE = path.join(process.cwd(), '.resumewright', 'dashboard-settings.json');
 
@@ -159,8 +159,27 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
             status = 'running';
           } else if (lastRunStatuses[definition.name] === 'failed') {
             status = 'failed';
-          } else if (completed > 0) {
-            status = 'paused';
+          } else if (lastRunStatuses[definition.name] === 'never_run') {
+            status = 'never_run';
+          } else {
+            // 从历史记录中恢复状态（如果内存中没有）
+            let historicalStatus: string | null = null;
+            try {
+              const safeCaseName = definition.name.replace(/[/?<>\\:*|"]/g, '_');
+              const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
+              if (fs.existsSync(historyFile)) {
+                const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+                if (history && history.length > 0) {
+                  historicalStatus = history[0].status;
+                }
+              }
+            } catch { /* ignore */ }
+
+            if (historicalStatus === 'failed') {
+              status = 'failed';
+            } else if (completed > 0) {
+              status = 'paused';
+            }
           }
 
           return {
@@ -567,10 +586,10 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     fileRelativePath = '/index.html';
   }
 
-  let staticFilePath = path.join(__dirname, 'assets', fileRelativePath.slice(1));
+  let staticFilePath = path.join(__dirname, 'dist', fileRelativePath.slice(1));
   if (!fs.existsSync(staticFilePath)) {
-    // 兼容从 dist/src/dashboard/server.js 运行时寻找 src/dashboard/assets/ 的相对路径
-    staticFilePath = path.join(__dirname, '../../../src/dashboard/assets', fileRelativePath.slice(1));
+    // 兼容从 dist/src/dashboard/server.js 运行时寻找 src/dashboard/dist/ 的相对路径
+    staticFilePath = path.join(__dirname, '../../../src/dashboard/dist', fileRelativePath.slice(1));
   }
 
   if (fs.existsSync(staticFilePath) && !fs.statSync(staticFilePath).isDirectory()) {

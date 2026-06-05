@@ -138,7 +138,7 @@ async function executeAssign(
 
     case 'execute_script': {
       const jsCode = inst.block ?? '';
-      const scriptArgs = inst.args.map((a) => ctx.getPath(stripDollar(a)) ?? a);
+      const scriptArgs = inst.args.map((a) => ctx.getPath(stripDollar(a)) ?? stripQuotes(a));
       value = await page.evaluate(
         ({ code, args }: { code: string; args: unknown[] }) => {
           const fn = new Function(...args.map((_, i) => `arg${i}`), code);
@@ -294,7 +294,7 @@ async function executeCommand(
         if (interp.startsWith('$')) {
           return ctx.getPath(interp.slice(1));
         }
-        return interp;
+        return stripQuotes(interp);
       });
       await page.evaluate(
         ({ code, args }: { code: string; args: unknown[] }) => {

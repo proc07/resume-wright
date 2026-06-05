@@ -1,0 +1,16 @@
+# demo/macros/submit_purchase_js.macro
+# 自动填写采购表单并提交的宏指令 (使用多行 JS)
+# 位置参数:
+#   $1 - 采购单标题 (Title)
+#   $2 - 采购金额 (Amount)
+#   $3 - 采购原因 (Reason)
+#   $4 - 是否紧急 (Urgent, 'true' 或 'false')
+
+execute_script "$1" "$2" "$3" "$4"
+"""
+document.getElementById('purchase-title').value = arguments[0];
+document.getElementById('purchase-amount').value = arguments[1];
+document.getElementById('purchase-reason').value = arguments[2];
+document.getElementById('purchase-urgent').checked = (arguments[3] === 'true' || arguments[3] === true);
+document.querySelector('[data-testid="btn-submit-purchase"]').click();
+"""

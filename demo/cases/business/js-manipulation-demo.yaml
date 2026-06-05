@@ -1,0 +1,67 @@
+# demo/cases/business/js-manipulation-demo.yaml
+# 执行多行 JS 脚本操作页面的演示用例
+
+name: "执行多行 JS 脚本演示"
+description: "演示如何通过在 script 中编写多行 JavaScript 脚本来直接控制页面 DOM 元素，以及进行数据提取与逻辑校验"
+timeout: 60000
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  # ── 步骤 1: 运行多行 JS 完成登录与欢迎信息校验 ──
+  - id: step1_login_via_js
+    role: requester
+    script: |
+      open "http://127.0.0.1:61775/login"
+      
+      # 使用多行 JS 脚本填充登录表单并提交
+      execute_script
+      """
+      document.getElementById('login-username').value = 'requester';
+      document.getElementById('login-password').value = 'req_pass';
+      document.querySelector('[data-testid="btn-login"]').click();
+      """
+      
+      # 等待页面加载与状态变更
+      wait 1.5s
+      
+      # 通过 JS 提取欢迎词，并将其保存到变量中进行校验
+      $welcome_text = execute_script
+      """
+      return document.getElementById('dashboard-welcome').textContent.trim();
+      """
+
+      assert_text_equal "$welcome_text" "已登录工作台"
+      screenshot
+
+  # ── 步骤 2: 运行多行 JS 创建采购申请并提取单号 ──
+  - id: step2_create_purchase_via_js
+    role: requester
+    script: |
+      # 通过 JS 触发跳转到新建采购页面
+      execute_script
+      """
+      document.querySelector('[data-testid="btn-new-purchase"]').click();
+      """
+      
+      wait 1.5s
+      
+      # 使用多行 JS 脚本自动填写采购表单并提交（已抽离为宏）
+      macro submit_purchase_js "JS 脚本创建采购单" "12345" "本采购单由页面注入执行的多行 JS 脚本自动填写并提交" "true"
+      
+      wait 1.5s
+      
+      # 跳转至详情页后，通过 JS 提取自动生成的申请单号和申请标题
+      $purchase_id = execute_script
+      """
+      return document.getElementById('detail-id').textContent.trim();
+      """
+      
+      $purchase_title = execute_script
+      """
+      return document.getElementById('detail-title').textContent.trim();
+      """
+      
+      assert_text_equal "$purchase_title" "JS 脚本创建采购单"
+      screenshot

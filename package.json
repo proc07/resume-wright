@@ -35,7 +35,7 @@
     "dsl"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build --prefix src/dashboard/ui && node scripts/copy-dashboard-dist.js",
     "dev": "tsx run.ts",
     "run:case": "tsx run.ts run",
     "typecheck": "tsc --noEmit",
