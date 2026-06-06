@@ -113,6 +113,7 @@ export class NetworkInterceptor {
         status: response.status(),
         headers: response.headers() as Record<string, string>,
         body: responseBody,
+        requestBody: request.postData() || undefined,
         cachedAt: new Date().toISOString(),
         subStepId: this.activeSubStepId || undefined,
       };

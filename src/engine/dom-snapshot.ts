@@ -46,46 +46,12 @@ export class DomSnapshotManager {
       }
     } catch { /* ignore */ }
 
-    let formState: any[] = [];
-    try {
-      if (url && url !== 'about:blank') {
-        formState = await page.evaluate(() => {
-          const inputs: any[] = [];
-          document.querySelectorAll('input, textarea, select').forEach((el: any, index) => {
-            if (el.type === 'file') return;
-            
-            let selector = '';
-            if (el.id) {
-              selector = `#${el.id}`;
-            } else if (el.name) {
-              selector = `${el.tagName.toLowerCase()}[name="${el.name}"]`;
-            } else {
-              selector = `${el.tagName.toLowerCase()}:nth-of-type(${index + 1})`;
-            }
-
-            inputs.push({
-              selector,
-              tagName: el.tagName.toLowerCase(),
-              type: el.type,
-              value: el.value,
-              checked: el.checked,
-              index,
-            });
-          });
-          return inputs;
-        });
-      }
-    } catch (err) {
-      console.warn(`[dom-snapshot] Failed to get formState: ${String(err)}`);
-    }
-
     const snapshot: DomSnapshot = {
       id,
       url,
       timestamp,
       storageState,
       pageState: { title, stateIndicator },
-      formState,
     };
 
     const filePath = this.getSnapshotPath(id);
@@ -141,29 +107,6 @@ export class DomSnapshotManager {
       waitUntil: 'domcontentloaded',
       timeout: 30_000,
     });
-
-    // 恢复表单值
-    const formState = (snapshot as any).formState;
-    if (formState && formState.length > 0) {
-      try {
-        await page.evaluate((inputs) => {
-          inputs.forEach((item: any) => {
-            const el = document.querySelectorAll('input, textarea, select')[item.index] 
-              || document.querySelector(item.selector);
-            if (!el) return;
-            if (item.type === 'checkbox' || item.type === 'radio') {
-              (el as any).checked = item.checked;
-            } else {
-              (el as any).value = item.value;
-            }
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-          });
-        }, formState);
-      } catch (err) {
-        console.warn(`[dom-snapshot] Failed to restore formState: ${String(err)}`);
-      }
-    }
 
     console.log(`[dom-snapshot] ✓ Restored to: ${snapshot.url}`);
   }

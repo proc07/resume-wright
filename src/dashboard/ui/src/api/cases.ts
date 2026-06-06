@@ -33,6 +33,7 @@ export interface ApiCacheEntry {
   url: string
   status: number
   body?: string
+  requestBody?: string
 }
 
 export interface CaseDetails {

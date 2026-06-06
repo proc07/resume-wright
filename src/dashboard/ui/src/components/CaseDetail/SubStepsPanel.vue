@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { CaseData } from '@/api/cases'
 import ScreenshotsGallery from './ScreenshotsGallery.vue'
 
@@ -60,6 +60,55 @@ function formatJson(bodyStr: string | undefined): string {
   } catch {
     return bodyStr
   }
+}
+
+// ── 全局 Teleport 悬浮窗逻辑 ──
+const activeTooltip = ref<{
+  title: string
+  content: string
+  top: number
+  left: number
+} | null>(null)
+
+let hideTimeout: number | null = null
+
+function handleMouseEnter(e: MouseEvent, title: string, content: string) {
+  if (hideTimeout) {
+    clearTimeout(hideTimeout)
+    hideTimeout = null
+  }
+  
+  const target = e.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  
+  const popoverWidth = 420
+  // 避免超出屏幕左边界，并随页面滚动正确定位
+  const left = Math.max(10, rect.right - popoverWidth + window.scrollX)
+  const top = rect.bottom + 6 + window.scrollY
+  
+  activeTooltip.value = {
+    title,
+    content: formatJson(content),
+    top,
+    left
+  }
+}
+
+function handleMouseLeave() {
+  hideTimeout = window.setTimeout(() => {
+    activeTooltip.value = null
+  }, 150)
+}
+
+function handlePopoverMouseEnter() {
+  if (hideTimeout) {
+    clearTimeout(hideTimeout)
+    hideTimeout = null
+  }
+}
+
+function handlePopoverMouseLeave() {
+  activeTooltip.value = null
 }
 </script>
 
@@ -137,19 +186,35 @@ function formatJson(bodyStr: string | undefined): string {
                     class="api-cache-item-wrapper"
                   >
                     <div class="api-cache-item">
-                      <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px;">
-                        <span class="api-cache-method" style="flex-shrink: 0;">{{ c.method }}</span>
+                      <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
+                        <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
                         <div class="api-cache-url-container" :data-tooltip="c.url" style="flex-grow: 1; min-width: 0;">
                           <span class="api-cache-url">{{ c.url }}</span>
                         </div>
                       </div>
-                      <span class="api-cache-badge" style="flex-shrink: 0;">{{ c.status }}</span>
-                    </div>
-                    
-                    <!-- 接口 Response 悬浮框 -->
-                    <div v-if="c.body" class="api-cache-details-popover">
-                      <div class="api-cache-popover-title">Response Body (JSON):</div>
-                      <pre class="api-cache-popover-content">{{ formatJson(c.body) }}</pre>
+                      
+                      <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
+                        <!-- 响应状态状态码 -->
+                        <span class="api-cache-badge" style="margin-right: 2px;">{{ c.status }}</span>
+
+                        <!-- Request parameters Tag (req) -->
+                        <div class="api-tag-container">
+                          <span
+                            class="api-action-tag req-tag"
+                            @mouseenter="handleMouseEnter($event, 'Request Body (JSON):', c.requestBody || '无请求体数据 (No request body)')"
+                            @mouseleave="handleMouseLeave"
+                          >req</span>
+                        </div>
+
+                        <!-- Response Body Tag (res) -->
+                        <div class="api-tag-container">
+                          <span
+                            class="api-action-tag res-tag"
+                            @mouseenter="handleMouseEnter($event, 'Response Body (JSON):', c.body || '无响应体数据 (No response body)')"
+                            @mouseleave="handleMouseLeave"
+                          >res</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -162,5 +227,23 @@ function formatJson(bodyStr: string | undefined): string {
         <ScreenshotsGallery :step-id="selectedStepId" />
       </div>
     </div>
+
+    <!-- Global Teleported Popover -->
+    <Teleport to="body">
+      <div
+        v-if="activeTooltip"
+        class="api-cache-details-popover global-popover"
+        :style="{
+          position: 'absolute',
+          top: activeTooltip.top + 'px',
+          left: activeTooltip.left + 'px'
+        }"
+        @mouseenter="handlePopoverMouseEnter"
+        @mouseleave="handlePopoverMouseLeave"
+      >
+        <div class="api-cache-popover-title">{{ activeTooltip.title }}</div>
+        <pre class="api-cache-popover-content">{{ activeTooltip.content }}</pre>
+      </div>
+    </Teleport>
   </div>
 </template>

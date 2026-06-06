@@ -967,6 +967,21 @@ code, pre {
   font-weight: 700;
   color: #818cf8;
 }
+.api-cache-method.get {
+  color: #34d399;
+}
+.api-cache-method.post {
+  color: #fbbf24;
+}
+.api-cache-method.put {
+  color: #60a5fa;
+}
+.api-cache-method.delete {
+  color: #f87171;
+}
+.api-cache-method.patch {
+  color: #f472b6;
+}
 
 .api-cache-url {
   color: #cbd5e1;
@@ -1890,31 +1905,76 @@ code, pre {
   overflow: visible;
 }
 
-/* API Cache Details Hover Popover */
-.api-cache-item-wrapper {
+/* API Cache Details Hover Popover & Tags */
+.api-tag-container {
   position: relative;
+  display: inline-block;
+}
+
+.api-action-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+}
+
+.req-tag {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+.req-tag:hover {
+  background-color: rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.2);
+}
+
+.res-tag {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.res-tag:hover {
+  background-color: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.6);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
 }
 
 .api-cache-details-popover {
   display: none;
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
+  top: calc(100% + 6px);
+  right: 0;
   background-color: #0f172a; /* Dark slate */
   border: 1px solid #334155; /* Slate 700 */
   border-radius: 6px;
   padding: 10px 12px;
-  width: 380px;
-  max-height: 220px;
+  width: 420px;
+  max-height: 250px;
   overflow: auto;
-  z-index: 1010;
-  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.6), 0 4px 8px -2px rgba(0, 0, 0, 0.6);
-  pointer-events: none; /* Avoid mouse hover blocking */
+  z-index: 1020;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 16px -6px rgba(0, 0, 0, 0.7);
+  pointer-events: auto; /* Enable scroll and copy inside popover */
   text-align: left;
 }
 
-.api-cache-item-wrapper:hover .api-cache-details-popover {
+/* 桥接间隙，防止鼠标滑入弹窗时闪烁消失 */
+.api-cache-details-popover::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  width: 100%;
+  height: 8px;
+}
+
+.api-cache-details-popover.global-popover {
   display: block;
+  z-index: 99999;
 }
 
 .api-cache-popover-title {

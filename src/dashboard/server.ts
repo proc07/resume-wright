@@ -331,6 +331,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
                           url: entry.url,
                           status: entry.status,
                           body: entry.body,
+                          requestBody: entry.requestBody || undefined,
                         });
                       }
                     }
