@@ -30,7 +30,6 @@ steps:
       - id: submit_first
         script: |
           tap "role:button[提交申请]"
-          wait 2s
           assert_exists "采购申请详情" 10s
           $purchase_id_1 = url_match "purchase/([\w-]+)"
           screenshot
@@ -54,7 +53,6 @@ steps:
       - id: submit_second
         script: |
           tap "role:button[提交申请]"
-          wait 2s
           assert_exists "采购申请详情" 10s
           $purchase_id_2 = url_match "purchase/([\w-]+)"
           screenshot
@@ -80,7 +78,7 @@ steps:
         script: |
           input "同意，预算充足" to "审批意见"
           tap "role:button[审批通过]"
-          wait 2s
+          assert_exists "审批完成" 5s
 
       # ── 子步骤2：打开第二个采购并审批 ──
       - id: open_second
@@ -92,7 +90,7 @@ steps:
         script: |
           input "同意，请财务复核" to "审批意见"
           tap "role:button[审批通过]"
-          wait 2s
+          assert_exists "审批完成" 5s
           screenshot
 
   # ══════════════════════════════════════════════════════

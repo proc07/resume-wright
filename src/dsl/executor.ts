@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
-import type { Page } from '@playwright/test';
+import type { Page, Request } from '@playwright/test';
 import { expect } from '@playwright/test';
 import type { DslInstruction } from '../types/dsl.types.js';
 import { parseScript } from './parser.js';
@@ -183,6 +183,8 @@ async function executeCommand(
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       // 等待 SPA 路由完成（body 可见即可）
       await page.waitForLoadState('load');
+      // 智能等待接口网络空闲，自动忽略轮询/WebSocket/心跳
+      await waitForSmartNetworkIdle(page, 5000, 500);
       break;
     }
 
@@ -552,4 +554,100 @@ function escapeRegex(str: string): string {
 
 function stripDollar(s: string): string {
   return s.startsWith('$') ? s.slice(1) : s;
+}
+
+/**
+ * 智能等待网络空闲，过滤并忽略长连接（WebSocket、SSE）以及持续的心跳/轮询请求。
+ */
+export async function waitForSmartNetworkIdle(page: Page, timeoutMs = 5000, idleMs = 500): Promise<void> {
+  const activeRequests = new Set<Request>();
+  let idleTimer: NodeJS.Timeout | null = null;
+  let resolvePromise: (() => void) | null = null;
+
+  const isIgnored = (url: string, resourceType: string): boolean => {
+    // 1. 过滤 WebSockets 和 Server-Sent Events (SSE)
+    if (resourceType === 'websocket' || resourceType === 'eventsource') {
+      return true;
+    }
+    // 2. 过滤常见的心跳、数据埋点和定时轮询接口
+    const ignoredPatterns = [
+      /heartbeat/i,
+      /ping/i,
+      /socket\.io/i,
+      /sockjs/i,
+      /metrics/i,
+      /telemetry/i
+    ];
+    return ignoredPatterns.some((pattern) => pattern.test(url));
+  };
+
+  const cleanup = () => {
+    page.off('request', onRequest);
+    page.off('requestfinished', onRequestFinished);
+    page.off('requestfailed', onRequestFailed);
+    page.off('close', onClosed);
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+  };
+
+  const onClosed = () => {
+    cleanup();
+    if (resolvePromise) resolvePromise();
+  };
+
+  const checkIdle = () => {
+    if (activeRequests.size === 0) {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        cleanup();
+        if (resolvePromise) resolvePromise();
+      }, idleMs);
+    } else {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = null;
+      }
+    }
+  };
+
+  const onRequest = (request: Request) => {
+    const url = request.url();
+    const type = request.resourceType();
+    if (!isIgnored(url, type)) {
+      activeRequests.add(request);
+      checkIdle();
+    }
+  };
+
+  const onRequestFinished = (request: Request) => {
+    activeRequests.delete(request);
+    checkIdle();
+  };
+
+  const onRequestFailed = (request: Request) => {
+    activeRequests.delete(request);
+    checkIdle();
+  };
+
+  page.on('request', onRequest);
+  page.on('requestfinished', onRequestFinished);
+  page.on('requestfailed', onRequestFailed);
+  page.on('close', onClosed);
+
+  // 初始检查以防没有当前网络请求
+  checkIdle();
+
+  await Promise.race([
+    new Promise<void>((resolve) => {
+      resolvePromise = resolve;
+    }),
+    new Promise<void>((resolve) => {
+      setTimeout(() => {
+        cleanup();
+        resolve();
+      }, timeoutMs);
+    })
+  ]);
 }

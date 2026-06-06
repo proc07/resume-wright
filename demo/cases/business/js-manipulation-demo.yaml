@@ -24,7 +24,7 @@ steps:
       """
       
       # 等待页面加载与状态变更
-      wait 1.5s
+      assert_exists "#dashboard-welcome" 5s
       
       # 通过 JS 提取欢迎词，并将其保存到变量中进行校验
       $welcome_text = execute_script
@@ -45,12 +45,12 @@ steps:
       document.querySelector('[data-testid="btn-new-purchase"]').click();
       """
       
-      wait 1.5s
+      assert_exists "新建采购申请" 5s
       
       # 使用多行 JS 脚本自动填写采购表单并提交（已抽离为宏）
       macro submit_purchase_js "JS 脚本创建采购单" "12345" "本采购单由页面注入执行的多行 JS 脚本自动填写并提交" "true"
       
-      wait 1.5s
+      assert_exists "采购申请详情" 5s
       
       # 跳转至详情页后，通过 JS 提取自动生成的申请单号和申请标题
       $purchase_id = execute_script
