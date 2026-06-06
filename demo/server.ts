@@ -42,10 +42,15 @@ const serverDB: {
   purchases: Record<string, Purchase>;
   invoices: Record<string, Invoice>;
   merchants: Record<string, Merchant>;
+  checklist: Record<string, string>;
 } = {
   purchases: {},
   invoices: {},
   merchants: {},
+  checklist: {
+    checklist_title: '',
+    checklist_status: '',
+  },
 };
 
 let uiFailCount = 0;
@@ -272,6 +277,44 @@ const server = http.createServer(async (req, res) => {
     }
     Object.assign(serverDB.merchants[id]!, body);
     return jsonRes(res, 200, { data: serverDB.merchants[id] });
+  }
+
+  // ── GET /checklist ( Checklist 动态表单页面 )
+  if (pathname === '/checklist' && req.method === 'GET') {
+    const checklistHtmlPath = path.join(import.meta.dirname, 'tests/integration/fixtures/checklist-app.html');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    fs.createReadStream(checklistHtmlPath).pipe(res);
+    return;
+  }
+
+  // ── GET /api/form
+  if (pathname === '/api/form' && req.method === 'GET') {
+    const formStructure = [
+      { id: 'checklist_title', label: '检查标题', type: 'text' },
+      { id: 'checklist_status', label: '检查意见', type: 'text' }
+    ];
+    return jsonRes(res, 200, formStructure);
+  }
+
+  // ── GET /api/form/processdata
+  if (pathname === '/api/form/processdata' && req.method === 'GET') {
+    return jsonRes(res, 200, { data: serverDB.checklist });
+  }
+
+  // ── POST /api/form/submit
+  if (pathname === '/api/form/submit' && req.method === 'POST') {
+    const body = JSON.parse(await readBody(req));
+    Object.assign(serverDB.checklist, body);
+    return jsonRes(res, 200, { success: true });
+  }
+
+  // ── POST /api/form/reset
+  if (pathname === '/api/form/reset' && req.method === 'POST') {
+    serverDB.checklist = {
+      checklist_title: '',
+      checklist_status: '',
+    };
+    return jsonRes(res, 200, { success: true });
   }
 
   // ── Serve HTML for all other routes

@@ -31,10 +31,13 @@ const TIMESTAMP_BODY_FIELDS = new Set([
  * 4. await interceptor.detach()     — 停止拦截
  */
 export class NetworkInterceptor {
-  private cache: Map<string, ApiCacheEntry> = new Map();
+  private cache: ApiCacheEntry[] = [];
   private attached = false;
   private readonly handler: (route: Route, request: Request) => Promise<void>;
   public activeSubStepId: string | null = null;
+  
+  // 用于记录当前运行中（某个 subStepId 下）各个 fingerprint 被调用的次数
+  private requestCounts: Map<string, number> = new Map();
 
   constructor(
     private readonly page: Page,
@@ -65,6 +68,13 @@ export class NetworkInterceptor {
   // ── 核心拦截逻辑 ──────────────────────────────────────────
 
   private async handleRoute(route: Route, request: Request): Promise<void> {
+    const type = request.resourceType();
+    // 仅拦截和缓存 API 请求（XHR 或 Fetch），放行文档、图片、样式等静态资源
+    if (type !== 'xhr' && type !== 'fetch') {
+      await route.continue();
+      return;
+    }
+
     const method = request.method().toUpperCase();
 
     // GET 默认放行，除非开启了 cacheGet
@@ -85,11 +95,22 @@ export class NetworkInterceptor {
     const normalizedBody = normalizeBody(bodyText);
     const fingerprint = md5(`${method}|${normalizedUrl}|${normalizedBody}`);
 
+    // 计算当前子步骤下该指纹的请求次数序号
+    const activeSubId = this.activeSubStepId || '';
+    const countKey = `${activeSubId}|${fingerprint}`;
+    const count = (this.requestCounts.get(countKey) || 0) + 1;
+    this.requestCounts.set(countKey, count);
+
+    // 过滤出该子步骤下、指纹匹配的缓存列表
+    const matchedEntries = this.cache.filter(
+      (entry) => entry.fingerprint === fingerprint && (entry.subStepId || '') === activeSubId
+    );
+
     // 命中缓存 → 直接 fulfill
-    if (this.cache.has(fingerprint)) {
-      const cached = this.cache.get(fingerprint)!;
+    if (matchedEntries.length >= count) {
+      const cached = matchedEntries[count - 1];
       console.log(
-        `[network-interceptor] 🎯 Cache HIT: ${method} ${url} → ${cached.status}`
+        `[network-interceptor] 🎯 Cache HIT: ${method} ${url} (subStep: ${activeSubId || 'none'}, seq: ${count}) → ${cached.status}`
       );
       await route.fulfill({
         status: cached.status,
@@ -100,7 +121,7 @@ export class NetworkInterceptor {
     }
 
     // 未命中缓存 → 真实发送
-    console.log(`[network-interceptor] 🌐 Forwarding: ${method} ${url}`);
+    console.log(`[network-interceptor] 🌐 Forwarding: ${method} ${url} (subStep: ${activeSubId || 'none'}, seq: ${count})`);
     const response = await route.fetch();
     const responseBody = await response.text();
 
@@ -117,7 +138,7 @@ export class NetworkInterceptor {
         cachedAt: new Date().toISOString(),
         subStepId: this.activeSubStepId || undefined,
       };
-      this.cache.set(fingerprint, entry);
+      this.cache.push(entry);
       this.persistCache();
       console.log(
         `[network-interceptor] 💾 Cached: ${method} ${url} (${response.status()})`
@@ -136,12 +157,9 @@ export class NetworkInterceptor {
     if (!fs.existsSync(this.cacheFilePath)) return;
     try {
       const raw = fs.readFileSync(this.cacheFilePath, 'utf-8');
-      const entries = JSON.parse(raw) as ApiCacheEntry[];
-      for (const entry of entries) {
-        this.cache.set(entry.fingerprint, entry);
-      }
+      this.cache = JSON.parse(raw) as ApiCacheEntry[];
       console.log(
-        `[network-interceptor] Loaded ${this.cache.size} cached API responses`
+        `[network-interceptor] Loaded ${this.cache.length} cached API responses`
       );
     } catch (err) {
       console.warn(`[network-interceptor] Failed to load cache: ${String(err)}`);
@@ -151,9 +169,8 @@ export class NetworkInterceptor {
   private persistCache(): void {
     const dir = path.dirname(this.cacheFilePath);
     fs.mkdirSync(dir, { recursive: true });
-    const entries = Array.from(this.cache.values());
     const tmpPath = `${this.cacheFilePath}.tmp`;
-    fs.writeFileSync(tmpPath, JSON.stringify(entries, null, 2), 'utf-8');
+    fs.writeFileSync(tmpPath, JSON.stringify(this.cache, null, 2), 'utf-8');
     fs.renameSync(tmpPath, this.cacheFilePath);
   }
 
@@ -161,14 +178,18 @@ export class NetworkInterceptor {
    * 清除缓存（Step 成功完成后可选调用）
    */
   clearCache(): void {
-    this.cache.clear();
+    this.cache = [];
     if (fs.existsSync(this.cacheFilePath)) {
       fs.unlinkSync(this.cacheFilePath);
     }
   }
 
   getCacheSize(): number {
-    return this.cache.size;
+    return this.cache.length;
+  }
+
+  resetCounts(): void {
+    this.requestCounts.clear();
   }
 }
 

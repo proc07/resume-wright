@@ -98,6 +98,9 @@ export class SubStepExecutor {
     }
 
     while (true) {
+      if (this.interceptor) {
+        this.interceptor.resetCounts();
+      }
       try {
         // snapshot_before_submit：在提交前额外保存快照
         if (snapshot_before_submit) {

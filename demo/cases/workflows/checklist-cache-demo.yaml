@@ -1,0 +1,43 @@
+# demo/cases/workflows/checklist-cache-demo.yaml
+# 演示用例：在同一个子步骤内多次请求相同 GET 接口且数据发生变更的缓存顺序匹配场景
+
+name: "Checklist表单顺序缓存演示"
+description: "演示在同个子步骤中，提交前 GET 为空表单，提交后 GET 为有值状态的顺序缓存与复用逻辑"
+timeout: 600000
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  # ══════════════════════════════════════════════════════
+  # 步骤 1：填写并提交动态 Checklist
+  # 触发 API：
+  #   GET  /api/form             (首次获取结构：空数据)
+  #   GET  /api/form/processdata  (首次获取数据：空数据)
+  #   POST /api/form/submit      (提交数据)
+  #   GET  /api/form             (二次获取结构：校验最新数据)
+  #   GET  /api/form/processdata  (二次获取数据：校验最新数据)
+  # ══════════════════════════════════════════════════════
+  - id: checklist_flow
+    role: requester
+    sub_steps:
+      - id: fill_and_verify_checklist
+        script: |
+          # 1. 打开页面（拦截器放行 HTML 文档）
+          open "http://127.0.0.1:61775/checklist"
+          wait 1s
+          
+          # 2. 此时表单生成，页面展示为空表单。输入表单内容
+          input "日常工作周度检查" to "检查标题"
+          input "所有项目按计划推进，进度正常" to "检查意见"
+          
+          # 5. 点击提交表单（触发 POST /api/form/submit 并缓存，同时自动重新加载表单，触发二次 GET）
+          tap "#btn-submit"
+          wait 2s
+          
+          # 6. 二次加载后，表单会更新并在最下方展示成功块，展示服务端的数据详情
+          # 我们使用选择器断言验证提交后的最新数据已成功展示，这证明了同个子步骤内前后两次 GET 缓存实现了顺序版本隔离，没有发生空值污染
+          assert_exists "#result-checklist_title" 5s
+          assert_exists "#result-checklist_status" 5s
+          
+          screenshot
