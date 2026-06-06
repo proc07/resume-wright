@@ -227,6 +227,49 @@ export function resetCaseRuntime(caseDir: string): void {
 }
 
 /**
+ * 清除单个 Case 的断点和子步骤状态，但保留 API 缓存和 history 目录
+ * 用于「重新运行（使用缓存）」场景
+ */
+export function resetCaseKeepCache(caseDir: string): void {
+  if (!fs.existsSync(caseDir)) return;
+  try {
+    // 清除 checkpoint
+    const cpFile = path.join(caseDir, 'checkpoint.json');
+    if (fs.existsSync(cpFile)) fs.unlinkSync(cpFile);
+
+    // 清除 sub-steps 下的 state.json 和 snapshots，保留 api-cache.json
+    const subStepsDir = path.join(caseDir, 'sub-steps');
+    if (fs.existsSync(subStepsDir)) {
+      for (const stepDir of fs.readdirSync(subStepsDir)) {
+        const stepDirPath = path.join(subStepsDir, stepDir);
+        if (!fs.statSync(stepDirPath).isDirectory()) continue;
+
+        // 删除 state.json
+        const stateFile = path.join(stepDirPath, 'state.json');
+        if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
+
+        // 清空 snapshots 目录
+        const snapsDir = path.join(stepDirPath, 'snapshots');
+        if (fs.existsSync(snapsDir)) {
+          fs.rmSync(snapsDir, { recursive: true, force: true });
+          fs.mkdirSync(snapsDir, { recursive: true });
+        }
+        // api-cache.json 保留不动
+      }
+    }
+
+    // 清除 traces 和 screenshots，保留 history
+    const tracesDir = path.join(caseDir, 'traces');
+    if (fs.existsSync(tracesDir)) fs.rmSync(tracesDir, { recursive: true, force: true });
+
+    const screenshotsDir = path.join(caseDir, 'screenshots');
+    if (fs.existsSync(screenshotsDir)) fs.rmSync(screenshotsDir, { recursive: true, force: true });
+  } catch (err) {
+    console.error(`[checkpoint] Failed to reset case (keep cache) at ${caseDir}:`, err);
+  }
+}
+
+/**
  * 清除所有 Case 的运行状态，但保留所有 history 目录以确保运行历史不丢失
  */
 export function resetAllRuntimes(baseDir = BASE_DIR): void {

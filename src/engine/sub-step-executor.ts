@@ -16,6 +16,8 @@ export interface SubStepExecutorOptions {
   subStepsBaseDir?: string;
   screenshotOnAssert?: boolean;
   defaultOnFailure?: import('../types/case.types.js').OnFailureConfig;
+  apiCache?: boolean;
+  cacheGet?: boolean;
 }
 
 /**
@@ -30,7 +32,7 @@ export interface SubStepExecutorOptions {
 export class SubStepExecutor {
   private readonly store: SubStepStore;
   private readonly snapshotMgr: DomSnapshotManager;
-  private readonly interceptor: NetworkInterceptor;
+  private readonly interceptor: NetworkInterceptor | null;
 
   constructor(
     private readonly stepId: string,
@@ -43,18 +45,28 @@ export class SubStepExecutor {
     this.store.load();
 
     this.snapshotMgr = new DomSnapshotManager(this.store.snapshotsDir);
-    this.interceptor = new NetworkInterceptor(page, this.store.apiCachePath);
+
+    const useCache = this.opts.apiCache !== false;
+    if (useCache) {
+      this.interceptor = new NetworkInterceptor(page, this.store.apiCachePath, { cacheGet: this.opts.cacheGet });
+    } else {
+      this.interceptor = null;
+    }
   }
 
   async executeAll(subSteps: SubStep[]): Promise<void> {
-    await this.interceptor.attach();
+    if (this.interceptor) {
+      await this.interceptor.attach();
+    }
 
     try {
       for (const subStep of subSteps) {
         await this.executeOne(subStep);
       }
     } finally {
-      await this.interceptor.detach();
+      if (this.interceptor) {
+        await this.interceptor.detach();
+      }
     }
   }
 
@@ -73,7 +85,9 @@ export class SubStepExecutor {
     const restoreSnapshot = on_failure?.restore_snapshot ?? false;
     let retryCount = this.store.getRetryCount(id);
 
-    this.interceptor.activeSubStepId = id;
+    if (this.interceptor) {
+      this.interceptor.activeSubStepId = id;
+    }
 
     // 存在历史快照则恢复，否则保存当前状态为执行前快照
     if (this.snapshotMgr.exists(`${id}-before`)) {

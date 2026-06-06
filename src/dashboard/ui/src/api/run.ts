@@ -5,6 +5,8 @@ export interface RunStreamParams {
   headed: boolean
   trace: boolean
   screenshotOnAssert: boolean
+  apiCache: boolean
+  cacheGet: boolean
 }
 
 export function createRunStream(params: RunStreamParams): EventSource {
@@ -13,6 +15,8 @@ export function createRunStream(params: RunStreamParams): EventSource {
     headed: String(params.headed),
     trace: String(params.trace),
     screenshotOnAssert: String(params.screenshotOnAssert),
+    apiCache: String(params.apiCache),
+    cacheGet: String(params.cacheGet),
   })
   return new EventSource(`/api/run-stream?${qs}`)
 }
@@ -22,11 +26,11 @@ export async function stopExecution(): Promise<{ success: boolean; message: stri
   return res.json()
 }
 
-export async function resetCase(caseName: string): Promise<{ success: boolean }> {
+export async function resetCase(caseName: string, keepCache = false): Promise<{ success: boolean }> {
   const res = await fetch('/api/reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ caseName }),
+    body: JSON.stringify({ caseName, keepCache }),
   })
   return res.json()
 }

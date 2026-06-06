@@ -151,23 +151,34 @@ export class StepExecutor {
               subStepsBaseDir: path.join(caseDir, 'sub-steps'),
               screenshotOnAssert,
               defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
+              apiCache: this.execCtx.apiCache,
+              cacheGet: this.execCtx.cacheGet,
             }
           );
           await subExec.executeAll(step.sub_steps);
         } else if (step.script) {
-          // ── 无子步骤：直接执行 script，并挂载 NetworkInterceptor ──
-          const interceptor = new NetworkInterceptor(page, apiCachePath);
-          await interceptor.attach();
-
-          try {
+          // ── 无子步骤：直接执行 script ──
+          const useCache = this.execCtx.apiCache !== false;
+          if (useCache) {
+            const interceptor = new NetworkInterceptor(page, apiCachePath, { cacheGet: this.execCtx.cacheGet });
+            await interceptor.attach();
+            try {
+              await executeScript(step.script, page, contextStore, {
+                screenshotDir,
+                macrosDir: 'macros',
+                stepId: step.id,
+                screenshotOnAssert,
+              });
+            } finally {
+              await interceptor.detach();
+            }
+          } else {
             await executeScript(step.script, page, contextStore, {
               screenshotDir,
               macrosDir: 'macros',
               stepId: step.id,
               screenshotOnAssert,
             });
-          } finally {
-            await interceptor.detach();
           }
         } else {
           console.warn(`[step] Step "${step.id}" has no script or sub_steps — skipping`);

@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadCase } from '../adapters/yaml-loader.js';
-import { Checkpoint, listCheckpoints, resetAllCheckpoints, resetCaseRuntime, resetAllRuntimes, getSafeCaseName } from '../engine/checkpoint.js';
+import { Checkpoint, listCheckpoints, resetAllCheckpoints, resetCaseRuntime, resetCaseKeepCache, resetAllRuntimes, getSafeCaseName } from '../engine/checkpoint.js';
 
 // 获取当前目录路径（ESM 规范下替代 __dirname）
 const __filename = fileURLToPath(import.meta.url);
@@ -24,22 +24,27 @@ interface DashboardSettings {
   headed: boolean;
   trace: boolean;
   screenshotOnAssert: boolean;
+  apiCache: boolean;
+  cacheGet: boolean;
 }
 
 function loadDashboardSettings(): DashboardSettings {
+  const defaults = {
+    headed: true,
+    trace: true,
+    screenshotOnAssert: true,
+    apiCache: true,
+    cacheGet: true
+  };
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const data = fs.readFileSync(SETTINGS_FILE, 'utf-8');
-      return JSON.parse(data);
+      return { ...defaults, ...JSON.parse(data) };
     }
   } catch (err) {
     console.error('[dashboard] Failed to load settings:', err);
   }
-  return {
-    headed: true,
-    trace: true,
-    screenshotOnAssert: true
-  };
+  return defaults;
 }
 
 function markHistoryAsTerminated(caseName: string, exitCode: number | null): void {
@@ -256,7 +261,9 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       const settings = {
         headed: !!body.headed,
         trace: !!body.trace,
-        screenshotOnAssert: !!body.screenshotOnAssert
+        screenshotOnAssert: !!body.screenshotOnAssert,
+        apiCache: body.apiCache !== false,
+        cacheGet: !!body.cacheGet
       };
       saveDashboardSettings(settings);
       return jsonRes(res, 200, { success: true, settings });
@@ -433,12 +440,18 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         const cp = new Checkpoint(body.caseName);
         cp.reset();
         delete lastRunStatuses[body.caseName];
-        // 清空其所在的 caseRuntimeDir 下的 screenshots 等，保留 history 目录
         const safeCaseName = getSafeCaseName(body.caseName);
         const caseDir = path.join('.resumewright', safeCaseName);
-        resetCaseRuntime(caseDir);
 
-        return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (history preserved)` });
+        if (body.keepCache) {
+          // 保留 API 缓存，只清除断点和子步骤状态
+          resetCaseKeepCache(caseDir);
+          return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (API cache preserved)` });
+        } else {
+          // 清空一切，保留 history 目录
+          resetCaseRuntime(caseDir);
+          return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (history preserved)` });
+        }
       }
 
       return jsonRes(res, 400, { error: 'Provide caseName or all: true' });
@@ -453,6 +466,8 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     const headed = url.searchParams.get('headed') === 'true';
     const trace = url.searchParams.get('trace') === 'true';
     const screenshotOnAssert = url.searchParams.get('screenshotOnAssert') === 'true';
+    const apiCache = url.searchParams.get('apiCache') !== 'false';
+    const cacheGet = url.searchParams.get('cacheGet') === 'true';
 
     if (caseFiles.length === 0) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -493,6 +508,14 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     }
     if (screenshotOnAssert) {
       cmdArgs.push('--screenshot-on-assert');
+    }
+    if (apiCache) {
+      cmdArgs.push('--api-cache');
+    } else {
+      cmdArgs.push('--no-api-cache');
+    }
+    if (cacheGet) {
+      cmdArgs.push('--cache-get');
     }
 
     let command: string;

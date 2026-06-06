@@ -15,6 +15,8 @@ export interface SchedulerOptions {
   onlyFailed?: boolean;       // 仅运行上次失败的 Case
   enableTrace?: boolean;
   traceDir?: string;
+  apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
+  cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
 }
 
 /** 单个 Case 执行选项 */
@@ -25,6 +27,8 @@ export interface WorkflowRunnerOptions {
   sessionCheckUrl?: string;   // Role Pool Session 校验 URL
   enableTrace?: boolean;
   traceDir?: string;
+  apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
+  cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
 }
 
 /** Step 执行上下文 */
@@ -40,6 +44,8 @@ export interface StepExecutionContext {
   enableTrace?: boolean;
   beforeHooks?: string;
   afterHooks?: string;
+  apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
+  cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
 }
 
 /** Case 执行结果 */

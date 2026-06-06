@@ -1,26 +1,127 @@
 # demo/cases/workflows/api-cache-demo.yaml
-# 演示用例：展示子步骤 API 缓存拦截与命中显示
+# 演示用例：通过页面真实交互展示 API 缓存拦截与归一化
 
 name: "API缓存功能演示"
-description: "通过子步骤创建采购申请，捕获并展示被拦截缓存的 POST API 请求"
-timeout: 300000
+description: "演示子步骤 API 缓存：多步采购流程，每步触发多个 API 请求，验证缓存命中"
+timeout: 600000
 
 roles:
   requester: { username: "requester", password: "req_pass" }
+  manager:   { username: "manager",   password: "mgr_pass" }
 
 steps:
-  - id: create_purchase
+  # ══════════════════════════════════════════════════════
+  # 步骤1：申请人 — 创建多个采购申请
+  # 触发 API：
+  #   POST /api/purchases × 2（提交申请）
+  #   GET  /api/purchases   （返回 dashboard 列表）
+  # ══════════════════════════════════════════════════════
+  - id: create_purchases
     role: requester
     sub_steps:
-      - id: fill_info
+      # ── 子步骤1：填写并提交第一个采购 ──
+      - id: fill_first
         script: |
           open "http://127.0.0.1:61775/purchase/new"
-          input "API缓存演示采购" to "label:申请标题"
-          input "2500" to "label:申请金额"
-          input "测试拦截缓存" to "label:申请原因"
+          input "Q3 办公设备采购" to "申请标题"
+          input "50000" to "申请金额"
+          input "季度办公设备集中采购" to "申请原因"
 
-      - id: submit
+      - id: submit_first
         script: |
           tap "role:button[提交申请]"
+          wait 2s
           assert_exists "采购申请详情" 10s
+          $purchase_id_1 = url_match "purchase/([\w-]+)"
+          screenshot
+
+      # ── 子步骤2：返回列表，提交第二个采购 ──
+      - id: back_to_list
+        script: |
+          # 直接导航到 dashboard（触发 GET /api/purchases）
+          open "http://127.0.0.1:61775/dashboard"
+          assert_exists "role:heading[我的申请]" 10s
+
+      - id: fill_second
+        script: |
+          # 点击「新建采购申请」按钮回到表单
+          tap "role:button[＋ 新建采购申请]"
+          assert_exists "新建采购申请" 10s
+          input "差旅费报销" to "申请标题"
+          input "12000" to "申请金额"
+          input "Q3 出差差旅费用" to "申请原因"
+
+      - id: submit_second
+        script: |
+          tap "role:button[提交申请]"
+          wait 2s
+          assert_exists "采购申请详情" 10s
+          $purchase_id_2 = url_match "purchase/([\w-]+)"
+          screenshot
+
+  # ══════════════════════════════════════════════════════
+  # 步骤2：主管 — 审批采购申请
+  # 触发 API：
+  #   GET  /api/purchases/:id  （打开详情）
+  #   PATCH /api/purchases/:id （审批通过）
+  #   GET  /api/purchases/:id  （查看另一个详情）
+  # ══════════════════════════════════════════════════════
+  - id: manager_review
+    role: manager
+    sub_steps:
+      # ── 子步骤1：打开第一个采购并审批 ──
+      - id: open_first
+        script: |
+          open "http://127.0.0.1:61775/purchase/$purchase_id_1"
+          assert_exists "role:heading[主管审批]" 10s
+          screenshot
+
+      - id: approve_first
+        script: |
+          input "同意，预算充足" to "审批意见"
+          tap "role:button[审批通过]"
+          wait 2s
+
+      # ── 子步骤2：打开第二个采购并审批 ──
+      - id: open_second
+        script: |
+          open "http://127.0.0.1:61775/purchase/$purchase_id_2"
+          assert_exists "role:heading[主管审批]" 10s
+
+      - id: approve_second
+        script: |
+          input "同意，请财务复核" to "审批意见"
+          tap "role:button[审批通过]"
+          wait 2s
+          screenshot
+
+  # ══════════════════════════════════════════════════════
+  # 步骤3：申请人 — 查看采购状态
+  # 触发 API：
+  #   GET /api/purchases    （dashboard 列表）
+  #   GET /api/purchases/:id（查看详情）
+  #   GET /api/purchases    （返回列表）
+  # ══════════════════════════════════════════════════════
+  - id: check_status
+    role: requester
+    sub_steps:
+      # ── 子步骤1：打开 dashboard 查看列表 ──
+      - id: open_dashboard
+        script: |
+          open "http://127.0.0.1:61775/dashboard"
+          assert_exists "role:heading[我的申请]" 10s
+
+      # ── 子步骤2：打开第一个采购详情 ──
+      - id: view_first_detail
+        script: |
+          # 用保存的 ID 直接打开详情（触发 GET /api/purchases/:id）
+          open "http://127.0.0.1:61775/purchase/$purchase_id_1"
+          assert_exists "采购申请详情" 10s
+          screenshot
+
+      # ── 子步骤3：返回列表 ──
+      - id: back_to_list_final
+        script: |
+          open "http://127.0.0.1:61775/dashboard"
+          assert_exists "role:heading[我的申请]" 10s
           screenshot

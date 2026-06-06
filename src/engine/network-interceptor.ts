@@ -11,6 +11,16 @@ import type { ApiCacheEntry } from '../types/engine.types.js';
 
 const NON_IDEMPOTENT = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
 
+/** URL 中需要忽略的时间戳/随机参数名 */
+const TIMESTAMP_PARAMS = new Set([
+  't', 'timestamp', '_t', 'ts', '_', 'cb', 'cacheBust', 'random', 'rand', '_r', 'v', '_v'
+]);
+
+/** POST JSON body 中需要忽略的动态字段名 */
+const TIMESTAMP_BODY_FIELDS = new Set([
+  'timestamp', 'requestId', 'nonce', '_', 't', 'random', 'rand', 'ts', '_t', 'requestIdempotencyKey'
+]);
+
 /**
  * NetworkInterceptor — 拦截非幂等 API，响应缓存复用
  *
@@ -28,7 +38,8 @@ export class NetworkInterceptor {
 
   constructor(
     private readonly page: Page,
-    private readonly cacheFilePath: string
+    private readonly cacheFilePath: string,
+    private readonly opts: { cacheGet?: boolean } = {}
   ) {
     // 加载已有缓存
     this.loadCache();
@@ -56,8 +67,8 @@ export class NetworkInterceptor {
   private async handleRoute(route: Route, request: Request): Promise<void> {
     const method = request.method().toUpperCase();
 
-    // GET 直接放行
-    if (!NON_IDEMPOTENT.has(method)) {
+    // GET 默认放行，除非开启了 cacheGet
+    if (!NON_IDEMPOTENT.has(method) && !this.opts.cacheGet) {
       await route.continue();
       return;
     }
@@ -70,7 +81,9 @@ export class NetworkInterceptor {
       bodyText = postData ? postData.slice(0, 500) : '';
     } catch { /* ignore */ }
 
-    const fingerprint = md5(`${method}|${url}|${bodyText}`);
+    const normalizedUrl = normalizeUrl(url);
+    const normalizedBody = normalizeBody(bodyText);
+    const fingerprint = md5(`${method}|${normalizedUrl}|${normalizedBody}`);
 
     // 命中缓存 → 直接 fulfill
     if (this.cache.has(fingerprint)) {
@@ -162,4 +175,38 @@ export class NetworkInterceptor {
 
 function md5(input: string): string {
   return crypto.createHash('md5').update(input, 'utf-8').digest('hex');
+}
+
+/**
+ * 归一化 URL：移除时间戳/随机类 query 参数，使指纹稳定
+ */
+function normalizeUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    for (const key of TIMESTAMP_PARAMS) {
+      url.searchParams.delete(key);
+    }
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return rawUrl;
+  }
+}
+
+/**
+ * 归一化 POST body：移除 JSON 中的动态字段，使指纹稳定
+ */
+function normalizeBody(body: string): string {
+  if (!body) return '';
+  try {
+    const obj = JSON.parse(body);
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      for (const key of TIMESTAMP_BODY_FIELDS) {
+        if (key in obj) delete obj[key];
+      }
+      return JSON.stringify(obj);
+    }
+    return body;
+  } catch {
+    return body;
+  }
 }

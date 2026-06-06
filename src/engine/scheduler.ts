@@ -88,6 +88,8 @@ export class Scheduler {
           screenshotOnAssert: this.opts.screenshotOnAssert,
           enableTrace: this.opts.enableTrace,
           traceDir: this.opts.traceDir,
+          apiCache: this.opts.apiCache,
+          cacheGet: this.opts.cacheGet,
         });
         return runner.run();
       })

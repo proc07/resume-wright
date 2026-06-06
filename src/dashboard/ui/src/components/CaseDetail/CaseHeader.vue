@@ -54,11 +54,11 @@ const runButtonText = computed(() => {
   return '▶ 开始执行'
 })
 
-async function runCase(fromStart = false) {
+async function runCase(fromStart = false, keepCache = false) {
   if (!currentCase.value) return
 
   if (fromStart) {
-    await resetCase(true)
+    await resetCase(true, keepCache)
   }
 
   try {
@@ -94,11 +94,11 @@ async function stopCase() {
   }
 }
 
-async function resetCase(silent = false) {
+async function resetCase(silent = false, keepCache = false) {
   if (!currentCase.value) return
 
   try {
-    const data = await runnerStore.reset(currentCase.value.name)
+    const data = await runnerStore.reset(currentCase.value.name, keepCache)
     if (data.success) {
       if (!silent) {
         await casesStore.loadCases()
@@ -115,12 +115,24 @@ async function resetCase(silent = false) {
 function confirmRestart() {
   if (!currentCase.value) return
   showModal({
-    title: '⟲ 重新运行',
+    title: '⟲ 重新运行（清空缓存）',
     message: `确认要从头重新运行用例「${currentCase.value.name}」吗？`,
-    subMessage: '此操作将先清除全部断点记录和接口缓存，然后从第 1 步重新开始执行。',
-    confirmText: '确认重新运行',
+    subMessage: '此操作将清除全部断点记录和接口缓存，然后从第 1 步重新开始执行。',
+    confirmText: '确认清空并重新运行',
     type: 'warning',
-    onConfirm: () => runCase(true),
+    onConfirm: () => runCase(true, false),
+  })
+}
+
+function confirmRestartWithCache() {
+  if (!currentCase.value) return
+  showModal({
+    title: '⟲ 使用缓存重新运行',
+    message: `确认要使用缓存重新运行用例「${currentCase.value.name}」吗？`,
+    subMessage: '此操作将清除断点记录，但保留已缓存的 API 响应。重复的非幂等请求将直接使用缓存数据，加速执行。',
+    confirmText: '确认使用缓存重新运行',
+    type: 'info',
+    onConfirm: () => runCase(true, true),
   })
 }
 
@@ -148,6 +160,7 @@ function confirmClear() {
     
     <div class="case-actions mt-4">
       <button
+        v-if="currentCase.status !== 'passed'"
         id="btn-run-case"
         class="btn btn-primary"
         :disabled="currentCase.status === 'running' || runnerStore.isRunning"
@@ -162,6 +175,14 @@ function confirmClear() {
         @click="confirmRestart"
       >
         ⟲ 重新运行
+      </button>
+      <button
+        id="btn-restart-with-cache"
+        class="btn btn-outline"
+        :disabled="currentCase.status === 'running' || runnerStore.isRunning"
+        @click="confirmRestartWithCache"
+      >
+        ⟲ 使用缓存重新运行
       </button>
       <button
         id="btn-reset-case"

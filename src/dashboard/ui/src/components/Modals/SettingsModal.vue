@@ -7,6 +7,8 @@ const emit = defineEmits(['close'])
 const headed = ref(true)
 const trace = ref(true)
 const screenshotOnAssert = ref(true)
+const apiCache = ref(true)
+const cacheGet = ref(true)
 
 async function load() {
   try {
@@ -15,6 +17,8 @@ async function load() {
       headed.value = !!settings.headed
       trace.value = !!settings.trace
       screenshotOnAssert.value = !!settings.screenshotOnAssert
+      apiCache.value = settings.apiCache !== false
+      cacheGet.value = settings.cacheGet !== false
     }
   } catch (err) {
     console.error('加载设置失败:', err)
@@ -26,7 +30,9 @@ async function save() {
     await saveSettings({
       headed: headed.value,
       trace: trace.value,
-      screenshotOnAssert: screenshotOnAssert.value
+      screenshotOnAssert: screenshotOnAssert.value,
+      apiCache: apiCache.value,
+      cacheGet: cacheGet.value
     })
   } catch (err) {
     console.error('保存设置失败:', err)
@@ -85,6 +91,26 @@ onMounted(() => {
             </div>
             <div class="switch-control">
               <input type="checkbox" v-model="screenshotOnAssert" @change="save">
+              <span class="slider"></span>
+            </div>
+          </label>
+          <label class="modal-switch-row">
+            <div class="switch-desc">
+              <span class="switch-title">缓存写操作 (POST/PUT/DELETE/PATCH)</span>
+              <span class="switch-subtitle">拦截非幂等请求并缓存响应，断点续跑时复用以避免重复调用</span>
+            </div>
+            <div class="switch-control">
+              <input type="checkbox" v-model="apiCache" @change="save">
+              <span class="slider"></span>
+            </div>
+          </label>
+          <label class="modal-switch-row">
+            <div class="switch-desc">
+              <span class="switch-title">缓存读操作 (GET)</span>
+              <span class="switch-subtitle">拦截并缓存 GET 请求，适用于纯前端测试需要固定数据的场景</span>
+            </div>
+            <div class="switch-control">
+              <input type="checkbox" v-model="cacheGet" @change="save">
               <span class="slider"></span>
             </div>
           </label>

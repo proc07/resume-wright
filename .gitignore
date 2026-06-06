@@ -1,5 +1,6 @@
 # ResumeWright 运行时状态目录
 .resumewright/
+.claude
 
 # Node modules
 node_modules/

@@ -33,6 +33,7 @@ export function parseScript(script: string): DslScript {
   while (i < lines.length) {
     const raw = lines[i]!;
     const trimmed = raw.trim();
+    const lineNumber = i + 1;  // 从 1 开始
     i++;
 
     // 空行 / 注释
@@ -55,6 +56,7 @@ export function parseScript(script: string): DslScript {
       const inst = parseAssignment(target, rhs, workLine);
       inst.optional = optional;
       inst.raw = raw;
+      inst.lineNumber = lineNumber;
 
       // 如果是 execute_script 或 do_post/put 赋值，可能需要读取后续多行块
       if (inst.assignSource === 'execute_script' || HTTP_COMMANDS.has(rhs.split(/\s+/)[0]! as DslCommandName)) {
@@ -89,6 +91,7 @@ export function parseScript(script: string): DslScript {
       command: cmd,
       args,
       raw,
+      lineNumber,
     };
 
     // execute_script / do_post with body 需要读取后续多行块

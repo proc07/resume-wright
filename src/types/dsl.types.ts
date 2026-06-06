@@ -57,6 +57,9 @@ export interface DslInstruction {
 
   /** 原始行（调试用） */
   raw: string;
+
+  /** 在 script 中的行号（从 1 开始） */
+  lineNumber?: number;
 }
 
 /** 解析后的完整 DSL 脚本 */

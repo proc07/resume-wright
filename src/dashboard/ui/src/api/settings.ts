@@ -4,6 +4,8 @@ export interface DashboardSettings {
   headed: boolean
   trace: boolean
   screenshotOnAssert: boolean
+  apiCache: boolean
+  cacheGet: boolean
 }
 
 export async function fetchSettings(): Promise<DashboardSettings> {

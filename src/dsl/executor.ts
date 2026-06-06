@@ -10,7 +10,7 @@ import { expect } from '@playwright/test';
 import type { DslInstruction } from '../types/dsl.types.js';
 import { parseScript } from './parser.js';
 import { loadMacro } from './macro-loader.js';
-import { resolveLocatorFromString, stripQuotes } from './locator-resolver.js';
+import { resolveLocatorFromString, resolveInputLocator, stripQuotes } from './locator-resolver.js';
 import type { ContextStore } from '../engine/context-store.js';
 import { getFormattedDateTime } from '../engine/datetime-utils.js';
 
@@ -78,10 +78,16 @@ async function executeOne(
     try {
       await run();
     } catch (err) {
-      console.warn(`[dsl] ⚠ Optional step failed (skipped): ${inst.raw}\n  ${String(err)}`);
+      const lineInfo = inst.lineNumber ? ` (第 ${inst.lineNumber} 行)` : '';
+      console.warn(`[dsl] ⚠ Optional step failed (skipped): ${inst.raw}${lineInfo}\n  ${String(err)}`);
     }
   } else {
-    await run();
+    try {
+      await run();
+    } catch (err) {
+      const lineInfo = inst.lineNumber ? `\n  📍 位于脚本第 ${inst.lineNumber} 行: ${inst.raw.trim()}` : '';
+      throw new Error(`${String(err)}${lineInfo}`);
+    }
   }
 }
 
@@ -175,6 +181,8 @@ async function executeCommand(
     case 'open': {
       const url = stripQuotes(args[0]!);
       await page.goto(url, { waitUntil: 'domcontentloaded' });
+      // 等待 SPA 路由完成（body 可见即可）
+      await page.waitForLoadState('load');
       break;
     }
 
@@ -210,7 +218,7 @@ async function executeCommand(
       if (args.length >= 3 && args[1]?.toLowerCase() === 'to') {
         // input "value" to "locator"
         const locStr = stripQuotes(args[2]!);
-        const locator = resolveLocatorFromString(page, locStr);
+        const locator = resolveInputLocator(page, locStr);
         if (content === '') {
           await locator.clear();
         } else {

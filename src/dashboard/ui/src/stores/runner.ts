@@ -51,7 +51,7 @@ export const useRunnerStore = defineStore('runner', () => {
 
   async function run(
     caseFiles: string[],
-    settings: { headed: boolean; trace: boolean; screenshotOnAssert: boolean },
+    settings: { headed: boolean; trace: boolean; screenshotOnAssert: boolean; apiCache: boolean; cacheGet: boolean },
     onAppend: (text: string) => void,
     onFinish: () => void
   ) {
@@ -103,8 +103,8 @@ export const useRunnerStore = defineStore('runner', () => {
     }
   }
 
-  async function reset(caseName: string) {
-    return resetCase(caseName)
+  async function reset(caseName: string, keepCache = false) {
+    return resetCase(caseName, keepCache)
   }
 
   async function resetAllCases() {

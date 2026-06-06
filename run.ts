@@ -36,6 +36,10 @@ program
   .option('--screenshot-on-assert', 'Take screenshot after assert_exists successfully executes')
   .option('--cases-dir <dir>', 'Cases directory', 'cases')
   .option('--trace', 'Enable Playwright action tracing (saves to .resumewright/traces/)')
+  .option('--api-cache', 'Enable API response caching for non-idempotent requests (default: true)')
+  .option('--no-api-cache', 'Disable API response caching')
+  .option('--cache-get', 'Also cache GET requests (default: true)')
+  .option('--no-cache-get', 'Disable caching of GET requests')
   .action(async (files: string[], opts) => {
     const headless = !opts.headed;
     const screenshotOnFail = opts.screenshot !== false;
@@ -44,6 +48,8 @@ program
     const concurrency = parseInt(opts.concurrency, 10);
     const casesDir = opts.casesDir;
     const enableTrace = !!opts.trace;
+    const apiCache = !!opts.apiCache;
+    const cacheGet = opts.cacheGet !== false;
 
     // 设置 headed 环境变量（playwright.config.ts 会读取）
     if (opts.headed) process.env['HEADED'] = 'true';
@@ -58,6 +64,8 @@ program
           screenshotOnFail,
           screenshotOnAssert,
           enableTrace,
+          apiCache,
+          cacheGet,
         });
         const result = await runner.run();
         process.exit(result.status === 'passed' ? 0 : 1);
@@ -74,6 +82,8 @@ program
         screenshotOnAssert,
         onlyFailed,
         enableTrace,
+        apiCache,
+        cacheGet,
         filter: files && files.length > 1 ? files : undefined,
       });
       const { exitCode } = await scheduler.runAll(

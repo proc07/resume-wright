@@ -222,6 +222,25 @@ export function resolveLocatorFromString(page: Page, raw: string): Locator {
   return resolveLocator(page, parseLocator(cleaned));
 }
 
+/**
+ * input 命令专用定位：无前缀时按 label → placeholder 顺序尝试
+ * 有前缀时走标准解析
+ */
+export function resolveInputLocator(page: Page, raw: string): Locator {
+  const cleaned = stripQuotes(raw);
+
+  // 有明确前缀或特殊语法，走标准解析
+  if (/^(label:|placeholder:|testid:|title:|alt:|role:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(cleaned)) {
+    return resolveLocatorFromString(page, cleaned);
+  }
+
+  // 无前缀：placeholder → label（大多数表单用 placeholder，优先匹配）
+  const placeholderLoc = page.getByPlaceholder(cleaned, { exact: true });
+  const labelLoc = page.getByLabel(cleaned, { exact: true });
+
+  return placeholderLoc.or(labelLoc);
+}
+
 // ── 工具函数 ─────────────────────────────────────────────────
 
 export function stripQuotes(s: string): string {

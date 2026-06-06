@@ -15,7 +15,7 @@ export { SubStepStore } from './engine/sub-step-store.js';
 
 export { parseScript, tokenize } from './dsl/parser.js';
 export { executeScript, executeInstructions, interpolate } from './dsl/executor.js';
-export { parseLocator, resolveLocator, resolveLocatorFromString, stripQuotes } from './dsl/locator-resolver.js';
+export { parseLocator, resolveLocator, resolveLocatorFromString, resolveInputLocator, stripQuotes } from './dsl/locator-resolver.js';
 export { loadMacro } from './dsl/macro-loader.js';
 
 export { loadCase, loadAllCases } from './adapters/yaml-loader.js';
