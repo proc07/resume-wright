@@ -7,13 +7,13 @@
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "server": "npx tsx server.ts",
-    "run:all": "npx tsx ../run.ts run --cases-dir cases",
-    "run:purchase": "npx tsx ../run.ts run cases/workflows/purchase-approval.yaml",
-    "run:invoice": "npx tsx ../run.ts run cases/workflows/invoice/invoice-review-substeps.yaml",
-    "validate": "npx tsx ../run.ts validate --cases-dir cases",
-    "status": "npx tsx ../run.ts status",
-    "reset": "npx tsx ../run.ts reset --all",
-    "dashboard": "npx tsx ../run.ts dashboard"
+    "run:all": "resumewright run --cases-dir cases",
+    "run:purchase": "resumewright run cases/workflows/purchase-approval.yaml",
+    "run:invoice": "resumewright run cases/workflows/invoice/invoice-review-substeps.yaml",
+    "validate": "resumewright validate --cases-dir cases",
+    "status": "resumewright status",
+    "reset": "resumewright reset --all",
+    "dashboard": "resumewright dashboard"
   },
   "dependencies": {
     "resumewright": "file:../"

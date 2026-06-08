@@ -7,6 +7,7 @@ export interface RunStreamParams {
   screenshotOnAssert: boolean
   apiCache: boolean
   cacheGet: boolean
+  concurrency: number
 }
 
 export function createRunStream(params: RunStreamParams): EventSource {
@@ -17,6 +18,7 @@ export function createRunStream(params: RunStreamParams): EventSource {
     screenshotOnAssert: String(params.screenshotOnAssert),
     apiCache: String(params.apiCache),
     cacheGet: String(params.cacheGet),
+    concurrency: String(params.concurrency),
   })
   return new EventSource(`/api/run-stream?${qs}`)
 }

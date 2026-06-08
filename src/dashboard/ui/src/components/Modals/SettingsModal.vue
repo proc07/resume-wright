@@ -9,6 +9,7 @@ const trace = ref(true)
 const screenshotOnAssert = ref(true)
 const apiCache = ref(true)
 const cacheGet = ref(true)
+const concurrency = ref(3)
 
 async function load() {
   try {
@@ -19,6 +20,7 @@ async function load() {
       screenshotOnAssert.value = !!settings.screenshotOnAssert
       apiCache.value = settings.apiCache !== false
       cacheGet.value = settings.cacheGet !== false
+      concurrency.value = typeof settings.concurrency === 'number' ? settings.concurrency : 3
     }
   } catch (err) {
     console.error('加载设置失败:', err)
@@ -26,13 +28,20 @@ async function load() {
 }
 
 async function save() {
+  // 强行纠正非合理并发数（必须在 1 ~ 10 之间）
+  let val = Number(concurrency.value);
+  if (isNaN(val) || val < 1) val = 1;
+  if (val > 10) val = 10;
+  concurrency.value = val;
+
   try {
     await saveSettings({
       headed: headed.value,
       trace: trace.value,
       screenshotOnAssert: screenshotOnAssert.value,
       apiCache: apiCache.value,
-      cacheGet: cacheGet.value
+      cacheGet: cacheGet.value,
+      concurrency: val
     })
   } catch (err) {
     console.error('保存设置失败:', err)
@@ -114,6 +123,22 @@ onMounted(() => {
               <span class="slider"></span>
             </div>
           </label>
+          <div class="modal-switch-row" style="cursor: default;">
+            <div class="switch-desc">
+              <span class="switch-title">并发执行数量 (--concurrency)</span>
+              <span class="switch-subtitle">并行运行多个用例时，允许同时执行的最大并发 Case 数量</span>
+            </div>
+            <div class="concurrency-control">
+              <input 
+                type="number" 
+                v-model.number="concurrency" 
+                min="1" 
+                max="10" 
+                @change="save"
+                style="width: 80px; text-align: center; background-color: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 12px; font-size: 13px; color: var(--text-primary); outline: none; transition: var(--transition);"
+              >
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">

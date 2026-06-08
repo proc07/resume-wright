@@ -6,6 +6,7 @@ export interface DashboardSettings {
   screenshotOnAssert: boolean
   apiCache: boolean
   cacheGet: boolean
+  concurrency: number
 }
 
 export async function fetchSettings(): Promise<DashboardSettings> {

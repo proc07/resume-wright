@@ -51,7 +51,7 @@ export const useRunnerStore = defineStore('runner', () => {
 
   async function run(
     caseFiles: string[],
-    settings: { headed: boolean; trace: boolean; screenshotOnAssert: boolean; apiCache: boolean; cacheGet: boolean },
+    settings: { headed: boolean; trace: boolean; screenshotOnAssert: boolean; apiCache: boolean; cacheGet: boolean; concurrency: number },
     onAppend: (text: string) => void,
     onFinish: () => void
   ) {

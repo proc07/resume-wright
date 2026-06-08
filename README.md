@@ -1,5 +1,7 @@
 # ResumeWright
 
+[![npm version](https://img.shields.io/npm/v/resumewright.svg?style=flat-square)](https://www.npmjs.com/package/resumewright)
+
 > 一个面向 Playwright 的**可恢复执行框架**，支持多角色 Workflow 自动化、步骤级断点续跑、DSL 脚本驱动、并行调度。
 
 ---

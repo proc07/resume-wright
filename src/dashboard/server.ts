@@ -26,6 +26,7 @@ interface DashboardSettings {
   screenshotOnAssert: boolean;
   apiCache: boolean;
   cacheGet: boolean;
+  concurrency: number;
 }
 
 function loadDashboardSettings(): DashboardSettings {
@@ -34,7 +35,8 @@ function loadDashboardSettings(): DashboardSettings {
     trace: true,
     screenshotOnAssert: true,
     apiCache: true,
-    cacheGet: true
+    cacheGet: true,
+    concurrency: 3
   };
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
@@ -258,12 +260,18 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
   if (pathname === '/api/settings' && req.method === 'POST') {
     try {
       const body = await readJsonBody(req);
+       const parsedConcurrency = Number(body.concurrency);
+      const concurrency = isNaN(parsedConcurrency)
+        ? 3
+        : Math.max(1, Math.min(10, parsedConcurrency));
+
       const settings = {
         headed: !!body.headed,
         trace: !!body.trace,
         screenshotOnAssert: !!body.screenshotOnAssert,
         apiCache: body.apiCache !== false,
-        cacheGet: !!body.cacheGet
+        cacheGet: !!body.cacheGet,
+        concurrency
       };
       saveDashboardSettings(settings);
       return jsonRes(res, 200, { success: true, settings });
@@ -469,6 +477,8 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     const screenshotOnAssert = url.searchParams.get('screenshotOnAssert') === 'true';
     const apiCache = url.searchParams.get('apiCache') !== 'false';
     const cacheGet = url.searchParams.get('cacheGet') === 'true';
+    const rawConcurrency = parseInt(url.searchParams.get('concurrency') || '3', 10);
+    const concurrency = isNaN(rawConcurrency) ? 3 : Math.max(1, Math.min(10, rawConcurrency));
 
     if (caseFiles.length === 0) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -517,6 +527,9 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     }
     if (cacheGet) {
       cmdArgs.push('--cache-get');
+    }
+    if (concurrency) {
+      cmdArgs.push('--concurrency', String(concurrency));
     }
 
     let command: string;
