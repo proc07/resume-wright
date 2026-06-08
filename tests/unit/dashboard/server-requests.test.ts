@@ -64,7 +64,7 @@ describe('Dashboard Server Requests', () => {
     it('正确解析包含 URL 编码和中文字符的案例路径并定位到正确的物理文件', async () => {
       const caseName = '商户入驻资质审核与退回重审流程';
       const encodedCaseName = encodeURIComponent(caseName);
-      const safeCaseName = getSafeCaseName(caseName); // "%E5%95%86%E6%88%B7..."
+      const safeCaseName = getSafeCaseName(caseName); // "商户入驻资质审核与退回重审流程"
       const fileName = 'testid_merchant-upload-status-step1_merchant_submit.png';
       
       const requestUrl = `/api/screenshots/${encodedCaseName}/${encodeURIComponent(fileName)}`;

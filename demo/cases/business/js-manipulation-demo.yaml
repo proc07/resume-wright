@@ -1,7 +1,6 @@
 # demo/cases/business/js-manipulation-demo.yaml
 # 执行多行 JS 脚本操作页面的演示用例
 
-name: "执行多行 JS 脚本演示"
 description: "演示如何通过在 script 中编写多行 JavaScript 脚本来直接控制页面 DOM 元素，以及进行数据提取与逻辑校验"
 timeout: 60000
 

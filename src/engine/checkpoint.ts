@@ -9,10 +9,29 @@ import type { ContextStore } from './context-store.js';
 
 const BASE_DIR = '.resumewright';
 
-/**
- * 获取安全的文件系统目录名称，规避非法路径字符，并对中文或特殊符号使用 URL 编码
- */
-export function getSafeCaseName(caseName: string): string {
+export function getSafeCaseNameFromPath(filePath: string): string {
+  let relative = filePath;
+  if (path.isAbsolute(filePath)) {
+    const casesDir = path.resolve(process.cwd(), 'cases');
+    relative = path.relative(casesDir, filePath);
+    if (relative.startsWith('..')) {
+      relative = path.relative(process.cwd(), filePath);
+    }
+  } else {
+    relative = relative.replace(/^cases\//, '');
+  }
+  const ext = path.extname(relative);
+  if (ext) {
+    relative = relative.slice(0, -ext.length);
+  }
+  relative = relative.replace(/\\/g, '/');
+  return relative.replace(/[?<>\\:*|"]/g, '_');
+}
+
+export function getSafeCaseName(caseName: string, filePath?: string): string {
+  if (filePath) {
+    return getSafeCaseNameFromPath(filePath);
+  }
   return caseName.replace(/[/?<>\\:*|"]/g, '_');
 }
 

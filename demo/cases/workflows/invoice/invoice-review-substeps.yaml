@@ -1,7 +1,6 @@
 # demo/cases/invoice-review-substeps.yaml
 # 进阶示例：带子步骤（sub_steps）的发票审核流程
 
-name: "发票审核全流程"
 description: "含子步骤的发票上传与多级审核，演示 SubStep 断点续跑"
 timeout: 480000
 

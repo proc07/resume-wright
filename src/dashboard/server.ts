@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadCase } from '../adapters/yaml-loader.js';
 import { Checkpoint, listCheckpoints, resetAllCheckpoints, resetCaseRuntime, resetCaseKeepCache, resetAllRuntimes, getSafeCaseName } from '../engine/checkpoint.js';
+import fg from 'fast-glob';
 
 // 获取当前目录路径（ESM 规范下替代 __dirname）
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +18,36 @@ const __dirname = path.dirname(__filename);
 // 缓存当前正在执行的进程及状态
 let activeProcess: any = null;
 const lastRunStatuses: Record<string, 'passed' | 'failed' | 'running' | 'never_run'> = {};
+
+// 缓存 caseName -> safeCaseName 相对路径映射，避免重复扫描文件系统
+const caseNameCache: Record<string, string> = {};
+
+function resolveSafeCaseName(caseName: string): string {
+  if (caseNameCache[caseName]) {
+    return caseNameCache[caseName];
+  }
+
+  const casesDir = path.resolve(process.cwd(), 'cases');
+  if (fs.existsSync(casesDir)) {
+    const pattern = path.join(casesDir, '**/*.{yaml,yml}').replace(/\\/g, '/');
+    const files = fg.sync(pattern);
+    for (const file of files) {
+      try {
+        const def = loadCase(file);
+        const nameInFile = def.name;
+        const filename = path.basename(file, path.extname(file));
+        if (nameInFile === caseName || filename === caseName) {
+          const safe = getSafeCaseName(caseName, file);
+          caseNameCache[caseName] = safe;
+          return safe;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // 兜底返回基本的安全名称
+  return getSafeCaseName(caseName);
+}
 
 const SETTINGS_FILE = path.join(process.cwd(), '.resumewright', 'dashboard-settings.json');
 
@@ -51,7 +82,7 @@ function loadDashboardSettings(): DashboardSettings {
 
 function markHistoryAsTerminated(caseName: string, exitCode: number | null): void {
   try {
-    const safeCaseName = getSafeCaseName(caseName);
+    const safeCaseName = resolveSafeCaseName(caseName);
     const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
     if (fs.existsSync(historyFile)) {
       const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
@@ -178,7 +209,8 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         const relativePath = path.relative(process.cwd(), file).replace(/\\/g, '/');
         try {
           const definition = loadCase(filePath);
-          const cp = new Checkpoint(definition.name);
+          const safeCaseName = getSafeCaseName(definition.name, filePath);
+          const cp = new Checkpoint(definition.name, path.join('.resumewright', safeCaseName));
           cp.load();
 
           // 结合内存中最后运行的状态
@@ -198,7 +230,6 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             // 从历史记录中恢复状态（如果内存中没有）
             let historicalStatus: string | null = null;
             try {
-              const safeCaseName = getSafeCaseName(definition.name);
               const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
               if (fs.existsSync(historyFile)) {
                 const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
@@ -288,7 +319,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (!encodedCaseName) return jsonRes(res, 400, { error: 'Missing caseName' });
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = getSafeCaseName(caseName);
+      const safeCaseName = resolveSafeCaseName(caseName);
       const caseDir = path.join('.resumewright', safeCaseName);
 
       // 读取 screenshots
@@ -370,7 +401,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       // 读取 checkpoint 中的本地变量 (context)
       let variables: Record<string, any> = {};
       try {
-        const cp = new Checkpoint(caseName);
+        const cp = new Checkpoint(caseName, caseDir);
         cp.load();
         variables = cp.getContext();
       } catch { /* ignore */ }
@@ -396,7 +427,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (!encodedCaseName) return jsonRes(res, 400, { error: 'Missing caseName' });
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = getSafeCaseName(caseName);
+      const safeCaseName = resolveSafeCaseName(caseName);
       const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
 
       if (fs.existsSync(historyFile)) {
@@ -418,7 +449,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (!encodedCaseName || !runId) return jsonRes(res, 400, { error: 'Missing caseName or runId' });
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = getSafeCaseName(caseName);
+      const safeCaseName = resolveSafeCaseName(caseName);
       const logFile = path.join('.resumewright', safeCaseName, 'history', `${runId}.log`);
 
       if (fs.existsSync(logFile)) {
@@ -446,11 +477,11 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       }
 
       if (body.caseName) {
-        const cp = new Checkpoint(body.caseName);
+        const safeCaseName = resolveSafeCaseName(body.caseName);
+        const caseDir = path.join('.resumewright', safeCaseName);
+        const cp = new Checkpoint(body.caseName, caseDir);
         cp.reset();
         delete lastRunStatuses[body.caseName];
-        const safeCaseName = getSafeCaseName(body.caseName);
-        const caseDir = path.join('.resumewright', safeCaseName);
 
         if (body.keepCache) {
           // 保留 API 缓存，只清除断点和子步骤状态
@@ -572,7 +603,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       for (const line of lines) {
         const match = line.match(/^\[case:([^\]]+)\](.*)$/);
         if (match) {
-          const safeCaseName = match[1]!;
+          const safeCaseName = decodeURIComponent(match[1]!);
           const text = match[2]!;
           sendEvent('log', { case: safeCaseName, text: text + '\n' });
         } else {
@@ -608,7 +639,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (buffer) {
         const match = buffer.match(/^\[case:([^\]]+)\](.*)$/);
         if (match) {
-          sendEvent('log', { case: match[1]!, text: match[2]! });
+          sendEvent('log', { case: decodeURIComponent(match[1]!), text: match[2]! });
         } else {
           sendEvent('log', { text: buffer });
         }
@@ -667,7 +698,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         return jsonRes(res, 400, { error: 'Missing caseName or traceFile' });
       }
 
-      const safeCaseName = getSafeCaseName(caseName);
+      const safeCaseName = resolveSafeCaseName(caseName);
       const tracePath = path.join('.resumewright', safeCaseName, 'traces', traceFile);
 
       if (!fs.existsSync(tracePath)) {
@@ -706,7 +737,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       }
 
       const caseName = decodeURIComponent(encodedCaseName);
-      const safeCaseName = getSafeCaseName(caseName);
+      const safeCaseName = resolveSafeCaseName(caseName);
       const decodedFileName = decodeURIComponent(fileName);
       const filePath = path.join('.resumewright', safeCaseName, 'screenshots', decodedFileName);
 

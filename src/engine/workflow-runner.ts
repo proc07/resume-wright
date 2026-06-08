@@ -41,7 +41,7 @@ function hookWrite(originalWrite: typeof process.stdout.write) {
         .split('\n')
         .map((line: string, idx: number, arr: string[]) => {
           if (idx === arr.length - 1 && line === '') return '';
-          return `[case:${store.safeCaseName}]${line}`;
+          return `[case:${encodeURIComponent(store.safeCaseName)}]${line}`;
         })
         .join('\n');
 
@@ -100,7 +100,7 @@ export class WorkflowRunner {
   async run(): Promise<CaseResult> {
     const startTime = Date.now();
     const caseName = this.definition.name;
-    const safeCaseName = getSafeCaseName(caseName);
+    const safeCaseName = getSafeCaseName(caseName, this.filePath);
     const caseDir = path.join('.resumewright', safeCaseName);
     const historyDir = path.join(caseDir, 'history');
     fs.mkdirSync(historyDir, { recursive: true });

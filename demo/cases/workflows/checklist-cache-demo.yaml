@@ -1,7 +1,6 @@
 # demo/cases/workflows/checklist-cache-demo.yaml
 # 演示用例：在同一个子步骤内多次请求相同 GET 接口且数据发生变更的缓存顺序匹配场景
 
-name: "Checklist表单顺序缓存演示"
 description: "演示在同个子步骤中，提交前 GET 为空表单，提交后 GET 为有值状态的顺序缓存与复用逻辑"
 timeout: 600000
 

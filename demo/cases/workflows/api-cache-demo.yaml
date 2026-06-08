@@ -1,7 +1,6 @@
 # demo/cases/workflows/api-cache-demo.yaml
 # 演示用例：通过页面真实交互展示 API 缓存拦截与归一化
 
-name: "API缓存功能演示"
 description: "演示子步骤 API 缓存：多步采购流程，每步触发多个 API 请求，验证缓存命中"
 timeout: 600000
 

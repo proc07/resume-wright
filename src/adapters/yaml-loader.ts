@@ -47,7 +47,7 @@ const HookSchema = z.union([z.string(), z.array(z.string())])
   .optional();
 
 const CaseSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).optional(),
   description: z.string().optional(),
   timeout: z.number().int().positive().optional(),
   roles: z.record(z.string(), RoleSchema),
@@ -88,7 +88,11 @@ export function loadCase(filePath: string): CaseDefinition {
   }
 
   // 校验 step.role 都存在于 roles 定义中
-  const caseData = result.data as CaseDefinition;
+  const rawData = result.data as any;
+  const caseData: CaseDefinition = {
+    ...rawData,
+    name: rawData.name || path.basename(filePath, path.extname(filePath)),
+  };
   for (const step of caseData.steps) {
     if (!caseData.roles[step.role]) {
       throw new Error(

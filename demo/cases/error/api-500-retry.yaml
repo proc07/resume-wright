@@ -1,4 +1,3 @@
-name: "API请求500错误重试演示"
 description: "第一次运行由于API服务500报错而失败，再次运行成功"
 timeout: 60000
 

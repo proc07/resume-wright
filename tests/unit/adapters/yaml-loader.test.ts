@@ -143,16 +143,18 @@ steps:
   // ── Schema 校验错误 ───────────────────────────────────────
 
   describe('Schema 校验失败', () => {
-    it('缺少 name 字段时抛出', () => {
+    it('缺少 name 字段时自动使用文件名填充', () => {
       const yaml = `
 roles:
   user: { username: "u@co.com", password: "p" }
 steps:
   - id: s1
     role: user
+    script: open "https://example.com"
 `;
       const filePath = writeYaml('no-name', yaml);
-      expect(() => loadCase(filePath)).toThrow(/schema|validation/i);
+      const def = loadCase(filePath);
+      expect(def.name).toBe('no-name');
     });
 
     it('缺少 steps 时抛出', () => {
@@ -236,7 +238,7 @@ steps:
     it('purchase-approval.yaml 合法', () => {
       const filePath = 'demo/cases/workflows/purchase-approval.yaml';
       const def = loadCase(filePath);
-      expect(def.name).toBe('采购申请全流程审批');
+      expect(def.name).toBe('purchase-approval');
       expect(def.steps).toHaveLength(4);
       expect(Object.keys(def.roles)).toEqual(['requester', 'manager', 'finance']);
     });

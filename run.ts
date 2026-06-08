@@ -150,7 +150,7 @@ program
       const definition = loadCase(filePath);
 
       // 清理该 case 的运行状态，但保留 history 目录以确保运行历史不丢失
-      const safeCaseName = getSafeCaseName(definition.name);
+      const safeCaseName = getSafeCaseName(definition.name, filePath);
       const caseDir = path.join(process.cwd(), '.resumewright', safeCaseName);
       resetCaseRuntime(caseDir);
 

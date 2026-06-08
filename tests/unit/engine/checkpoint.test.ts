@@ -158,7 +158,7 @@ describe('Checkpoint', () => {
   // ── getSafeCaseName ───────────────────────────────────────
 
   describe('getSafeCaseName()', () => {
-    it('正确转换非法字符并保持中文可读', () => {
+    it('正确转换非法字符并保持中文可读目录', () => {
       const caseName = '我的/测试:用例*名称?包含"非法"字符';
       const safe = getSafeCaseName(caseName);
       expect(safe).toBe('我的_测试_用例_名称_包含_非法_字符');

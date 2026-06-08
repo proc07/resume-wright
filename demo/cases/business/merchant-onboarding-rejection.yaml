@@ -1,7 +1,6 @@
 # demo/cases/merchant-onboarding-rejection.yaml
 # 资质审核退回重审高级复杂用例
 
-name: "商户入驻资质审核与退回重审流程"
 description: "资质初审驳回、商户整改后二次提交、资质初审通过、财务核准入驻以及最终在线签署合同的完整多角色协作流程"
 timeout: 600000
 
