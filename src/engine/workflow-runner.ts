@@ -159,6 +159,7 @@ export class WorkflowRunner {
         contextStore,
         checkpoint,
         caseName,
+        caseDir,
         screenshotDir: this.opts.screenshotOnFail ? screenshotDir : '',
         screenshotOnAssert: this.opts.screenshotOnAssert,
         defaultOnFailure: this.definition.on_failure,

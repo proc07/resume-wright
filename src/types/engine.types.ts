@@ -38,6 +38,7 @@ export interface StepExecutionContext {
   contextStore: import('../engine/context-store.js').ContextStore;
   checkpoint: import('../engine/checkpoint.js').Checkpoint;
   caseName: string;
+  caseDir: string;
   screenshotDir: string;
   screenshotOnAssert?: boolean;
   defaultOnFailure?: import('./case.types.js').OnFailureConfig;

@@ -182,6 +182,41 @@ export class Checkpoint {
 // ── 静态工具函数 ──────────────────────────────────────────────
 
 /**
+ * 递归查找所有用例运行时目录 (即包含 checkpoint.json, history, sub-steps, traces, screenshots 的目录)
+ */
+export function findCaseDirectories(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const results: string[] = [];
+  try {
+    const list = fs.readdirSync(dir);
+    let isCaseDir = false;
+    for (const item of list) {
+      if (
+        item === 'checkpoint.json' ||
+        item === 'history' ||
+        item === 'sub-steps' ||
+        item === 'traces' ||
+        item === 'screenshots'
+      ) {
+        isCaseDir = true;
+        break;
+      }
+    }
+    if (isCaseDir) {
+      results.push(dir);
+    } else {
+      for (const item of list) {
+        const fullPath = path.join(dir, item);
+        if (fs.statSync(fullPath).isDirectory()) {
+          results.push(...findCaseDirectories(fullPath));
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return results;
+}
+
+/**
  * 列出所有已有 Checkpoint（status 命令使用）
  */
 export function listCheckpoints(
@@ -191,10 +226,8 @@ export function listCheckpoints(
 
   const results: CheckpointData[] = [];
   try {
-    const files = fs.readdirSync(baseDir);
-    for (const f of files) {
-      const dirPath = path.join(baseDir, f);
-      if (!fs.statSync(dirPath).isDirectory()) continue;
+    const caseDirs = findCaseDirectories(baseDir);
+    for (const dirPath of caseDirs) {
       const cpPath = path.join(dirPath, 'checkpoint.json');
       if (fs.existsSync(cpPath)) {
         try {
@@ -214,10 +247,8 @@ export function resetAllCheckpoints(baseDir = BASE_DIR): void {
   if (!fs.existsSync(baseDir)) return;
   let count = 0;
   try {
-    const files = fs.readdirSync(baseDir);
-    for (const f of files) {
-      const dirPath = path.join(baseDir, f);
-      if (!fs.statSync(dirPath).isDirectory()) continue;
+    const caseDirs = findCaseDirectories(baseDir);
+    for (const dirPath of caseDirs) {
       const cpPath = path.join(dirPath, 'checkpoint.json');
       if (fs.existsSync(cpPath)) {
         fs.unlinkSync(cpPath);
@@ -294,12 +325,9 @@ export function resetCaseKeepCache(caseDir: string): void {
 export function resetAllRuntimes(baseDir = BASE_DIR): void {
   if (!fs.existsSync(baseDir)) return;
   try {
-    const files = fs.readdirSync(baseDir);
-    for (const f of files) {
-      const dirPath = path.join(baseDir, f);
-      if (fs.statSync(dirPath).isDirectory()) {
-        resetCaseRuntime(dirPath);
-      }
+    const caseDirs = findCaseDirectories(baseDir);
+    for (const dirPath of caseDirs) {
+      resetCaseRuntime(dirPath);
     }
   } catch (err) {
     console.error(`[checkpoint] Failed to reset all runtimes:`, err);

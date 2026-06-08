@@ -7,7 +7,6 @@ import type { StepExecutionContext } from '../types/engine.types.js';
 import { NetworkInterceptor } from './network-interceptor.js';
 import { SubStepExecutor } from './sub-step-executor.js';
 import { executeScript } from '../dsl/executor.js';
-import { getSafeCaseName } from './checkpoint.js';
 import { getFormattedDateTime } from './datetime-utils.js';
 import path from 'node:path';
 
@@ -100,9 +99,7 @@ export class StepExecutor {
       contextStore.set('password', creds.password);
     }
 
-    // 基于 caseName 计算该 case 的专属根路径
-    const safeCaseName = getSafeCaseName(caseName);
-    const caseDir = path.join('.resumewright', safeCaseName);
+    const caseDir = this.execCtx.caseDir;
 
     // API 缓存路径
     const apiCachePath = path.join(

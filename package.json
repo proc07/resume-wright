@@ -1,6 +1,6 @@
 {
   "name": "resumewright",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A resumable Playwright execution framework for multi-role workflow automation",
   "type": "module",
   "main": "./dist/src/index.js",

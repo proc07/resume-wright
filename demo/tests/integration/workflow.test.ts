@@ -332,7 +332,7 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
 
   it('purchase-approval.yaml 结构正确', () => {
     const def = loadCase(path.join(DIR, 'workflows/purchase-approval.yaml'));
-    expect(def.name).toBe('采购申请全流程审批');
+    expect(def.name).toBe('purchase-approval');
     expect(def.steps).toHaveLength(4);
     expect(Object.keys(def.roles)).toEqual(['requester', 'manager', 'finance']);
   });
