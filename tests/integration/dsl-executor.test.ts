@@ -238,6 +238,52 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('assert_url — URL 断言', () => {
+    it('能够成功匹配精确完整的 URL', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url/workflow/invoice-123"
+        assert_url "$base_url/workflow/invoice-123" 3s
+      `, page, ctx, {});
+    });
+
+    it('能够成功匹配相对路径 URL (带或不带前导斜杠)', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url/workflow/invoice-123"
+        assert_url "/workflow/invoice-123" 3s
+        assert_url "workflow/invoice-123" 3s
+      `, page, ctx, {});
+    });
+
+    it('能够成功进行 * 通配符模糊匹配', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url/workflow/invoice-123"
+        assert_url "*/workflow/*" 3s
+        assert_url "*invoice-123" 3s
+      `, page, ctx, {});
+    });
+
+    it('能够成功匹配 Hash 路由部分', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url/#/dashboard/overview"
+        assert_url "#/dashboard/overview" 3s
+        assert_url "/#/dashboard/overview" 3s
+        assert_url "*#/dashboard/*" 3s
+      `, page, ctx, {});
+    });
+
+    it('如果 URL 不匹配应抛出错误', async () => {
+      const ctx = makeCtx();
+      await expect(executeScript(`
+        open "$base_url/workflow/invoice-123"
+        assert_url "/wrong-path" 1s
+      `, page, ctx, {})).rejects.toThrow('assert_url failed');
+    });
+  });
+
   describe('check — 复选框', () => {
     it('勾选复选框', async () => {
       const ctx = makeCtx();
@@ -251,9 +297,14 @@ describe('DSL 执行器集成测试', () => {
   });
 
   describe('变量插值', () => {
-    it('URL 中的变量被正确替换', async () => {
+    it('URL 中的变量被正确替换 (支持无引号与有引号两种形式)', async () => {
       const ctx = makeCtx();
       ctx.set('sub_path', '');
+      // 1. 测试无引号变量
+      await executeScript(`open $base_url`, page, ctx, {});
+      expect(page.url()).toContain('127.0.0.1');
+
+      // 2. 测试有引号变量
       await executeScript(`open "$base_url"`, page, ctx, {});
       expect(page.url()).toContain('127.0.0.1');
     });

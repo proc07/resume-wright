@@ -99,6 +99,21 @@ describe('DSL Parser', () => {
     });
   });
 
+  describe('assert_url 命令', () => {
+    it('解析基础 URL 断言', () => {
+      const result = parseScript('assert_url "/purchase/new"');
+      expect(result[0]!.command).toBe('assert_url');
+      expect(result[0]!.args[0]).toBe('"/purchase/new"');
+    });
+
+    it('解析带超时 URL 断言', () => {
+      const result = parseScript('assert_url "/purchase/new" 15s');
+      expect(result[0]!.command).toBe('assert_url');
+      expect(result[0]!.args[0]).toBe('"/purchase/new"');
+      expect(result[0]!.args[1]).toBe('15s');
+    });
+  });
+
   describe('HTTP 命令', () => {
     it('解析 do_get', () => {
       const result = parseScript('do_get "https://api.example.com/data"');

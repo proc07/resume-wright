@@ -15,7 +15,7 @@ const COMMANDS = new Set<DslCommandName>([
   'open', 'tap', 'input', 'keyboard', 'hover', 'scroll_to',
   'screenshot', 'wait', 'check', 'upload', 'execute_script',
   'assert_exists', 'assert_not_exists', 'assert_text_equal',
-  'assert_title_exists', 'do_get', 'do_post', 'do_put', 'do_delete',
+  'assert_title_exists', 'assert_url', 'do_get', 'do_post', 'do_put', 'do_delete',
   'macro',
 ]);
 

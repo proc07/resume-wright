@@ -19,6 +19,7 @@ export type DslCommandName =
   | 'assert_not_exists'
   | 'assert_text_equal'
   | 'assert_title_exists'
+  | 'assert_url'
   | 'do_get'
   | 'do_post'
   | 'do_put'

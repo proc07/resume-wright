@@ -397,6 +397,42 @@ async function executeCommand(
       break;
     }
 
+    // ── 断言：页面 URL ────────────────────────────────────────
+    case 'assert_url': {
+      const pattern = stripQuotes(interpolate(args[0]!, ctx));
+      const timeoutMs = args[1] ? parseDuration(args[1]) : 5000;
+
+      const startTime = Date.now();
+      let matched = false;
+      let lastUrl = '';
+
+      while (Date.now() - startTime < timeoutMs) {
+        lastUrl = page.url();
+        if (matchUrl(lastUrl, pattern)) {
+          matched = true;
+          break;
+        }
+        await page.waitForTimeout(100);
+      }
+
+      if (!matched) {
+        throw new Error(
+          `assert_url failed: URL "${lastUrl}" did not match pattern "${pattern}" within ${timeoutMs}ms`
+        );
+      }
+
+      if (opts.screenshotOnAssert) {
+        const dir = opts.screenshotDir ?? '.resumewright/screenshots';
+        fs.mkdirSync(dir, { recursive: true });
+        const stepId = opts.stepId ?? 'unknown';
+        const sanitizedArg = sanitizeFilename(pattern) || 'target';
+        const screenshotPath = path.join(dir, `${sanitizedArg}-${stepId}.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: false });
+        console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
+      }
+      break;
+    }
+
     // ── HTTP 请求（无赋值）────────────────────────────────────
     case 'do_get':
     case 'do_post':
@@ -550,6 +586,49 @@ function toPwKey(key: string): string {
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isWildcardMatch(val: string, pattern: string): boolean {
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regexStr = '^' + escaped.replace(/\\\*/g, '[\\s\\S]*') + '$';
+  return new RegExp(regexStr).test(val);
+}
+
+function matchUrl(currentUrl: string, pattern: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(currentUrl);
+  } catch {
+    return currentUrl === pattern || (pattern.includes('*') && isWildcardMatch(currentUrl, pattern));
+  }
+
+  const relativeUrl = parsed.pathname + parsed.search + parsed.hash;
+  const relativeUrlNoSearch = parsed.pathname + parsed.hash;
+  const hash = parsed.hash;
+
+  // 1. 通配符模糊匹配
+  if (pattern.includes('*')) {
+    return (
+      isWildcardMatch(currentUrl, pattern) ||
+      isWildcardMatch(relativeUrl, pattern) ||
+      isWildcardMatch(relativeUrlNoSearch, pattern) ||
+      isWildcardMatch(hash, pattern)
+    );
+  }
+
+  // 2. 精确匹配
+  if (currentUrl === pattern) return true;
+  if (relativeUrl === pattern) return true;
+  if (relativeUrlNoSearch === pattern) return true;
+  if (hash === pattern) return true;
+
+  // 3. 相对路径匹配（去掉首部的 /）
+  if (!pattern.startsWith('/') && !pattern.startsWith('#') && !pattern.startsWith('http')) {
+    if (parsed.pathname.replace(/^\//, '') === pattern) return true;
+    if (relativeUrlNoSearch.replace(/^\//, '') === pattern) return true;
+  }
+
+  return false;
 }
 
 function stripDollar(s: string): string {

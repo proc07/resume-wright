@@ -300,6 +300,32 @@ assert_title_exists "采购审批 - 工作台"
 
 ---
 
+### assert_url — 断言页面 URL
+
+支持完整 URL 精确匹配、相对 URL 匹配、带有 `*` 的通配符模糊匹配，以及 Hash 路由部分匹配：
+
+```bash
+# 1. 完整 URL 精确匹配
+assert_url "http://127.0.0.1:61775/purchase/new"
+
+# 2. 相对 URL 匹配 (可带或不带前导斜杠)
+assert_url "/purchase/new"
+assert_url "purchase/new"
+
+# 3. * 通配符模糊匹配
+assert_url "*/purchase/*"
+assert_url "*new"
+
+# 4. Hash 路由匹配
+assert_url "#/dashboard/overview"
+assert_url "*#/dashboard/*"
+
+# 5. 支持可选的超时时间（默认 5s）
+assert_url "/purchase/new" 10s
+```
+
+---
+
 ## 五、HTTP 请求词汇
 
 ### 基础用法
@@ -410,7 +436,21 @@ $res           ← HTTP 响应等临时变量，本 script 块内有效。
 $1 $2 $3       ← 宏的位置参数，仅宏内部有效。
 ```
 
-### 6.5 使用示例
+### 6.5 变量引用免引号支持
+
+在 DSL 脚本中，引用变量时无需包裹在引号中。系统同时兼容带引号和不带引号的引用方式：
+
+```bash
+# 1. 导航命令 (支持无引号)
+open $workflow_url
+# (等同于：open "$workflow_url")
+
+# 2. 断言命令 (支持无引号)
+assert_text_equal $doc_number "PO-2024-001"
+# (等同于：assert_text_equal "$doc_number" "PO-2024-001")
+```
+
+### 6.6 使用示例
 
 ```bash
 # step1 中捕获
@@ -421,9 +461,9 @@ $doc_number   = "testid:doc-number"          # 从页面元素提取
 $res          = do_get "https://api.example.com/workflow/$workflow_id"
 $task_id      = $res.data.currentTask.id
 
-# step2 中直接使用 step1 的变量（自动跨步骤）
-open "$workflow_url"
-assert_text_equal "$doc_number" "PO-2024-001"
+# step2 中直接使用 step1 的变量（自动跨步骤，无需引号）
+open $workflow_url
+assert_text_equal $doc_number "PO-2024-001"
 do_post "https://api.example.com/task/$task_id/approve"
 ```
 
