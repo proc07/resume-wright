@@ -3,6 +3,7 @@
 
 description: "演示子步骤 API 缓存：多步采购流程，每步触发多个 API 请求，验证缓存命中"
 timeout: 600000
+login_macro_path: "login"
 
 roles:
   requester: { username: "requester", password: "req_pass" }

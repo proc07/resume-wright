@@ -92,12 +92,15 @@ export class StepExecutor {
     // 获取角色的 Page 和 BrowserContext
     const { page, context } = await rolePool.getRoleContext(step.role);
 
-    // 动态注入当前角色的凭证信息，便于 DSL 脚本和宏直接读取，无需显式传参
+    // 动态注入当前角色的属性及凭证信息，便于 DSL 脚本和宏直接读取，无需显式传参
     const creds = rolePool.getCredentials(step.role);
     if (creds) {
-      contextStore.set('username', creds.username);
-      contextStore.set('password', creds.password);
+      for (const [key, value] of Object.entries(creds)) {
+        contextStore.set(key, value);
+      }
     }
+    // 动态注入所有角色配置，便于通过 $roles.roleName.prop 形式进行跨角色属性查询
+    contextStore.set('roles', rolePool.getRoles());
 
     const caseDir = this.execCtx.caseDir;
 

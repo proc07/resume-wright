@@ -3,6 +3,7 @@
 
 description: "演示在同个子步骤中，提交前 GET 为空表单，提交后 GET 为有值状态的顺序缓存与复用逻辑"
 timeout: 600000
+login_macro_path: "login"
 
 roles:
   requester: { username: "requester", password: "req_pass" }

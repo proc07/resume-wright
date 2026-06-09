@@ -99,6 +99,23 @@ describe('YAML Loader', () => {
       expect(def.roles.requester!.username).toBe('user@co.com');
     });
 
+    it('正确解析具有自定义属性的 roles', () => {
+      const customYaml = `
+name: "自定义属性 roles"
+roles:
+  requester: { id: "123", username: "req", custom_field: "my-value" }
+steps:
+  - id: s1
+    role: requester
+    script: open "https://example.com"
+`;
+      const filePath = writeYaml('custom-roles', customYaml);
+      const def = loadCase(filePath);
+      expect(def.roles.requester!.id).toBe('123');
+      expect(def.roles.requester!.username).toBe('req');
+      expect(def.roles.requester!.custom_field).toBe('my-value');
+    });
+
     it('正确解析 steps', () => {
       const filePath = writeYaml('valid-steps', VALID_YAML);
       const def = loadCase(filePath);

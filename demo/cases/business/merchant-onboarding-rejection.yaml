@@ -10,8 +10,7 @@ on_failure:
   max_retries: 2
   restore_snapshot: true
 
-before_hooks:
-  - macro login_role
+login_macro_path: "login"
 
 roles:
   merchant:   { username: "merchant",   password: "mer_pass" }

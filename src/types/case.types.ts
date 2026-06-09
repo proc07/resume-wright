@@ -3,8 +3,8 @@
 // ============================================================
 
 export interface RoleCredential {
-  username: string;
-  password: string;
+  id?: string;
+  [key: string]: any;
 }
 
 export interface OnFailureConfig {
@@ -33,6 +33,7 @@ export interface CaseDefinition {
   name: string;
   description?: string;
   timeout?: number;                        // 整体超时 ms
+  login_macro_path?: string;
   roles: Record<string, RoleCredential>;
   on_failure?: OnFailureConfig;
   steps: Step[];

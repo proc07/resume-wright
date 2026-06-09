@@ -25,6 +25,7 @@ export interface WorkflowRunnerOptions {
   screenshotOnFail?: boolean;
   screenshotOnAssert?: boolean;
   sessionCheckUrl?: string;   // Role Pool Session 校验 URL
+  loginMacroPath?: string;
   enableTrace?: boolean;
   traceDir?: string;
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true

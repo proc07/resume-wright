@@ -19,12 +19,13 @@ const BUILTIN_MACROS = new Set(['rw:login', 'rw:goto_workflow', 'rw:wait_status'
  */
 export function loadMacro(
   macroName: string,
-  args: string[],
+  args: string[] | Record<string, string>,
   macrosDir: string = path.join(process.cwd(), 'macros')
 ): DslScript {
   // ── 内置宏 ──
   if (BUILTIN_MACROS.has(macroName)) {
-    return buildBuiltinMacro(macroName, args);
+    const positionalArgs = Array.isArray(args) ? args : Object.values(args);
+    return buildBuiltinMacro(macroName, positionalArgs);
   }
 
   // ── 解析宏文件路径 ──
@@ -36,8 +37,29 @@ export function loadMacro(
 
   const raw = fs.readFileSync(macroPath, 'utf-8');
 
-  // 位置参数替换：$1 → args[0], $2 → args[1], ...
-  const substituted = substitutePositionalArgs(raw, args);
+  let substituted = raw;
+
+  if (Array.isArray(args)) {
+    // 尝试解析参数定义行: # params: username, password
+    const paramMatch = raw.match(/^\s*#\s*(?:params|param):\s*([^\r\n]+)/im);
+    if (paramMatch) {
+      const paramNames = paramMatch[1].split(',').map((s) => s.trim());
+      const namedArgs: Record<string, string> = {};
+      for (let i = 0; i < paramNames.length; i++) {
+        if (paramNames[i]) {
+          namedArgs[paramNames[i]] = args[i] ?? '';
+        }
+      }
+      substituted = substituteNamedArgs(substituted, namedArgs);
+    } else {
+      substituted = substitutePositionalArgs(substituted, args);
+    }
+  } else {
+    // 是 Record<string, string>
+    substituted = substituteNamedArgs(substituted, args);
+    // 同时也支持位置参数的后备替换
+    substituted = substitutePositionalArgs(substituted, Object.values(args));
+  }
 
   return parseScript(substituted);
 }
@@ -67,7 +89,20 @@ function resolveMacroPath(name: string, macrosDir: string): string {
   return path.join(macrosDir, `${name}.macro`);
 }
 
-// ── 位置参数替换 ───────────────────────────────────────────────
+// ── 变量参数替换 ───────────────────────────────────────────────
+
+function substituteNamedArgs(source: string, args: Record<string, string>): string {
+  let result = source;
+  // 按键长度降序排序，防止短变量替换破坏长变量 (如 $user 破坏 $username)
+  const sortedKeys = Object.keys(args).sort((a, b) => b.length - a.length);
+  for (const key of sortedKeys) {
+    const val = args[key] ?? '';
+    const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(`\\$${escapedKey}(?![a-zA-Z0-9_])`, 'g');
+    result = result.replace(regex, val);
+  }
+  return result;
+}
 
 function substitutePositionalArgs(source: string, args: string[]): string {
   let result = source;

@@ -123,11 +123,11 @@ export class WorkflowRunner {
 
       const screenshotDir = path.join(caseDir, 'screenshots');
 
-      // ── 初始化核心组件 ──
       const contextStore = new ContextStore();
       const checkpoint = new Checkpoint(caseName, caseDir);
       checkpoint.load();
       checkpoint.restoreContext(contextStore);
+      contextStore.set('roles', this.definition.roles);
 
       // 计算续跑信息
       const resumedFromStep = checkpoint.getResumePoint();
@@ -149,6 +149,7 @@ export class WorkflowRunner {
           headless: this.opts.headless ?? true,
           enableTrace: this.opts.enableTrace,
           traceDir: this.opts.traceDir ?? path.join(caseDir, 'traces'),
+          loginMacroPath: this.definition.login_macro_path ?? this.opts.loginMacroPath,
         },
         path.join(caseDir, 'states')
       );

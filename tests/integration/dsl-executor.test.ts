@@ -257,6 +257,29 @@ describe('DSL 执行器集成测试', () => {
       await executeScript(`open "$base_url"`, page, ctx, {});
       expect(page.url()).toContain('127.0.0.1');
     });
+
+    it('能够正确解析 role 自定义属性和跨角色嵌套变量', async () => {
+      const ctx = makeCtx();
+      ctx.set('roles', {
+        requester: { id: '123', username: 'req', custom_field: 'my-value' },
+        manager: { id: '345', username: 'mgr', custom_field: 'other-value' }
+      });
+      ctx.set('id', '123');
+      ctx.set('username', 'req');
+      ctx.set('custom_field', 'my-value');
+
+      await executeScript(`
+        open "$base_url"
+        input "$id" to "label:申请标题"
+        input "$roles.manager.custom_field" to "testid:reason-input"
+      `, page, ctx, {});
+
+      const titleVal = await page.getByLabel('申请标题').inputValue();
+      const reasonVal = await page.getByTestId('reason-input').inputValue();
+
+      expect(titleVal).toBe('123');
+      expect(reasonVal).toBe('other-value');
+    });
   });
 
   describe('完整工作流场景', () => {

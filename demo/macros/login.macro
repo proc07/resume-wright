@@ -1,12 +1,10 @@
 # demo/macros/login.macro
+# params: username, password
 # 通用登录宏
-# 位置参数：$1 = 邮箱/用户名，$2 = 密码
 #
-# 调用方式：
-#   macro login "user@example.com" "password123"
 
 open "http://127.0.0.1:61775/login"
-input "$1" to "testid:login-username"
-input "$2" to "testid:login-password"
+input "$username" to "testid:login-username"
+input "$password" to "testid:login-password"
 tap "role:button[登录]"
 assert_exists "已登录工作台" 10s

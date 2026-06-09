@@ -3,6 +3,7 @@
 
 description: "含子步骤的发票上传与多级审核，演示 SubStep 断点续跑"
 timeout: 480000
+login_macro_path: "login"
 
 # 全局默认失败重试配置，该 Case 下所有 Steps 和 SubSteps 均默认继承
 on_failure:

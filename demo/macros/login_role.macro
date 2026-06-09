@@ -1,9 +1,0 @@
-# demo/macros/login_role.macro
-# 角色自动登录宏
-# 读取自动注入的 $username 和 $password，实现免参登录
-
-open "http://127.0.0.1:61775/login"
-input "$username" to "testid:login-username"
-input "$password" to "testid:login-password"
-tap "role:button[登录]"
-assert_exists "已登录工作台" 5s

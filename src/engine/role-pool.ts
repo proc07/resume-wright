@@ -11,8 +11,6 @@ import type { RoleContext } from '../types/engine.types.js';
 const STATES_DIR = '.resumewright/states';
 
 export interface RolePoolOptions {
-  /** 登录页 URL，若未提供则依赖 macro 登录 */
-  loginUrl?: string;
   /** 登录后校验 Session 有效性的 URL（GET 请求，非 401 视为有效）*/
   sessionCheckUrl?: string;
   /** 登录宏路径（默认 macros/login.macro）*/
@@ -83,7 +81,9 @@ export class RolePool {
     }
 
     // 全新登录
-    console.log(`[role-pool] Logging in as "${roleName}" (${creds.username})...`);
+    const displayVal = Object.values(creds).find(v => typeof v === 'string') || '';
+    const userDisplay = displayVal ? ` (${displayVal})` : '';
+    console.log(`[role-pool] Logging in as "${roleName}"${userDisplay}...`);
     const { context, page } = await this.performLogin(roleName, creds);
     this.contexts.set(roleName, context);
     this.pages.set(roleName, page);
@@ -110,81 +110,31 @@ export class RolePool {
     });
     const page = await context.newPage();
 
-    if (this.opts.loginUrl) {
-      // 简单的账号密码登录（框架内置）
-      await page.goto(this.opts.loginUrl, { waitUntil: 'domcontentloaded' });
-
-      // 尝试常见的登录表单填写方式
-      const emailLocators = [
-        page.getByLabel(/email|邮箱|账号/i),
-        page.getByPlaceholder(/email|邮箱|账号/i),
-        page.locator('input[type="email"]'),
-        page.locator('input[name="username"]'),
-      ];
-
-      for (const loc of emailLocators) {
-        if (await loc.count() > 0) {
-          await loc.first().fill(creds.username);
-          break;
-        }
-      }
-
-      const pwLocators = [
-        page.getByLabel(/password|密码/i),
-        page.getByPlaceholder(/password|密码/i),
-        page.locator('input[type="password"]'),
-      ];
-
-      for (const loc of pwLocators) {
-        if (await loc.count() > 0) {
-          await loc.first().fill(creds.password);
-          break;
-        }
-      }
-
-      // 点击登录按钮
-      const btnLocators = [
-        page.getByRole('button', { name: /login|sign in|登录|登 录/i }),
-        page.locator('button[type="submit"]'),
-      ];
-
-      for (const loc of btnLocators) {
-        if (await loc.count() > 0) {
-          await loc.first().click();
-          break;
-        }
-      }
-
-      // 等待导航完成
-      await page.waitForLoadState('networkidle').catch(() => {});
-    } else if (this.opts.loginMacroPath) {
+    if (this.opts.loginMacroPath) {
       // 使用自定义登录宏
       const { loadMacro } = await import('../dsl/macro-loader.js');
       const { executeInstructions } = await import('../dsl/executor.js');
       const { ContextStore } = await import('./context-store.js');
 
+      const macroArgs: Record<string, string> = {};
+      for (const [key, value] of Object.entries(creds)) {
+        if (typeof value === 'string' || typeof value === 'number') {
+          macroArgs[key] = String(value);
+        }
+      }
+
       const macroScript = loadMacro(
         this.opts.loginMacroPath,
-        [creds.username, creds.password]
+        macroArgs
       );
       const tempCtx = new ContextStore();
+      tempCtx.set('roles', this.roles);
+      for (const [key, value] of Object.entries(creds)) {
+        tempCtx.set(key, value);
+      }
       await executeInstructions(macroScript, page, tempCtx, {});
     } else {
-      // 依赖用户自定义宏 macros/login.macro
-      const { loadMacro } = await import('../dsl/macro-loader.js');
-      const { executeInstructions } = await import('../dsl/executor.js');
-      const { ContextStore } = await import('./context-store.js');
-
-      try {
-        const macroScript = loadMacro('login', [creds.username, creds.password]);
-        const tempCtx = new ContextStore();
-        await executeInstructions(macroScript, page, tempCtx, {});
-      } catch {
-        console.warn(
-          `[role-pool] No login macro found for "${roleName}". ` +
-            'Please create macros/login.macro or provide loginUrl option.'
-        );
-      }
+      console.log(`[role-pool] No loginMacroPath provided for "${roleName}". Skipping auto-login.`);
     }
 
     // 持久化 storageState
@@ -250,6 +200,13 @@ export class RolePool {
   private getStatePath(roleName: string): string {
     const safe = roleName.replace(/[^\w-]/g, '_');
     return path.join(this.statesDir, `${safe}.json`);
+  }
+
+  /**
+   * 获取所有角色的凭证信息
+   */
+  getRoles(): Record<string, RoleCredential> {
+    return this.roles;
   }
 
   /**

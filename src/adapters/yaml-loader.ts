@@ -32,10 +32,7 @@ const StepSchema = z.object({
   sub_steps: z.array(SubStepSchema).optional(),
 });
 
-const RoleSchema = z.object({
-  username: z.string().min(1),
-  password: z.string(),
-});
+const RoleSchema = z.record(z.string(), z.any());
 
 const HookSchema = z.union([z.string(), z.array(z.string())])
   .transform((val) => {
@@ -50,6 +47,7 @@ const CaseSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   timeout: z.number().int().positive().optional(),
+  login_macro_path: z.string().optional(),
   roles: z.record(z.string(), RoleSchema),
   on_failure: OnFailureSchema.optional(),
   steps: z.array(StepSchema).min(1),
