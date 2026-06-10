@@ -309,6 +309,35 @@ describe('DSL 执行器集成测试', () => {
       expect(page.url()).toContain('127.0.0.1');
     });
 
+    it('能够正确解析内置的日期时间变量并支持动态格式控制', async () => {
+      const ctx = makeCtx();
+      
+      const format = (d: Date, f: string) => {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        if (f === 'YYYY/MM/DD') return `${yyyy}/${mm}/${dd}`;
+        return `${yyyy}-${mm}-${dd}`;
+      };
+
+      const todayStr = format(new Date(), 'YYYY-MM-DD');
+      const tomorrowSlashStr = format(new Date(Date.now() + 24 * 3600 * 1000), 'YYYY/MM/DD');
+
+      await executeScript(`
+        open $base_url
+        input $today to "label:申请标题"
+        
+        $date_format = "YYYY/MM/DD"
+        input $today+1d to "testid:reason-input"
+      `, page, ctx, {});
+
+      const titleVal = await page.getByLabel('申请标题').inputValue();
+      const reasonVal = await page.getByTestId('reason-input').inputValue();
+
+      expect(titleVal).toBe(todayStr);
+      expect(reasonVal).toBe(tomorrowSlashStr);
+    });
+
     it('能够正确解析 role 自定义属性和跨角色嵌套变量', async () => {
       const ctx = makeCtx();
       ctx.set('roles', {

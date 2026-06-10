@@ -109,6 +109,23 @@ export function parseScript(script: string): DslScript {
   return instructions;
 }
 
+function isLocatorString(s: string): boolean {
+  const t = s.trim();
+  if (t.startsWith('@') || t.startsWith('//') || t.startsWith('.') || t.startsWith('#')) {
+    return true;
+  }
+  if (/^(label|placeholder|testid|title|alt|role):/.test(t)) {
+    return true;
+  }
+  if (t.startsWith('*') && t.endsWith('*') && t.length > 2) {
+    return true;
+  }
+  if (t.includes('|')) {
+    return true;
+  }
+  return false;
+}
+
 // ── 解析赋值语句右侧 ─────────────────────────────────────────
 
 function parseAssignment(
@@ -195,13 +212,28 @@ function parseAssignment(
     };
   }
 
+  // literal 字符串字面量直接赋值
+  const stripped = stripQuotes(rhs);
+  if ((rhs.startsWith('"') && rhs.endsWith('"')) || (rhs.startsWith("'") && rhs.endsWith("'"))) {
+    if (!isLocatorString(stripped)) {
+      return {
+        optional: false,
+        command: null,
+        assignTarget: target,
+        assignSource: 'literal',
+        args: [stripped],
+        raw: workLine,
+      };
+    }
+  }
+
   // "locator" 从页面元素提取文字
   return {
     optional: false,
     command: null,
     assignTarget: target,
     assignSource: 'locator',
-    args: [stripQuotes(rhs)],
+    args: [stripped],
     raw: workLine,
   };
 }

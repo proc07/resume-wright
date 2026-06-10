@@ -450,7 +450,66 @@ assert_text_equal $doc_number "PO-2024-001"
 # (等同于：assert_text_equal "$doc_number" "PO-2024-001")
 ```
 
-### 6.6 使用示例
+### 6.6 内置动态日期时间变量 (Relative Dates & Times)
+
+系统内置了三种特殊的日期时间变量：`$today` / `$date`（日期，默认 `YYYY-MM-DD`）以及 `$now`（时间点，默认 `YYYY-MM-DD HH:mm:ss`）。
+
+#### 6.6.1 时间偏移计算 (+n / -n)
+支持使用 `+` 或 `-` 进行灵活的时间偏移计算，单位支持：
+- `d` (天)
+- `M` (月)
+- `y` (年)
+- `h` (小时)
+- `m` (分钟)
+
+#### 6.6.2 动态格式化控制变量 ($date_format & $datetime_format)
+如果默认格式无法满足需求，可以通过在脚本上下文中定义控制变量 `$date_format` 与 `$datetime_format` 来动态改变后续所有日期时间变量的输出格式：
+- 支持的占位符有：
+  - `YYYY`：四位数年份（如 `2026`）
+  - `YY`：两位数年份（如 `26`）
+  - `MM`：两位数月份（如 `06`）
+  - `M`：一位或两位数月份（如 `6`）
+  - `DD`：两位数天数（如 `09`）
+  - `D`：一位或两位数天数（如 `9`）
+  - `HH`：两位数小时（如 `22`）
+  - `H`：一位或两位数小时（如 `22`）
+  - `mm`：两位数分钟（如 `43`）
+  - `m`：一位或两位数分钟（如 `43`）
+  - `ss`：两位数秒数（如 `00`）
+  - `s`：一位或两位数秒数（如 `0`）
+
+> [!NOTE]
+> 如果自定义格式中包含空格（例如 `YYYY-MM-DD HH:mm`），由于分词器规则，变量必须被包裹在引号内（如 `"$now"`），否则会发生解析截断错误。如果不包含空格（如 `YYYY/MM/DD`），则无需包裹引号（如 `$today`）。
+
+#### 6.6.3 综合示例
+
+```bash
+# 1. 默认输出 (格式: YYYY-MM-DD)
+input $today to "label:申请日期"                   # 输出: 2026-06-09
+
+# 2. 时间偏移 (明天和昨天的日期)
+input $today+1d to "label:截止日期"                # 输出: 2026-06-10
+input $today-1d to "label:发票日期"                # 输出: 2026-06-08
+
+# 3. 其它单位偏移 (2个月后, 1年前)
+input $today+2M to "label:续约日期"                # 输出: 2026-08-09
+input $today-1y to "label:历史归档日期"            # 输出: 2025-06-09
+
+# 4. 动态改变日期格式
+$date_format = "YYYY/MM/DD"
+input $today to "label:斜杠日期"                   # 输出: 2026/06/09
+input $today+3d to "label:截止"                   # 输出: 2026/06/12
+
+$date_format = "YYYYMMDD"
+input $today to "label:紧凑日期"                   # 输出: 20260609
+
+# 5. 动态改变时间格式 (注意：带空格时，后续变量需加引号)
+$datetime_format = "YYYY-MM-DD HH:mm"
+input "$now" to "label:操作时间"                   # 输出: 2026-06-09 22:09
+input "$now+1h" to "label:任务提醒时间"             # 输出: 2026-06-09 23:09
+```
+
+### 6.7 使用示例
 
 ```bash
 # step1 中捕获

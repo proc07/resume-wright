@@ -34,7 +34,8 @@ export type AssignSource =
   | 'locator'         // $var = "selector" — 从元素文本提取
   | 'var_ref'         // $var = $other.field — 变量引用
   | 'http'            // $var = do_get/post/put/delete "url"
-  | 'execute_script'; // $var = execute_script """..."""
+  | 'execute_script'  // $var = execute_script """..."""
+  | 'literal';        // $var = "value" — 直接赋值字面量
 
 /** 解析后的 DSL 语句 */
 export interface DslInstruction {

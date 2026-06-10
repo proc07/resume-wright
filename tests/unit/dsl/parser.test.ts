@@ -161,6 +161,12 @@ describe('DSL Parser', () => {
       expect(result[0]!.args[0]).toBe('.workflow-status');
     });
 
+    it('解析字面量字符串赋值 (literal)', () => {
+      const result = parseScript('$date_format = "YYYY/MM/DD"');
+      expect(result[0]!.assignSource).toBe('literal');
+      expect(result[0]!.args[0]).toBe('YYYY/MM/DD');
+    });
+
     it('解析 HTTP 响应赋值', () => {
       const result = parseScript('$res = do_get "https://api.example.com/data"');
       expect(result[0]!.assignSource).toBe('http');

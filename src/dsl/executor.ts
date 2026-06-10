@@ -126,6 +126,11 @@ async function executeAssign(
       break;
     }
 
+    case 'literal': {
+      value = interpolate(inst.args[0]!, ctx);
+      break;
+    }
+
     case 'var_ref': {
       // $other.field 引用
       const path = inst.args[0]!;
@@ -552,13 +557,84 @@ async function assertCount(
 // ── 工具函数 ─────────────────────────────────────────────────
 
 /**
- * 变量插值：将字符串中的 $var / $var.field.0 替换为实际值
+ * 变量插值：将字符串中的 $var / $var.field.0 替换为实际值，并支持内置动态日期时间变量及从上下文读取格式化控制（如 $today+3d, $now-2h）
  */
 export function interpolate(template: string, ctx: ContextStore): string {
-  return template.replace(/\$([a-zA-Z_][\w.]*)/g, (_, path) => {
+  // 1. 替换内置动态日期时间变量，支持 $today, $now, $date 及其时间偏移量计算
+  let result = template.replace(/\$(today|now|date)(?:([+-]\d+)([dmhyM]))?(?!\w)/g, (match, base, offsetStr, unit) => {
+    const date = new Date();
+
+    if (offsetStr && unit) {
+      const offset = parseInt(offsetStr, 10);
+      if (unit === 'd') {
+        date.setDate(date.getDate() + offset);
+      } else if (unit === 'h') {
+        date.setHours(date.getHours() + offset);
+      } else if (unit === 'm') {
+        date.setMinutes(date.getMinutes() + offset);
+      } else if (unit === 'M') {
+        date.setMonth(date.getMonth() + offset);
+      } else if (unit === 'y') {
+        date.setFullYear(date.getFullYear() + offset);
+      }
+    }
+
+    let fmt = '';
+    if (base === 'now') {
+      const customFmt = ctx.getPath('datetime_format');
+      fmt = typeof customFmt === 'string' ? customFmt : 'YYYY-MM-DD HH:mm:ss';
+    } else {
+      const customFmt = ctx.getPath('date_format');
+      fmt = typeof customFmt === 'string' ? customFmt : 'YYYY-MM-DD';
+    }
+
+    return formatCustomDate(date, fmt);
+  });
+
+  // 2. 替换普通的上下文变量
+  result = result.replace(/\$([a-zA-Z_][\w.]*)/g, (_, path) => {
     const val = ctx.getPath(path);
     return val !== undefined && val !== null ? String(val) : `$${path}`;
   });
+
+  return result;
+}
+
+/**
+ * 自定义格式化日期函数
+ */
+function formatCustomDate(date: Date, fmt: string): string {
+  const yyyy = date.getFullYear();
+  const yy = String(yyyy).slice(-2);
+  const mRaw = date.getMonth() + 1;
+  const mm = String(mRaw).padStart(2, '0');
+  const m = String(mRaw);
+  const dRaw = date.getDate();
+  const dd = String(dRaw).padStart(2, '0');
+  const d = String(dRaw);
+  const hRaw = date.getHours();
+  const hh = String(hRaw).padStart(2, '0');
+  const h = String(hRaw);
+  const minRaw = date.getMinutes();
+  const mmMin = String(minRaw).padStart(2, '0');
+  const mMin = String(minRaw);
+  const sRaw = date.getSeconds();
+  const ss = String(sRaw).padStart(2, '0');
+  const s = String(sRaw);
+
+  return fmt
+    .replace(/YYYY/g, String(yyyy))
+    .replace(/YY/g, yy)
+    .replace(/MM/g, mm)
+    .replace(/M/g, m)
+    .replace(/DD/g, dd)
+    .replace(/D/g, d)
+    .replace(/HH/g, hh)
+    .replace(/H/g, h)
+    .replace(/mm/g, mmMin)
+    .replace(/m/g, mMin)
+    .replace(/ss/g, ss)
+    .replace(/s/g, s);
 }
 
 /**
