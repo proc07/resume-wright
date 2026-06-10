@@ -9,7 +9,7 @@ export interface RoleCredential {
 
 export interface OnFailureConfig {
   strategy: 'retry' | 'skip' | 'manual';
-  max_retries?: number;      // 默认 3
+  max_retries?: number;      // 默认 0
   retry_delay?: number;      // 重试间隔 ms，默认 3000
   restore_snapshot?: boolean; // 重试前从快照恢复页面
 }
@@ -34,6 +34,7 @@ export interface CaseDefinition {
   description?: string;
   timeout?: number;                        // 整体超时 ms
   login_macro_path?: string;
+  base_url?: string;                       // 全局基础 URL
   roles: Record<string, RoleCredential>;
   on_failure?: OnFailureConfig;
   steps: Step[];

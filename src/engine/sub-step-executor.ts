@@ -80,7 +80,7 @@ export class SubStepExecutor {
     }
 
     const on_failure = subStep.on_failure ?? this.opts.defaultOnFailure;
-    const maxRetries = on_failure?.max_retries ?? 3;
+    const maxRetries = on_failure?.max_retries ?? 0;
     const retryDelay = on_failure?.retry_delay ?? 3000;
     const restoreSnapshot = on_failure?.restore_snapshot ?? false;
     let retryCount = this.store.getRetryCount(id);

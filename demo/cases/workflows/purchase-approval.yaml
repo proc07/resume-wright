@@ -3,8 +3,6 @@
 # 对应规格文档第六节示例
 
 description: "覆盖申请人提交、主管审批、财务确认的完整链路"
-timeout: 600000
-login_macro_path: "login"
 
 roles:
   requester: { username: "requester", password: "req_pass" }
@@ -19,7 +17,7 @@ steps:
       max_retries: 2
       retry_delay: 3000
     script: |
-      open "http://127.0.0.1:61775/purchase/new"
+      open "/purchase/new"
       input "Q3 办公设备采购" to "label:申请标题"
       input "50000"           to "label:申请金额"
       input "Team expansion"  to "label:申请原因"
@@ -53,7 +51,7 @@ steps:
     script: |
       open "$workflow_url"
       assert_exists "待财务审核" 10s
-      $res = do_get "http://127.0.0.1:61775/api/purchases/$workflow_id"
+      $res = do_get "/api/purchases/$workflow_id"
       assert_text_equal "$res.status" "pending_finance"
       assert_text_equal "$res.amount" "50000"
       input "金额合规，财务确认" to "label:财务意见"

@@ -2,8 +2,6 @@
 # 演示用例：在同一个子步骤内多次请求相同 GET 接口且数据发生变更的缓存顺序匹配场景
 
 description: "演示在同个子步骤中，提交前 GET 为空表单，提交后 GET 为有值状态的顺序缓存与复用逻辑"
-timeout: 600000
-login_macro_path: "login"
 
 roles:
   requester: { username: "requester", password: "req_pass" }
@@ -24,7 +22,7 @@ steps:
       - id: fill_and_verify_checklist
         script: |
           # 1. 打开页面（拦截器放行 HTML 文档）
-          open "http://127.0.0.1:61775/checklist"
+          open "/checklist"
           assert_exists "label:检查标题" 5s
           
           # 2. 此时表单生成，页面展示为空表单。输入表单内容

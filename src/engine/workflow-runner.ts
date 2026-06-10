@@ -128,6 +128,9 @@ export class WorkflowRunner {
       checkpoint.load();
       checkpoint.restoreContext(contextStore);
       contextStore.set('roles', this.definition.roles);
+      if (this.definition.base_url) {
+        contextStore.set('base_url', this.definition.base_url);
+      }
 
       // 计算续跑信息
       const resumedFromStep = checkpoint.getResumePoint();

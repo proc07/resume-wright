@@ -8,7 +8,7 @@ steps:
   - id: step1_ui_test
     role: requester
     script: |
-      open "http://127.0.0.1:61775/ui-locator-fail"
+      open "/ui-locator-fail"
       tap "#confirm-btn"
       assert_exists "成功完成" 5s
       screenshot

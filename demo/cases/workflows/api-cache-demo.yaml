@@ -2,8 +2,6 @@
 # 演示用例：通过页面真实交互展示 API 缓存拦截与归一化
 
 description: "演示子步骤 API 缓存：多步采购流程，每步触发多个 API 请求，验证缓存命中"
-timeout: 600000
-login_macro_path: "login"
 
 roles:
   requester: { username: "requester", password: "req_pass" }
@@ -22,7 +20,7 @@ steps:
       # ── 子步骤1：填写并提交第一个采购 ──
       - id: fill_first
         script: |
-          open "http://127.0.0.1:61775/purchase/new"
+          open "/purchase/new"
           input "Q3 办公设备采购" to "申请标题"
           input "50000" to "申请金额"
           input "季度办公设备集中采购" to "申请原因"
@@ -38,7 +36,7 @@ steps:
       - id: back_to_list
         script: |
           # 直接导航到 dashboard（触发 GET /api/purchases）
-          open "http://127.0.0.1:61775/dashboard"
+          open "/dashboard"
           assert_exists "role:heading[我的申请]" 10s
 
       - id: fill_second
@@ -70,7 +68,7 @@ steps:
       # ── 子步骤1：打开第一个采购并审批 ──
       - id: open_first
         script: |
-          open "http://127.0.0.1:61775/purchase/$purchase_id_1"
+          open "/purchase/$purchase_id_1"
           assert_exists "role:heading[主管审批]" 10s
           screenshot
 
@@ -83,7 +81,7 @@ steps:
       # ── 子步骤2：打开第二个采购并审批 ──
       - id: open_second
         script: |
-          open "http://127.0.0.1:61775/purchase/$purchase_id_2"
+          open "/purchase/$purchase_id_2"
           assert_exists "role:heading[主管审批]" 10s
 
       - id: approve_second
@@ -106,20 +104,20 @@ steps:
       # ── 子步骤1：打开 dashboard 查看列表 ──
       - id: open_dashboard
         script: |
-          open "http://127.0.0.1:61775/dashboard"
+          open "/dashboard"
           assert_exists "role:heading[我的申请]" 10s
 
       # ── 子步骤2：打开第一个采购详情 ──
       - id: view_first_detail
         script: |
           # 用保存的 ID 直接打开详情（触发 GET /api/purchases/:id）
-          open "http://127.0.0.1:61775/purchase/$purchase_id_1"
+          open "/purchase/$purchase_id_1"
           assert_exists "采购申请详情" 10s
           screenshot
 
       # ── 子步骤3：返回列表 ──
       - id: back_to_list_final
         script: |
-          open "http://127.0.0.1:61775/dashboard"
+          open "/dashboard"
           assert_exists "role:heading[我的申请]" 10s
           screenshot

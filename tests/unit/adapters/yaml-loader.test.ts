@@ -133,6 +133,23 @@ steps:
       expect(step2.on_failure?.retry_delay).toBe(2000);
     });
 
+    it('正确解析 on_failure 策略的默认值 (max_retries 默认 0)', () => {
+      const yamlContent = `
+name: "测试默认重试"
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    on_failure:
+      strategy: retry
+    script: "open '/'"
+`;
+      const filePath = writeYaml('default-retries', yamlContent);
+      const def = loadCase(filePath);
+      expect(def.steps[0]!.on_failure?.max_retries).toBe(0);
+    });
+
     it('正确解析 sub_steps', () => {
       const filePath = writeYaml('valid-substeps', VALID_WITH_SUBSTEPS);
       const def = loadCase(filePath);
@@ -249,8 +266,118 @@ steps:
     });
   });
 
-  // ── 示例文件验证 ──────────────────────────────────────────
+  describe('全局 config.yaml 加载与合并默认值', () => {
+    const configPath = path.resolve('config.yaml');
+    let existsBefore = false;
+    let contentBefore = '';
 
+    beforeAll(() => {
+      if (fs.existsSync(configPath)) {
+        existsBefore = true;
+        contentBefore = fs.readFileSync(configPath, 'utf-8');
+      }
+    });
+
+    afterAll(() => {
+      if (existsBefore) {
+        fs.writeFileSync(configPath, contentBefore, 'utf-8');
+      } else {
+        fs.rmSync(configPath, { force: true });
+      }
+    });
+
+    it('无本地设置时应自动合并全局默认配置', () => {
+      // 写入临时全局配置
+      fs.writeFileSync(configPath, JSON.stringify({
+        base_url: 'http://global-url.com',
+        timeout: 99999,
+        login_macro_path: 'global-login',
+        on_failure: {
+          strategy: 'retry',
+          max_retries: 5,
+        }
+      }), 'utf-8');
+
+      // 准备一个没有这些属性的 YAML
+      const caseYaml = `
+name: "测试合并"
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/test'"
+`;
+      const filePath = writeYaml('test-merge', caseYaml);
+      const def = loadCase(filePath);
+
+      expect(def.base_url).toBe('http://global-url.com');
+      expect(def.timeout).toBe(99999);
+      expect(def.login_macro_path).toBe('global-login');
+      expect(def.on_failure?.max_retries).toBe(5);
+    });
+
+    it('本地配置能够覆盖全局配置', () => {
+      // 写入临时全局配置
+      fs.writeFileSync(configPath, JSON.stringify({
+        base_url: 'http://global-url.com',
+        timeout: 99999,
+      }), 'utf-8');
+
+      // 准备一个覆写属性的 YAML
+      const caseYaml = `
+name: "测试覆写"
+timeout: 11111
+base_url: "http://local-override.com"
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/test'"
+`;
+      const filePath = writeYaml('test-override', caseYaml);
+      const def = loadCase(filePath);
+
+      expect(def.base_url).toBe('http://local-override.com');
+      expect(def.timeout).toBe(11111);
+    });
+
+    it('能够向上搜索找到父目录中的 config.yaml 并应用', () => {
+      // 在临时子目录中写入 YAML 用例，并在其父目录中写入 config.yaml
+      const tempParentDir = path.join(tmpDir, 'parent-test');
+      const tempSubDir = path.join(tempParentDir, 'sub-dir');
+      fs.mkdirSync(tempSubDir, { recursive: true });
+
+      const subConfigPath = path.join(tempParentDir, 'config.yaml');
+      fs.writeFileSync(subConfigPath, JSON.stringify({
+        base_url: 'http://upward-parent.com',
+        timeout: 77777,
+      }), 'utf-8');
+
+      const caseYaml = `
+name: "向上查找测试"
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/test'"
+`;
+      const filePath = path.join(tempSubDir, 'test-case.yaml');
+      fs.writeFileSync(filePath, caseYaml, 'utf-8');
+
+      const def = loadCase(filePath);
+
+      expect(def.base_url).toBe('http://upward-parent.com');
+      expect(def.timeout).toBe(77777);
+
+      // 清理
+      fs.rmSync(tempParentDir, { recursive: true, force: true });
+    });
+  });
+
+  // ── 示例文件验证 ──────────────────────────────────────────
   describe('项目示例文件', () => {
     it('purchase-approval.yaml 合法', () => {
       const filePath = 'demo/cases/workflows/purchase-approval.yaml';

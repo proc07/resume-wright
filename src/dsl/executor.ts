@@ -140,7 +140,8 @@ async function executeAssign(
 
     case 'http': {
       const [method, rawUrl, rawStatus] = inst.args as [string, string, string];
-      const url = interpolate(rawUrl, ctx);
+      let url = interpolate(rawUrl, ctx);
+      url = resolveUrl(url, ctx);
       const expectedStatus = parseInt(rawStatus ?? '200', 10);
       const body = inst.block ? interpolate(inst.block, ctx) : undefined;
       value = await doHttpRequest(page, method, url, body, expectedStatus);
@@ -184,7 +185,8 @@ async function executeCommand(
   switch (cmd) {
     // ── 导航 ──────────────────────────────────────────────────
     case 'open': {
-      const url = stripQuotes(args[0]!);
+      let url = stripQuotes(args[0]!);
+      url = resolveUrl(url, ctx);
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       // 等待 SPA 路由完成（body 可见即可）
       await page.waitForLoadState('load');
@@ -443,7 +445,8 @@ async function executeCommand(
     case 'do_post':
     case 'do_put':
     case 'do_delete': {
-      const url = stripQuotes(args[0]!);
+      let url = stripQuotes(args[0]!);
+      url = resolveUrl(url, ctx);
       const expectedStatus = args[1] ? parseInt(args[1], 10) : 200;
       const body = inst.block ? interpolate(inst.block, ctx) : undefined;
       await doHttpRequest(page, cmd, url, body, expectedStatus);
@@ -805,4 +808,15 @@ export async function waitForSmartNetworkIdle(page: Page, timeoutMs = 5000, idle
       }, timeoutMs);
     })
   ]);
+}
+
+function resolveUrl(url: string, ctx: ContextStore): string {
+  if (!/^(https?|file|about):/i.test(url)) {
+    const baseUrl = ctx.get('base_url');
+    if (typeof baseUrl === 'string') {
+      const separator = baseUrl.endsWith('/') || url.startsWith('/') ? '' : '/';
+      return baseUrl + separator + url;
+    }
+  }
+  return url;
 }

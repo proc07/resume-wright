@@ -3,13 +3,6 @@
 
 description: "含子步骤的发票上传与多级审核，演示 SubStep 断点续跑"
 timeout: 480000
-login_macro_path: "login"
-
-# 全局默认失败重试配置，该 Case 下所有 Steps 和 SubSteps 均默认继承
-on_failure:
-  strategy: retry
-  max_retries: 2
-  restore_snapshot: true
 
 roles:
   submitter: { username: "submitter@co.com", password: "sub_pass" }
@@ -21,7 +14,7 @@ steps:
     sub_steps:
       - id: fill_basic_info
         script: |
-          open "http://127.0.0.1:61775/invoice/new"
+          open "/invoice/new"
           input "2024年Q3差旅报销" to "label:发票标题"
           input "12580" to "label:金额"
           input "差旅费" to "label:费用类型"
@@ -46,7 +39,7 @@ steps:
     script: |
       open "$invoice_url"
 
-      $res = do_get "http://127.0.0.1:61775/api/invoice/$invoice_id"
+      $res = do_get "/api/invoice/$invoice_id"
       assert_text_equal "$res.data.status" "pending_review"
       assert_text_equal "$res.data.amount" "12580"
 

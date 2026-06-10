@@ -2,15 +2,6 @@
 # 资质审核退回重审高级复杂用例
 
 description: "资质初审驳回、商户整改后二次提交、资质初审通过、财务核准入驻以及最终在线签署合同的完整多角色协作流程"
-timeout: 600000
-
-# 全局默认失败重试配置
-on_failure:
-  strategy: retry
-  max_retries: 2
-  restore_snapshot: true
-
-login_macro_path: "login"
 
 roles:
   merchant:   { username: "merchant",   password: "mer_pass" }
@@ -22,7 +13,7 @@ steps:
   - id: step1_merchant_submit
     role: merchant
     script: |
-      open "http://127.0.0.1:61775/merchant/new"
+      open "/merchant/new"
       input "大牛旗舰店" to "testid:merchant-shop"
       input "10000" to "testid:merchant-deposit"
       upload "./fixtures/license_v1.pdf"

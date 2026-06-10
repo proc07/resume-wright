@@ -12,7 +12,7 @@ steps:
   - id: step1_login_via_js
     role: requester
     script: |
-      open "http://127.0.0.1:61775/login"
+      open "/login"
       
       # 使用多行 JS 脚本填充登录表单并提交
       execute_script

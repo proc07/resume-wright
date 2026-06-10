@@ -309,6 +309,17 @@ describe('DSL 执行器集成测试', () => {
       expect(page.url()).toContain('127.0.0.1');
     });
 
+    it('能够正确补全相对路径 URL (如果设置了 base_url)', async () => {
+      const ctx = makeCtx();
+      // 1. 以 / 开头的相对路径
+      await executeScript(`open "/workflow/invoice-123"`, page, ctx, {});
+      expect(page.url()).toContain('/workflow/invoice-123');
+
+      // 2. 不以 / 开头的相对路径
+      await executeScript(`open "workflow/invoice-123"`, page, ctx, {});
+      expect(page.url()).toContain('/workflow/invoice-123');
+    });
+
     it('能够正确解析内置的日期时间变量并支持动态格式控制', async () => {
       const ctx = makeCtx();
       

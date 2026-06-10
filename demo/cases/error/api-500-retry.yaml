@@ -8,7 +8,7 @@ steps:
   - id: step1_api_test
     role: requester
     script: |
-      open "http://127.0.0.1:61775/login"
-      $res = do_get "http://127.0.0.1:61775/api/fail-once"
+      open "/login"
+      $res = do_get "/api/fail-once"
       assert_text_equal "$res.status" "ok"
       screenshot

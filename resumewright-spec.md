@@ -69,6 +69,27 @@ steps:
           max_retries: 3
 ```
 
+### 3.2 全局配置文件 config.yaml
+
+为了避免在每个 Case 中重复编写相同的设定（例如相同的 `base_url`、默认超时或失败策略），系统支持在项目根目录下定义一个全局的 `config.yaml` 配置文件：
+
+```yaml
+base_url: "http://127.0.0.1:3000"
+timeout: 30000
+login_macro_path: "login"
+on_failure:
+  strategy: "retry"
+  max_retries: 3
+  retry_delay: 2000
+  restore_snapshot: true
+```
+
+#### 配置合并与覆写规则 (Override Rules)
+1. **优先度**：如果在具体的用例 YAML 中有显式定义某个配置项，则以用例的定义为准；如果用例中未定义，则自动继承全局 `config.yaml` 的默认值。
+2. **`base_url` 相对路径自动补全**：
+   - 框架会自动向上下文中注入变量 `$base_url`。
+   - 在 DSL 脚本中，如果执行 `open "/relative-path"` 或是 `open "relative-path"`（非 `http://` / `https://` / `about:` 等协议开头的相对路径），系统会自动检测并补全为 `base_url + "/relative-path"`，无需再在脚本里重复写完整的域名端口。
+
 ### YAML 职责边界
 
 | 职责 | 由谁负责 |
