@@ -394,4 +394,159 @@ steps:
       expect(def.steps[0]!.sub_steps).toHaveLength(3);
     });
   });
+
+  // ── 共享步骤（Shared Steps）──────────────────────────────────
+  describe('共享步骤 use_step / use_sub_step', () => {
+    let sharedDir: string;
+
+    beforeAll(() => {
+      // 在 tmpDir 下创建 shared/ 子目录，放 .steps.yaml 文件
+      sharedDir = path.join(tmpDir, 'shared');
+      fs.mkdirSync(sharedDir, { recursive: true });
+
+      fs.writeFileSync(path.join(sharedDir, 'common.steps.yaml'), `
+steps:
+  - id: verify_done
+    role: finance
+    script: |
+      open "$workflow_url"
+      assert_exists "已完成" 5s
+
+  - id: approve
+    role: manager
+    script: |
+      tap "role:button[审批通过]"
+      assert_exists "审批完成" 5s
+
+sub_steps:
+  - id: capture_id
+    script: |
+      $workflow_url = current_url
+      $workflow_id = url_match "/purchase/(\\w+)"
+      screenshot
+`, 'utf-8');
+    });
+
+    function writeCaseInTmp(name: string, content: string): string {
+      const filePath = path.join(tmpDir, `${name}.yaml`);
+      fs.writeFileSync(filePath, content, 'utf-8');
+      return filePath;
+    }
+
+    it('use_step 能够展开共享 Step，继承模板的 role 和 script', () => {
+      const caseYaml = `
+name: "共享步骤测试"
+roles:
+  requester: { username: "req" }
+  finance: { username: "fin" }
+steps:
+  - id: step1
+    role: requester
+    script: "open '/'"
+  - use_step: "common.verify_done"
+`;
+      const filePath = writeCaseInTmp('use-step-basic', caseYaml);
+      const def = loadCase(filePath);
+      expect(def.steps).toHaveLength(2);
+      const step2 = def.steps[1]!;
+      expect(step2.id).toBe('verify_done');       // 继承 template.id
+      expect(step2.role).toBe('finance');          // 继承 template.role
+      expect(step2.script).toContain('已完成');   // 继承 template.script
+    });
+
+    it('use_step 引用时局部覆盖 role（local wins）', () => {
+      const caseYaml = `
+name: "覆盖 role 测试"
+roles:
+  requester: { username: "req" }
+  manager: { username: "mgr" }
+  finance: { username: "fin" }
+steps:
+  - id: step1
+    role: requester
+    script: "open '/'"
+  - use_step: "common.verify_done"
+    id: my_verify
+    role: manager
+`;
+      const filePath = writeCaseInTmp('use-step-override', caseYaml);
+      const def = loadCase(filePath);
+      const step2 = def.steps[1]!;
+      expect(step2.id).toBe('my_verify');   // 使用引用处声明的 id
+      expect(step2.role).toBe('manager');   // 覆盖 template.role(finance)
+      expect(step2.script).toContain('已完成'); // 仍继承 template.script
+    });
+
+    it('use_sub_step 能够展开共享 SubStep，继承模板的 script', () => {
+      const caseYaml = `
+name: "共享子步骤测试"
+roles:
+  requester: { username: "req" }
+steps:
+  - id: step1
+    role: requester
+    sub_steps:
+      - id: fill
+        script: "open '/purchase/new'"
+      - use_sub_step: "common.capture_id"
+`;
+      const filePath = writeCaseInTmp('use-sub-step-basic', caseYaml);
+      const def = loadCase(filePath);
+      const subSteps = def.steps[0]!.sub_steps!;
+      expect(subSteps).toHaveLength(2);
+      const ss2 = subSteps[1]!;
+      expect(ss2.id).toBe('capture_id');
+      expect(ss2.script).toContain('workflow_url');
+    });
+
+    it('use_sub_step 引用时局部覆盖 on_failure（local wins）', () => {
+      const caseYaml = `
+name: "覆盖子步骤 on_failure"
+roles:
+  requester: { username: "req" }
+steps:
+  - id: step1
+    role: requester
+    sub_steps:
+      - use_sub_step: "common.capture_id"
+        id: capture_custom
+        on_failure:
+          strategy: retry
+          max_retries: 3
+`;
+      const filePath = writeCaseInTmp('use-sub-step-override', caseYaml);
+      const def = loadCase(filePath);
+      const ss = def.steps[0]!.sub_steps![0]!;
+      expect(ss.id).toBe('capture_custom');
+      expect(ss.on_failure?.strategy).toBe('retry');
+      expect(ss.on_failure?.max_retries).toBe(3);
+    });
+
+    it('use_step 引用不存在时抛出友好错误', () => {
+      const caseYaml = `
+name: "引用不存在测试"
+roles:
+  requester: { username: "req" }
+steps:
+  - use_step: "common.non_existent_step"
+`;
+      const filePath = writeCaseInTmp('use-step-missing', caseYaml);
+      expect(() => loadCase(filePath)).toThrow(/use_step.*non_existent_step.*not found/i);
+    });
+
+    it('use_sub_step 引用不存在时抛出友好错误', () => {
+      const caseYaml = `
+name: "子步骤引用不存在测试"
+roles:
+  requester: { username: "req" }
+steps:
+  - id: step1
+    role: requester
+    sub_steps:
+      - use_sub_step: "common.ghost_sub_step"
+`;
+      const filePath = writeCaseInTmp('use-sub-step-missing', caseYaml);
+      expect(() => loadCase(filePath)).toThrow(/use_sub_step.*ghost_sub_step.*not found/i);
+    });
+  });
 });

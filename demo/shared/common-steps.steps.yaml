@@ -1,0 +1,46 @@
+# demo/shared/common-steps.steps.yaml
+# 可复用的共享步骤模板库
+#
+# 引用方式：
+#   Step 级别：use_step: "common-steps.<step_id>"
+#   SubStep 级别：use_sub_step: "common-steps.<sub_step_id>"
+#
+# 引用时可覆盖任意字段（Local wins 原则）
+
+steps:
+  # ── 完整 Step：采购流程最终状态验证 ──
+  - id: verify_purchase_completed
+    role: finance
+    script: |
+      open "$workflow_url"
+      assert_exists "已完成" 5s
+      $final_status = "testid:purchase-status"
+      assert_text_equal "$final_status" "已完成"
+      screenshot
+
+  # ── 完整 Step：审批通过（适用于主管角色）──
+  - id: manager_approve
+    role: manager
+    script: |
+      open "$workflow_url"
+      assert_exists "待主管审批" 5s
+      input "预算内，同意采购" to "label:审批意见"
+      tap "role:button[审批通过]"
+      assert_exists "审批完成" 10s
+      screenshot
+
+sub_steps:
+  # ── 可复用 SubStep：提交采购表单并捕获 ID ──
+  - id: submit_and_capture_id
+    script: |
+      tap "role:button[提交申请]"
+      assert_exists "采购申请详情" 10s
+      $workflow_url = current_url
+      $workflow_id  = url_match "/purchase/([\w-]+)"
+      screenshot
+
+  # ── 可复用 SubStep：返回 Dashboard ──
+  - id: back_to_dashboard
+    script: |
+      open "/dashboard"
+      assert_exists "role:heading[我的申请]" 10s
