@@ -1,0 +1,25 @@
+# demo/cases/error/screenshot-on-fail.yaml
+# 验证：失败截图不会触发未激活角色的自动登录
+#
+# 场景：
+# - 定义 3 个角色：user1, user2, user3
+# - 只使用 user1 执行一个会失败的步骤
+# - 验证失败截图只对 user1 截图，不会触发 user2/user3 的登录
+
+description: "验证失败截图只对已激活角色截图，不触发未使用角色的自动登录"
+
+roles:
+  user1: { username: "requester", password: "req_pass" }
+  user2: { username: "bob", password: "pass2" }
+  user3: { username: "charlie", password: "pass3" }
+
+steps:
+  - id: step1_should_fail
+    role: user1
+    on_failure:
+      strategy: skip
+    script: |
+      # 打开首页（会触发登录保护，但 user1 已登录）
+      open "/"
+      # 断言一个不存在的文本，触发失败
+      assert_exists "这个断言不会被执行" 5s

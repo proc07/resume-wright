@@ -216,6 +216,28 @@ export class RolePool {
     return this.roles[roleName];
   }
 
+  // ── 已激活角色查询 ─────────────────────────────────────────
+
+  /**
+   * 获取所有已激活（已登录/已加载）的角色名称列表
+   */
+  getActiveRoles(): string[] {
+    return Array.from(this.pages.keys());
+  }
+
+  /**
+   * 获取已激活角色的 RoleContext（不触发登录）
+   * 如果角色未激活，返回 null
+   */
+  getActiveRoleContext(roleName: string): RoleContext | null {
+    const page = this.pages.get(roleName);
+    const context = this.contexts.get(roleName);
+    if (page && context) {
+      return { context, page };
+    }
+    return null;
+  }
+
   // ── 清理 ─────────────────────────────────────────────────
 
   /**

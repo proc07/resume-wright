@@ -50,21 +50,22 @@ export class StepExecutor {
         const errMsg = String(err);
         console.error(`[step] ✗ Step failed: ${step.id} (attempt ${attempt}): ${errMsg}`);
 
-        // 失败截图
-        if (this.execCtx.screenshotDir) {
-          try {
-            const { context, page } = await rolePool.getRoleContext(step.role);
-            const ssDir = screenshotDir;
-            const { mkdirSync } = await import('node:fs');
-            mkdirSync(ssDir, { recursive: true });
-            const ssPath = path.join(ssDir, `${step.id}-error-${getFormattedDateTime()}.png`);
-            await page.screenshot({ path: ssPath });
-            console.log(`[step] 📸 Error screenshot: ${decodeURIComponent(ssPath)}`);
-          } catch { /* ignore */ }
-        }
-
         if (strategy === 'skip') {
           console.warn(`[step] Strategy=skip — marking step as completed despite failure`);
+          // skip 策略时截图
+          if (this.execCtx.screenshotDir) {
+            try {
+              const roleCtx = rolePool.getActiveRoleContext(step.role);
+              if (roleCtx) {
+                const ssDir = screenshotDir;
+                const { mkdirSync } = await import('node:fs');
+                mkdirSync(ssDir, { recursive: true });
+                const ssPath = path.join(ssDir, `${step.id}-error-${getFormattedDateTime()}.png`);
+                await roleCtx.page.screenshot({ path: ssPath });
+                console.log(`[step] 📸 Error screenshot: ${decodeURIComponent(ssPath)}`);
+              }
+            } catch { /* ignore */ }
+          }
           checkpoint.markCompleted(step.id, contextStore);
           return;
         }
@@ -75,6 +76,20 @@ export class StepExecutor {
 
         // strategy === 'retry'
         if (attempt > maxRetries) {
+          // 最终失败时才截图
+          if (this.execCtx.screenshotDir) {
+            try {
+              const roleCtx = rolePool.getActiveRoleContext(step.role);
+              if (roleCtx) {
+                const ssDir = screenshotDir;
+                const { mkdirSync } = await import('node:fs');
+                mkdirSync(ssDir, { recursive: true });
+                const ssPath = path.join(ssDir, `${step.id}-error-${getFormattedDateTime()}.png`);
+                await roleCtx.page.screenshot({ path: ssPath });
+                console.log(`[step] 📸 Error screenshot: ${decodeURIComponent(ssPath)}`);
+              }
+            } catch { /* ignore */ }
+          }
           throw new Error(
             `Step "${step.id}" failed after ${maxRetries} retries: ${errMsg}`
           );

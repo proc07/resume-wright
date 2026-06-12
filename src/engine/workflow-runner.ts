@@ -177,7 +177,6 @@ export class WorkflowRunner {
       let completedSteps = checkpoint.completedCount();
       const totalSteps = this.definition.steps.length;
       let lastError: string | undefined;
-      let errorScreenshotPath: string | undefined;
 
       try {
         for (const step of this.definition.steps) {
@@ -219,16 +218,7 @@ export class WorkflowRunner {
         console.error(`\n[runner] ❌ Case FAILED: ${caseName}`);
         console.error(`  Error: ${lastError}`);
 
-        // 失败截图
-        if (this.opts.screenshotOnFail) {
-          try {
-            errorScreenshotPath = await this.captureErrorScreenshot(
-              rolePool,
-              screenshotDir,
-              caseName
-            );
-          } catch { /* ignore */ }
-        }
+        // 失败截图已由 StepExecutor 处理，这里不再重复截图
 
         saveRunHistory(safeCaseName, {
           runId,
@@ -247,7 +237,6 @@ export class WorkflowRunner {
           resumedFromStep,
           duration,
           error: lastError,
-          screenshotPath: errorScreenshotPath,
         };
 
       } finally {
@@ -258,27 +247,6 @@ export class WorkflowRunner {
     });
   }
 
-  private async captureErrorScreenshot(
-    rolePool: RolePool,
-    dir: string,
-    caseName: string
-  ): Promise<string | undefined> {
-    fs.mkdirSync(dir, { recursive: true });
-    const ssPath = path.join(
-      dir,
-      `${getSafeCaseName(caseName)}-error-${getFormattedDateTime()}.png`
-    );
-
-    // 对所有活跃角色都截图
-    for (const role of Object.keys(this.definition.roles)) {
-      try {
-        const { page } = await rolePool.getRoleContext(role);
-        await page.screenshot({ path: ssPath });
-        return ssPath;
-      } catch { /* try next */ }
-    }
-    return undefined;
-  }
 }
 
 // ── 时间格式化 ────────────────────────────────────────────────
