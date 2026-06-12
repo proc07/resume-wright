@@ -22,21 +22,20 @@ export interface LogContext {
 
 export const logStorage = new AsyncLocalStorage<LogContext>();
 
-const originalStdoutWrite = process.stdout.write;
-const originalStderrWrite = process.stderr.write;
+let hooksInstalled = false;
+let originalStdoutWrite: typeof process.stdout.write;
+let originalStderrWrite: typeof process.stderr.write;
 
 function hookWrite(originalWrite: typeof process.stdout.write) {
   return function(this: any, chunk: any, encoding?: any, callback?: any) {
     const store = logStorage.getStore();
     if (store) {
       const str = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-      
-      // 写入到专属历史日志文件
+
       if (store.logStream.writable) {
         store.logStream.write(str);
       }
 
-      // 为总控制台增加前缀以实现按用例分流
       const tagged = str
         .split('\n')
         .map((line: string, idx: number, arr: string[]) => {
@@ -51,8 +50,14 @@ function hookWrite(originalWrite: typeof process.stdout.write) {
   } as any;
 }
 
-process.stdout.write = hookWrite(originalStdoutWrite);
-process.stderr.write = hookWrite(originalStderrWrite);
+function installHooks() {
+  if (hooksInstalled) return;
+  originalStdoutWrite = process.stdout.write;
+  originalStderrWrite = process.stderr.write;
+  process.stdout.write = hookWrite(originalStdoutWrite);
+  process.stderr.write = hookWrite(originalStderrWrite);
+  hooksInstalled = true;
+}
 
 function saveRunHistory(safeCaseName: string, record: {
   runId: string;
@@ -98,6 +103,7 @@ export class WorkflowRunner {
   ) {}
 
   async run(): Promise<CaseResult> {
+    installHooks();
     const startTime = Date.now();
     const caseName = this.definition.name;
     const safeCaseName = getSafeCaseName(caseName, this.filePath);

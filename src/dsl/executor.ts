@@ -13,6 +13,7 @@ import { loadMacro } from './macro-loader.js';
 import { resolveLocatorFromString, resolveInputLocator, stripQuotes } from './locator-resolver.js';
 import type { ContextStore } from '../engine/context-store.js';
 import { getFormattedDateTime } from '../engine/datetime-utils.js';
+import { escapeRegex } from '../utils.js';
 
 function sanitizeFilename(name: string): string {
   return name
@@ -783,10 +784,6 @@ function toPwKey(key: string): string {
     arrowleft: 'ArrowLeft', arrowright: 'ArrowRight',
   };
   return MAP[key.toLowerCase()] ?? key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function isWildcardMatch(val: string, pattern: string): boolean {

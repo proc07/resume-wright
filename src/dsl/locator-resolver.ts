@@ -5,6 +5,7 @@
 import type { Page, Locator } from '@playwright/test';
 import type { ParsedLocator, LocatorModifier } from '../types/dsl.types.js';
 import { getDefaultRegistry } from '../adapters/elements-csv.js';
+import { stripQuotes, escapeRegex } from '../utils.js';
 
 // ── 解析原始定位字符串 ──────────────────────────────────────
 
@@ -270,20 +271,7 @@ export function resolveInputLocator(page: Page, raw: string): Locator {
 
 // ── 工具函数 ─────────────────────────────────────────────────
 
-export function stripQuotes(s: string): string {
-  const t = s.trim();
-  if (
-    (t.startsWith('"') && t.endsWith('"')) ||
-    (t.startsWith("'") && t.endsWith("'"))
-  ) {
-    return t.slice(1, -1);
-  }
-  return t;
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+export { stripQuotes };
 
 function hasWildcard(s: string): boolean {
   return s.includes('*');

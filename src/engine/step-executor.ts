@@ -8,6 +8,7 @@ import { NetworkInterceptor } from './network-interceptor.js';
 import { SubStepExecutor } from './sub-step-executor.js';
 import { executeScript } from '../dsl/executor.js';
 import { getFormattedDateTime } from './datetime-utils.js';
+import { sleep } from '../utils.js';
 import path from 'node:path';
 
 /**
@@ -221,8 +222,4 @@ export class StepExecutor {
       }
     }
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

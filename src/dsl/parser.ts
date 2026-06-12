@@ -3,6 +3,7 @@
 // 将 script 字符串解析为 DslInstruction 数组
 // ============================================================
 
+import { stripQuotes } from '../utils.js';
 import type {
   DslScript,
   DslInstruction,
@@ -310,15 +311,4 @@ export function tokenize(line: string): string[] {
   }
 
   return tokens;
-}
-
-function stripQuotes(s: string): string {
-  const t = s.trim();
-  if (
-    (t.startsWith('"') && t.endsWith('"')) ||
-    (t.startsWith("'") && t.endsWith("'"))
-  ) {
-    return t.slice(1, -1);
-  }
-  return t;
 }

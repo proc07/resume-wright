@@ -11,18 +11,22 @@
 import { Command } from 'commander';
 import path from 'node:path';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import { Scheduler } from './src/engine/scheduler.js';
 import { WorkflowRunner } from './src/engine/workflow-runner.js';
 import { listCheckpoints, Checkpoint, resetCaseRuntime, resetAllRuntimes, getSafeCaseName } from './src/engine/checkpoint.js';
 import { loadCase } from './src/adapters/yaml-loader.js';
 import { formatDuration } from './src/engine/workflow-runner.js';
 
+const require = createRequire(import.meta.url);
+const { version } = require('./package.json') as { version: string };
+
 const program = new Command();
 
 program
   .name('resumewright')
   .description('Resumable Playwright execution framework for multi-role workflow automation')
-  .version('0.1.0');
+  .version(version);
 
 // ── run 命令 ─────────────────────────────────────────────────
 

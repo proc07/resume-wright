@@ -9,6 +9,7 @@ import { SubStepStore } from './sub-step-store.js';
 import { DomSnapshotManager } from './dom-snapshot.js';
 import { NetworkInterceptor } from './network-interceptor.js';
 import { executeScript } from '../dsl/executor.js';
+import { sleep } from '../utils.js';
 
 export interface SubStepExecutorOptions {
   screenshotDir?: string;
@@ -160,8 +161,4 @@ export class SubStepExecutor {
       }
     }
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
