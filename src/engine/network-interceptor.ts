@@ -106,9 +106,9 @@ export class NetworkInterceptor {
       (entry) => entry.fingerprint === fingerprint && (entry.subStepId || '') === activeSubId
     );
 
-    // 命中缓存 → 直接 fulfill
-    if (matchedEntries.length >= count) {
-      const cached = matchedEntries[count - 1];
+    // 命中缓存 → 直接 fulfill（同 fingerprint 同 subStep 返回相同缓存）
+    if (matchedEntries.length > 0) {
+      const cached = matchedEntries[0];
       console.log(
         `[network-interceptor] 🎯 Cache HIT: ${method} ${url} (subStep: ${activeSubId || 'none'}, seq: ${count}) → ${cached.status}`
       );
