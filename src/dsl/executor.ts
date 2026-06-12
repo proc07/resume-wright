@@ -466,6 +466,124 @@ async function executeCommand(
       break;
     }
 
+    // ── 调试检查 ─────────────────────────────────────────────
+    case 'inspect': {
+      const locStr = args[0] ? stripQuotes(args[0]) : '';
+
+      // 收集节点信息（在浏览器端执行）
+      type NodeInfo = {
+        index: number;
+        tag: string;
+        id: string;
+        className: string;
+        text: string;
+        visible: boolean;
+        disabled: boolean;
+        attrs: Record<string, string>;
+        bbox: { x: number; y: number; width: number; height: number } | null;
+      };
+
+      let nodes: NodeInfo[] = [];
+
+      if (locStr) {
+        const locator = resolveLocatorFromString(page, locStr);
+        const count = await locator.count();
+
+        for (let idx = 0; idx < count; idx++) {
+          const el = locator.nth(idx);
+          const info = await el.evaluate((node): NodeInfo => {
+            const el = node as HTMLElement;
+            const rect = el.getBoundingClientRect();
+            const attrs: Record<string, string> = {};
+            for (const attr of Array.from(el.attributes)) {
+              attrs[attr.name] = attr.value;
+            }
+            const style = window.getComputedStyle(el);
+            const visible =
+              style.display !== 'none' &&
+              style.visibility !== 'hidden' &&
+              style.opacity !== '0' &&
+              rect.width > 0 &&
+              rect.height > 0;
+            return {
+              index: 0, // filled below
+              tag: el.tagName.toLowerCase(),
+              id: el.id,
+              className: el.className,
+              text: (el.textContent ?? '').trim().slice(0, 200),
+              visible,
+              disabled: (el as HTMLInputElement).disabled ?? false,
+              attrs,
+              bbox: rect.width > 0 ? { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) } : null,
+            };
+          });
+          info.index = idx;
+          nodes.push(info);
+        }
+      }
+
+      // ── 终端输出 ────────────────────────────────────────────
+      const CYAN = '\x1b[36m';
+      const YELLOW = '\x1b[33m';
+      const GREEN = '\x1b[32m';
+      const RED = '\x1b[31m';
+      const DIM = '\x1b[2m';
+      const RESET = '\x1b[0m';
+      const BOLD = '\x1b[1m';
+
+      console.log(`\n${BOLD}${CYAN}╔══════════════════════════════════════════════════════╗${RESET}`);
+      console.log(`${BOLD}${CYAN}║  🔍 inspect${RESET}  ${YELLOW}${locStr || '(no locator)'}${RESET}`);
+      console.log(`${BOLD}${CYAN}╚══════════════════════════════════════════════════════╝${RESET}`);
+      console.log(`${DIM}  Current URL: ${page.url()}${RESET}`);
+
+      if (!locStr) {
+        console.log(`${YELLOW}  ⚠  No locator provided — page paused for manual inspection${RESET}`);
+      } else if (nodes.length === 0) {
+        console.log(`${RED}  ✗  No elements matched: "${locStr}"${RESET}`);
+      } else {
+        console.log(`${GREEN}  ✓  Found ${nodes.length} element(s) matching: "${locStr}"${RESET}\n`);
+        for (const n of nodes) {
+          console.log(`  ${BOLD}[${n.index}]${RESET} <${CYAN}${n.tag}${RESET}>${n.id ? ` #${n.id}` : ''}${n.className ? ` .${n.className.trim().replace(/\s+/g, '.')}` : ''}`);
+          console.log(`       text     : ${n.text ? `"${n.text}"` : DIM + '(empty)' + RESET}`);
+          console.log(`       visible  : ${n.visible ? GREEN + '✓ visible' + RESET : RED + '✗ hidden' + RESET}`);
+          console.log(`       disabled : ${n.disabled ? RED + 'yes' + RESET : 'no'}`);
+          if (n.bbox) {
+            console.log(`       bbox     : x=${n.bbox.x} y=${n.bbox.y} w=${n.bbox.width} h=${n.bbox.height}`);
+          }
+          const attrEntries = Object.entries(n.attrs).filter(([k]) => !['class', 'id', 'style'].includes(k));
+          if (attrEntries.length > 0) {
+            console.log(`       attrs    : ${attrEntries.map(([k, v]) => `${k}="${v}"`).join('  ')}`);
+          }
+          console.log('');
+        }
+      }
+      console.log(`${YELLOW}  ⏸  Page paused — open Playwright Inspector or press Resume in browser${RESET}`);
+      console.log(`${DIM}──────────────────────────────────────────────────────${RESET}\n`);
+
+      // ── 浏览器 console 输出 ─────────────────────────────────
+      await page.evaluate(({ locStr, nodes }: { locStr: string; nodes: NodeInfo[] }) => {
+        console.group(`%c🔍 DSL inspect: "${locStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
+        console.log('%cMatched elements:', 'color:#a3e635;font-weight:bold', nodes.length);
+        for (const n of nodes) {
+          console.groupCollapsed(`%c[${n.index}] <${n.tag}>${n.id ? ' #' + n.id : ''}`, 'color:#f59e0b;font-weight:bold');
+          console.log('text:', n.text);
+          console.log('visible:', n.visible);
+          console.log('disabled:', n.disabled);
+          console.log('bbox:', n.bbox);
+          console.log('attrs:', n.attrs);
+          console.groupEnd();
+        }
+        if (nodes.length === 0) {
+          console.warn('⚠ No elements found for locator:', locStr);
+        }
+        console.groupEnd();
+      }, { locStr, nodes });
+
+      // ── 暂停页面 ────────────────────────────────────────────
+      await page.pause();
+      break;
+    }
+
     default:
       throw new Error(`Unhandled DSL command: ${cmd}`);
   }

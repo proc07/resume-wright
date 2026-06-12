@@ -1,6 +1,7 @@
 # Global config for demo cases
 base_url: "http://127.0.0.1:61775"
 timeout: 600000
+login_macro_path: "./macros/login.macro"
 on_failure:
   strategy: "retry"
   max_retries: 2

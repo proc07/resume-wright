@@ -24,7 +24,8 @@ export type DslCommandName =
   | 'do_post'
   | 'do_put'
   | 'do_delete'
-  | 'macro';
+  | 'macro'
+  | 'inspect';
 
 /** 变量赋值来源 */
 export type AssignSource =
