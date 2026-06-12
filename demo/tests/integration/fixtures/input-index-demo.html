@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Input 索引修饰符演示</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b0f19; color: #f8fafc; padding: 40px; }
+    .card { background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 28px; max-width: 600px; margin: 0 auto 20px; }
+    h2 { color: #38bdf8; margin-top: 0; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 4px; font-weight: bold; color: #94a3b8; }
+    input { width: 100%; padding: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; background: rgba(0,0,0,0.3); color: #f8fafc; font-size: 14px; box-sizing: border-box; }
+    input:focus { outline: none; border-color: #38bdf8; }
+    .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+    button { padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 16px; }
+    button:hover { background: #059669; }
+    #result { margin-top: 20px; padding: 12px; border-radius: 6px; display: none; }
+    #result.success { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }
+    .tag { display: inline-block; padding: 2px 8px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-radius: 4px; font-size: 12px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>📝 Input 索引修饰符演示 <span class="tag">/0 /1 /-1</span></h2>
+    <p style="color:#94a3b8;font-size:13px;line-height:1.6;">
+      此页面包含多个同名的输入框，用于演示 <code>input</code> 命令的索引修饰符功能。<br>
+      通过 <code>/0</code>、<code>/1</code>、<code>/-1</code> 等修饰符可以精确选择第 N 个元素。
+    </p>
+
+    <h3 style="color:#f59e0b;font-size:14px;">收货地址列表</h3>
+
+    <div class="form-group">
+      <label>收货人 <span class="tag">第 1 个</span></label>
+      <input name="receiver" placeholder="请输入收货人" data-index="0">
+      <div class="hint">索引: /0</div>
+    </div>
+
+    <div class="form-group">
+      <label>收货人 <span class="tag">第 2 个</span></label>
+      <input name="receiver" placeholder="请输入收货人" data-index="1">
+      <div class="hint">索引: /1</div>
+    </div>
+
+    <div class="form-group">
+      <label>收货人 <span class="tag">第 3 个（最后一个）</span></label>
+      <input name="receiver" placeholder="请输入收货人" data-index="2">
+      <div class="hint">索引: /2 或 /-1</div>
+    </div>
+
+    <h3 style="color:#f59e0b;font-size:14px;">联系电话列表</h3>
+
+    <div class="form-group">
+      <label>联系电话 <span class="tag">第 1 个</span></label>
+      <input name="phone" placeholder="请输入联系电话" data-index="0">
+    </div>
+
+    <div class="form-group">
+      <label>联系电话 <span class="tag">第 2 个</span></label>
+      <input name="phone" placeholder="请输入联系电话" data-index="1">
+    </div>
+
+    <button onclick="submitForm()">提交</button>
+    <div id="result"></div>
+    <div id="success-msg" style="display:none;color:#10b981;font-weight:bold;">提交成功</div>
+  </div>
+
+  <script>
+    function submitForm() {
+      const receivers = document.querySelectorAll('input[name="receiver"]');
+      const phones = document.querySelectorAll('input[name="phone"]');
+
+      const result = {
+        receivers: Array.from(receivers).map(el => el.value),
+        phones: Array.from(phones).map(el => el.value)
+      };
+
+      document.getElementById('result').textContent = '数据: ' + JSON.stringify(result);
+      document.getElementById('result').className = 'success';
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('success-msg').style.display = 'block';
+
+      // 存储到全局变量供后续读取
+      window.__formResult = result;
+    }
+  </script>
+</body>
+</html>

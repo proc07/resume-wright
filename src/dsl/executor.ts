@@ -225,8 +225,12 @@ async function executeCommand(
       const content = stripQuotes(args[0]!);
 
       if (args.length >= 3 && args[1]?.toLowerCase() === 'to') {
-        // input "value" to "locator"
-        const locStr = stripQuotes(args[2]!);
+        // input "value" to "locator" [/0] [/-1]
+        let locStr = stripQuotes(args[2]!);
+        // 如果有索引修饰符（/0, /-1 等），合并到 locator 字符串
+        if (args.length >= 4 && /^\/-?\d+$/.test(args[3]!)) {
+          locStr = `${locStr} ${args[3]}`;
+        }
         const locator = resolveInputLocator(page, locStr);
         if (content === '') {
           await locator.clear();

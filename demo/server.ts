@@ -317,6 +317,19 @@ const server = http.createServer(async (req, res) => {
     return jsonRes(res, 200, { success: true });
   }
 
+  // ── GET /input-index-demo ( 索引修饰符演示页面 )
+  if (pathname === '/input-index-demo' && req.method === 'GET') {
+    const htmlPath = path.join(import.meta.dirname, 'tests/integration/fixtures/input-index-demo.html');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    fs.createReadStream(htmlPath).pipe(res);
+    return;
+  }
+
+  // ── GET /api/input-index-demo/result
+  if (pathname === '/api/input-index-demo/result' && req.method === 'GET') {
+    return jsonRes(res, 200, { data: (globalThis as any).__formResult || {} });
+  }
+
   // ── Serve HTML for all other routes
   const htmlPath = path.join(import.meta.dirname, 'tests/integration/fixtures/demo-app.html');
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

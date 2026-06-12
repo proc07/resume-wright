@@ -1,0 +1,40 @@
+# demo/cases/business/multi-recipient-order.yaml
+# 多收货人订单场景
+# 演示如何使用索引修饰符处理多个相同类型的输入框
+
+description: "多收货人订单：演示索引修饰符在复杂表单中的应用"
+
+roles:
+  user: { username: "demo", password: "demo" }
+
+steps:
+  - id: step1_create_order
+    role: user
+    on_failure:
+      strategy: retry
+      max_retries: 2
+      retry_delay: 3000
+    script: |
+      # 打开订单页面
+      open "/input-index-demo"
+
+      # ── 第一个收货人 ──
+      input "张三" to "placeholder:请输入收货人" /0
+      input "13800138001" to "placeholder:请输入联系电话" /0
+
+      # ── 第二个收货人 ──
+      input "李四" to "placeholder:请输入收货人" /1
+      input "13800138002" to "placeholder:请输入联系电话" /1
+
+      # ── 第三个收货人（使用 /-1 表示最后一个）──
+      input "王五" to "placeholder:请输入收货人" /-1
+      input "13800138003" to "placeholder:请输入联系电话" /-1
+
+      # 截图保存表单状态
+      screenshot
+
+      # 提交订单
+      tap "提交"
+      wait 1s
+      assert_exists "提交成功"
+      screenshot

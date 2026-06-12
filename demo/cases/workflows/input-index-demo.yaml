@@ -1,0 +1,43 @@
+# demo/cases/workflows/input-index-demo.yaml
+# 演示 input 命令的索引修饰符功能
+# 支持 /0, /1, /2, /-1 等索引来选择第 N 个元素
+
+description: "演示 input 命令索引修饰符：通过 /0, /1, /-1 精确选择同名输入框"
+
+roles:
+  user: { username: "demo", password: "demo" }
+
+steps:
+  - id: step1_fill_form
+    role: user
+    script: |
+      # 打开索引修饰符演示页面
+      open "/input-index-demo"
+
+      # ── 填写收货人信息 ──
+
+      # 填写第 1 个收货人（索引 /0）
+      input "张三" to "placeholder:请输入收货人" /0
+
+      # 填写第 2 个收货人（索引 /1）
+      input "李四" to "placeholder:请输入收货人" /1
+
+      # 填写第 3 个收货人（索引 /2 或 /-1 表示最后一个）
+      input "王五" to "placeholder:请输入收货人" /-1
+
+      # ── 填写联系电话 ──
+
+      # 填写第 1 个联系电话（索引 /0）
+      input "13800138000" to "placeholder:请输入联系电话" /0
+
+      # 填写第 2 个联系电话（索引 /1）
+      input "13900139000" to "placeholder:请输入联系电话" /1
+
+      # ── 截图并提交 ──
+      screenshot
+      tap "提交"
+
+      # 等待提交结果
+      wait 1s
+      assert_exists "提交成功"
+      screenshot

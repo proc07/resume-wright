@@ -225,9 +225,36 @@ export function resolveLocatorFromString(page: Page, raw: string): Locator {
 /**
  * input 命令专用定位：无前缀时按 label → placeholder 顺序尝试
  * 有前缀时走标准解析
+ * 支持索引修饰符：/0  /-1  /2 等
  */
 export function resolveInputLocator(page: Page, raw: string): Locator {
   const cleaned = stripQuotes(raw);
+
+  // 检查是否有索引修饰符（/0, /-1, /2 等）
+  const indexMatch = cleaned.match(/^(.+?)\s+\/(-?\d+)$/);
+  if (indexMatch) {
+    const baseLocator = indexMatch[1]!;
+    const index = parseInt(indexMatch[2]!, 10);
+    const parsed = parseLocator(baseLocator);
+
+    // 先构建基础 locator
+    let locator: Locator;
+    if (parsed.type === 'text') {
+      // 无前缀文字：placeholder → label
+      const placeholderLoc = page.getByPlaceholder(parsed.value, { exact: true });
+      const labelLoc = page.getByLabel(parsed.value, { exact: true });
+      locator = placeholderLoc.or(labelLoc);
+    } else {
+      // 有前缀：走标准解析
+      locator = resolveLocator(page, { ...parsed, modifier: undefined }); // 先不应用修饰符
+    }
+
+    // 应用索引修饰符
+    if (index === -1) {
+      return locator.last();
+    }
+    return locator.nth(index);
+  }
 
   // 有明确前缀或特殊语法，走标准解析
   if (/^(label:|placeholder:|testid:|title:|alt:|role:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(cleaned)) {

@@ -6,7 +6,9 @@
 import { describe, it, expect } from 'vitest';
 import { parseLocator } from '../../../src/dsl/locator-resolver.js';
 
-describe('Locator Resolver — parseLocator()', () => {
+describe('Locator Resolver', () => {
+
+describe('parseLocator()', () => {
 
   describe('文字匹配', () => {
     it('默认精确文字匹配', () => {
@@ -176,4 +178,52 @@ describe('Locator Resolver — parseLocator()', () => {
       expect(p3.value).toBe('采*购');
     });
   });
+});
+
+describe('resolveInputLocator — 索引修饰符', () => {
+  // 注意：这些测试需要在有浏览器环境的情况下才能完整运行
+  // 这里只测试 parseLocator 的解析逻辑
+
+  it('应该正确解析带索引修饰符的输入定位器', () => {
+    // "username" /0
+    const p1 = parseLocator('username');
+    expect(p1.type).toBe('text');
+    expect(p1.value).toBe('username');
+    expect(p1.modifier).toBeUndefined();
+
+    // 带索引的完整字符串
+    const p2 = parseLocator('username /0');
+    expect(p2.type).toBe('text');
+    expect(p2.value).toBe('username');
+    expect(p2.modifier?.index).toBe(0);
+  });
+
+  it('应该正确解析负数索引', () => {
+    const p = parseLocator('username /-1');
+    expect(p.type).toBe('text');
+    expect(p.value).toBe('username');
+    expect(p.modifier?.last).toBe(true);
+  });
+
+  it('应该正确解析正整数索引', () => {
+    const p = parseLocator('username /2');
+    expect(p.type).toBe('text');
+    expect(p.value).toBe('username');
+    expect(p.modifier?.index).toBe(2);
+  });
+
+  it('应该正确解析带前缀和索引的定位器', () => {
+    const p = parseLocator('label:用户名 /0');
+    expect(p.type).toBe('label');
+    expect(p.value).toBe('用户名');
+    expect(p.modifier?.index).toBe(0);
+  });
+
+  it('应该正确解析 CSS 选择器带索引', () => {
+    const p = parseLocator('.input-field /1');
+    expect(p.type).toBe('css');
+    expect(p.value).toBe('.input-field');
+    expect(p.modifier?.index).toBe(1);
+  });
+});
 });
