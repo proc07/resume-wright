@@ -373,6 +373,79 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('near — 近邻定位修饰符', () => {
+    it('基础 near 定位：区分相同文本的按钮', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        tap "删除" near "张三"
+      `, page, ctx, {});
+      const resVal = await page.locator('#near-result').textContent();
+      expect(resVal).toBe('张三 - 删除');
+
+      await executeScript(`
+        tap "删除" near "李四"
+      `, page, ctx, {});
+      const resVal2 = await page.locator('#near-result').textContent();
+      expect(resVal2).toBe('李四 - 删除');
+    });
+
+    it('双锚点 & 方向定位', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        tap "编辑" near "李四" right
+      `, page, ctx, {});
+      const resVal = await page.locator('#near-result').textContent();
+      expect(resVal).toBe('李四 - 编辑');
+    });
+
+    it('基于角度的方向过滤定位', async () => {
+      const ctx = makeCtx();
+      // 测试右边按钮
+      await executeScript(`
+        open "$base_url"
+        tap "目标" near "中心" right
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('右边按钮');
+
+      // 测试左边按钮
+      await executeScript(`
+        tap "目标" near "中心" left
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('左边按钮');
+
+      // 测试上边按钮
+      await executeScript(`
+        tap "目标" near "中心" top
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('上边按钮');
+
+      // 测试下边按钮
+      await executeScript(`
+        tap "目标" near "中心" bottom
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('下边按钮');
+    });
+
+    it('Modal 遮挡 reachability 可达性检测过滤', async () => {
+      const ctx = makeCtx();
+      // 1. 未打开 Modal 时点击确认，应该点击到背景确认
+      await executeScript(`
+        open "$base_url"
+        tap "确认" near "加急申请"
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('背景确认');
+
+      // 2. 打开 Modal 后点击确认，背景确认虽然离加急申请近但被遮挡，应该点击 Modal 确认
+      await executeScript(`
+        tap "打开Modal"
+        tap "确认" near "用户名"
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('Modal确认');
+    });
+  });
+
   describe('完整工作流场景', () => {
     it('提交 → 获取 ID → 审批通过', async () => {
       const ctx = makeCtx();

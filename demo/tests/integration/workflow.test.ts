@@ -104,6 +104,13 @@ function startServer(): Promise<string> {
       }
 
       // ── Serve HTML for all other routes
+      if (pathname === '/near-demo') {
+        const htmlPath = path.join(import.meta.dirname, 'fixtures/near-demo.html');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        fs.createReadStream(htmlPath).pipe(res);
+        return;
+      }
+
       const htmlPath = path.join(import.meta.dirname, 'fixtures/demo-app.html');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       fs.createReadStream(htmlPath).pipe(res);
@@ -196,6 +203,27 @@ describe('DSL 基础命令（插件用法验证）', () => {
       $current = current_url
     `, requesterPage, ctx, {});
     expect(ctx.get('current')).toContain('dashboard');
+  });
+
+  it('near — 近邻定位与可达性过滤', async () => {
+    const ctx = makeCtx();
+    await executeScript(`
+      open "$base_url/near-demo"
+      
+      # 1. 列表定位
+      tap "编辑" near "李四"
+      assert_exists "操作成功: 编辑了 李四"
+      
+      # 2. 方向定位
+      tap "目标" near "中心点" right
+      assert_exists "操作成功: 右侧目标按钮被点击"
+      
+      # 3. 模态层可达性过滤
+      tap "打开模态框"
+      input "admin" to "placeholder:请输入操作人账号"
+      tap "确认" near "用户名"
+      assert_exists "操作成功: 点击了弹窗里的 确认 按钮"
+    `, requesterPage, ctx, {});
   });
 });
 
@@ -335,6 +363,13 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
     expect(def.name).toBe('purchase-approval');
     expect(def.steps).toHaveLength(4);
     expect(Object.keys(def.roles)).toEqual(['requester', 'manager', 'finance']);
+  });
+
+  it('near-demo.yaml 结构正确', () => {
+    const def = loadCase(path.join(DIR, 'workflows/near-demo.yaml'));
+    expect(def.name).toBe('near-demo');
+    expect(def.steps).toHaveLength(1);
+    expect(def.steps[0]!.script).toContain('near');
   });
 
   it('invoice-review-substeps.yaml 子步骤结构正确', () => {

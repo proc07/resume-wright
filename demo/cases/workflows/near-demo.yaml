@@ -1,0 +1,55 @@
+# demo/cases/workflows/near-demo.yaml
+# 演示 near 近邻定位修饰符功能
+# 支持 [near "anchor"] [left|right|top|bottom] [nth=N] 等语法
+
+description: "演示 near 定位修饰符：包括基本列表定位、方向朝向限定、以及模态弹窗可达性检测过滤"
+
+roles:
+  user: { username: "demo", password: "demo" }
+
+steps:
+  - id: step1_near_test
+    role: user
+    script: |
+      # 打开近邻定位演示页面
+      open "/near-demo"
+
+      # ── 1. 表格/数据列表定位（基本近邻定位） ──
+      
+      # 点击李四对应的编辑按钮
+      tap "编辑" near "李四"
+      assert_exists "操作成功: 编辑了 李四"
+      screenshot
+
+      # 点击李四对应的删除按钮
+      tap "删除" near "李四"
+      assert_exists "操作成功: 删除了 李四"
+      screenshot
+
+      # ── 2. 方向朝向定位（根据相对角度划分） ──
+      
+      # 点击中心点右侧的目标按钮
+      tap "目标" near "中心点" right
+      assert_exists "操作成功: 右侧目标按钮被点击"
+      screenshot
+
+      # 点击中心点上方的目标按钮
+      tap "目标" near "中心点" top
+      assert_exists "操作成功: 上方目标按钮被点击"
+      screenshot
+
+      # ── 3. 模态框层级与可达性（Reachability）检测 ──
+      
+      # 打开模态框
+      tap "打开模态框"
+      
+      # 输入用户名
+      input "tester" to "placeholder:请输入操作人账号"
+      
+      # 页面上存在两个“确认”按钮（背景和模态弹窗）。
+      # 背景“确认”按钮虽然可能在相对坐标上更近，但被模态遮罩层覆盖（无法直接穿透触达）。
+      # 执行器会使用 elementFromPoint 自动剔除不可触达的背景确认，并锁定并点击模态框中的“确认”按钮。
+      tap "确认" near "用户名"
+      
+      assert_exists "操作成功: 点击了弹窗里的 确认 按钮"
+      screenshot

@@ -27,3 +27,7 @@ if (fs.existsSync(srcDir)) {
   console.error('❌ [build] Source dashboard UI dist not found. Build the UI first.')
   process.exit(1)
 }
+
+// Copy package.json to dist/package.json
+fs.copyFileSync('package.json', 'dist/package.json')
+console.log('✅ [build] Successfully copied package.json to dist/package.json')

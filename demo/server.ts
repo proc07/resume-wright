@@ -330,6 +330,19 @@ const server = http.createServer(async (req, res) => {
     return jsonRes(res, 200, { data: (globalThis as any).__formResult || {} });
   }
 
+  // ── GET /near-demo ( Near 近邻定位演示页面 )
+  if (pathname === '/near-demo' && req.method === 'GET') {
+    const htmlPath = path.join(import.meta.dirname, 'tests/integration/fixtures/near-demo.html');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    fs.createReadStream(htmlPath).pipe(res);
+    return;
+  }
+
+  // ── GET /api/near-demo/result
+  if (pathname === '/api/near-demo/result' && req.method === 'GET') {
+    return jsonRes(res, 200, { data: (globalThis as any).__nearResult || '' });
+  }
+
   // ── Serve HTML for all other routes
   const htmlPath = path.join(import.meta.dirname, 'tests/integration/fixtures/demo-app.html');
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

@@ -216,8 +216,15 @@ async function executeCommand(
         }
       }
 
-      const locator = resolveLocatorFromString(page, stripQuotes(locStr));
-      await locator.click();
+      // near 近邻定位修饰符
+      const tapNearOpts = parseNearOptions(args.slice(1));
+      if (tapNearOpts) {
+        const el = await findNearestReachable(page, stripQuotes(locStr), tapNearOpts);
+        await el.click();
+      } else {
+        const locator = resolveLocatorFromString(page, stripQuotes(locStr));
+        await locator.click();
+      }
       break;
     }
 
@@ -226,17 +233,31 @@ async function executeCommand(
       const content = stripQuotes(args[0]!);
 
       if (args.length >= 3 && args[1]?.toLowerCase() === 'to') {
-        // input "value" to "locator" [/0] [/-1]
-        let locStr = stripQuotes(args[2]!);
-        // 如果有索引修饰符（/0, /-1 等），合并到 locator 字符串
-        if (args.length >= 4 && /^\/-?\d+$/.test(args[3]!)) {
-          locStr = `${locStr} ${args[3]}`;
-        }
-        const locator = resolveInputLocator(page, locStr);
-        if (content === '') {
-          await locator.clear();
+        // input "value" to "locator" [near "anchor"] [/0] [/-1]
+        const rawLocStr = stripQuotes(args[2]!);
+        const remainingArgs = args.slice(3);
+
+        // near 近邻定位修饰符
+        const inputNearOpts = parseNearOptions(remainingArgs);
+        if (inputNearOpts) {
+          const el = await findNearestReachable(page, rawLocStr, inputNearOpts);
+          if (content === '') {
+            await el.clear();
+          } else {
+            await el.fill(content);
+          }
         } else {
-          await locator.fill(content);
+          // 如果有索引修饰符（/0, /-1 等），合并到 locator 字符串
+          let locStr = rawLocStr;
+          if (remainingArgs.length >= 1 && /^\/-?\d+$/.test(remainingArgs[0]!)) {
+            locStr = `${locStr} ${remainingArgs[0]}`;
+          }
+          const locator = resolveInputLocator(page, locStr);
+          if (content === '') {
+            await locator.clear();
+          } else {
+            await locator.fill(content);
+          }
         }
       } else {
         // input "value" — 输入到当前焦点元素
@@ -260,15 +281,27 @@ async function executeCommand(
 
     // ── 悬停 ─────────────────────────────────────────────────
     case 'hover': {
-      const locator = resolveLocatorFromString(page, stripQuotes(args[0]!));
-      await locator.hover();
+      const hoverNearOpts = parseNearOptions(args.slice(1));
+      if (hoverNearOpts) {
+        const el = await findNearestReachable(page, stripQuotes(args[0]!), hoverNearOpts);
+        await el.hover();
+      } else {
+        const locator = resolveLocatorFromString(page, stripQuotes(args[0]!));
+        await locator.hover();
+      }
       break;
     }
 
     // ── 滚动 ─────────────────────────────────────────────────
     case 'scroll_to': {
-      const locator = resolveLocatorFromString(page, stripQuotes(args[0]!));
-      await locator.scrollIntoViewIfNeeded();
+      const scrollNearOpts = parseNearOptions(args.slice(1));
+      if (scrollNearOpts) {
+        const el = await findNearestReachable(page, stripQuotes(args[0]!), scrollNearOpts);
+        await el.scrollIntoViewIfNeeded();
+      } else {
+        const locator = resolveLocatorFromString(page, stripQuotes(args[0]!));
+        await locator.scrollIntoViewIfNeeded();
+      }
       break;
     }
 
@@ -338,6 +371,23 @@ async function executeCommand(
     // ── 断言：元素存在 ────────────────────────────────────────
     case 'assert_exists': {
       const locStr = stripQuotes(args[0]!);
+
+      // near 修饰符：找最近可达元素（找不到则抛出，等同于断言不存在）
+      const assertNearOpts = parseNearOptions(args.slice(1));
+      if (assertNearOpts) {
+        await findNearestReachable(page, locStr, assertNearOpts);
+        if (opts.screenshotOnAssert) {
+          const dir = opts.screenshotDir ?? '.resumewright/screenshots';
+          fs.mkdirSync(dir, { recursive: true });
+          const stepId = opts.stepId ?? 'unknown';
+          const sanitizedArg = sanitizeFilename(locStr) || 'target';
+          const screenshotPath = path.join(dir, `${sanitizedArg}-${stepId}.png`);
+          await page.screenshot({ path: screenshotPath, fullPage: false });
+          console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
+        }
+        break;
+      }
+
       const timeoutMs = args[1] ? parseDuration(args[1]) : 5000;
 
       // 检测计数断言修饰符（/3, />2, />=1, /<5, /=3）
@@ -938,4 +988,173 @@ function resolveUrl(url: string, ctx: ContextStore): string {
     }
   }
   return url;
+}
+
+// ── Near 近邻定位辅助 ──────────────────────────────────────────
+
+type NearDirection = 'left' | 'right' | 'top' | 'bottom';
+
+interface NearOptions {
+  anchors: string[];
+  direction?: NearDirection;
+  nth: number;
+}
+
+const NEAR_DIRECTIONS = new Set<string>(['left', 'right', 'top', 'bottom']);
+
+/**
+ * 从「目标参数之后」的参数列表中解析 near 修饰符。
+ * 语法：[near "anchor1"] [near "anchor2"] [left|right|top|bottom] [nth=N]
+ * 返回 null 表示没有 near 修饰符。
+ */
+function parseNearOptions(afterTargetArgs: string[]): NearOptions | null {
+  if (!afterTargetArgs.includes('near')) return null;
+
+  const anchors: string[] = [];
+  let direction: NearDirection | undefined;
+  let nth = 0;
+
+  let i = 0;
+  while (i < afterTargetArgs.length) {
+    const token = afterTargetArgs[i]!;
+    if (token === 'near') {
+      i++;
+      // 下一个 token 如果不是关键字，则作为锚点定位字符串
+      if (
+        i < afterTargetArgs.length &&
+        afterTargetArgs[i] !== 'near' &&
+        !NEAR_DIRECTIONS.has(afterTargetArgs[i]!) &&
+        !afterTargetArgs[i]!.startsWith('nth=')
+      ) {
+        anchors.push(stripQuotes(afterTargetArgs[i]!));
+        i++;
+      }
+    } else if (NEAR_DIRECTIONS.has(token)) {
+      direction = token as NearDirection;
+      i++;
+    } else if (token.startsWith('nth=')) {
+      nth = parseInt(token.slice(4), 10) || 0;
+      i++;
+    } else {
+      i++;
+    }
+  }
+
+  if (anchors.length === 0) return null;
+  return { anchors, direction, nth };
+}
+
+/**
+ * 近邻定位核心算法：
+ * 在所有匹配 targetLocStr 的可见元素中，找到「距所有锚点最近且可达」的元素。
+ *
+ * 步骤：
+ * 1. 获取各锚点元素的屏幕中心坐标
+ * 2. 遍历目标元素，依次过滤：
+ *    a. elementFromPoint 可达性（自动过滤被 Modal/Overlay 遮挡的元素）
+ *    b. 方向扇区（left/right/top/bottom，以主锚点为原点）
+ * 3. 计算到所有锚点的欧氏距离之和并排序
+ * 4. 按 nth 取第 N 近（0 = 最近）
+ */
+async function findNearestReachable(
+  page: Page,
+  targetLocStr: string,
+  nearOpts: NearOptions
+): Promise<import('@playwright/test').Locator> {
+  // 1. 获取所有锚点中心坐标
+  const anchorCenters: Array<{ cx: number; cy: number }> = [];
+  let isFirst = true;
+  for (const anchorStr of nearOpts.anchors) {
+    const anchorLoc = resolveLocatorFromString(page, anchorStr);
+    if (isFirst) {
+      await anchorLoc.first().scrollIntoViewIfNeeded();
+      isFirst = false;
+    }
+    const box = await anchorLoc.first().boundingBox();
+    if (!box) {
+      throw new Error(`near: anchor "${anchorStr}" has no bounding box (not visible?)`);
+    }
+    anchorCenters.push({ cx: box.x + box.width / 2, cy: box.y + box.height / 2 });
+  }
+
+  // 2. 获取目标元素集合
+  const targetLoc = resolveLocatorFromString(page, targetLocStr);
+  const count = await targetLoc.count();
+  if (count === 0) {
+    throw new Error(`near: no elements found matching "${targetLocStr}"`);
+  }
+  if (count === 1) {
+    // 仅一个目标，无需距离计算，直接返回
+    return targetLoc.first();
+  }
+
+  // 3. 候选过滤 + 距离计算
+  type Candidate = { idx: number; totalDist: number };
+  const candidates: Candidate[] = [];
+  const primaryAnchor = anchorCenters[0]!;
+
+  for (let i = 0; i < count; i++) {
+    const el = targetLoc.nth(i);
+    const box = await el.boundingBox();
+    if (!box) continue;
+
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    // 3a. elementFromPoint 可达性检测
+    //     判断该元素的视觉中心点是否「暴露在最顶层」（未被 Modal/Overlay/Tooltip 遮挡）
+    const isReachable: boolean = await el.evaluate((domEl: Element) => {
+      const rect = domEl.getBoundingClientRect();
+      const testX = rect.left + rect.width / 2;
+      const testY = rect.top + rect.height / 2;
+      const topEl = document.elementFromPoint(testX, testY);
+      return topEl !== null && (domEl === topEl || domEl.contains(topEl));
+    });
+    if (!isReachable) continue;
+
+    // 3b. 方向扇区过滤（以主锚点为原点，使用角度范围划分四个方向）
+    //     right: -45°~45°  bottom: 45°~135°  left: 135°~225°  top: -135°~-45°
+    if (nearOpts.direction) {
+      const angle = Math.atan2(cy - primaryAnchor.cy, cx - primaryAnchor.cx) * 180 / Math.PI;
+      let inDir = false;
+      switch (nearOpts.direction) {
+        case 'right':  inDir = angle > -45  && angle <= 45;  break;
+        case 'bottom': inDir = angle > 45   && angle <= 135; break;
+        case 'left':   inDir = angle > 135  || angle <= -135; break;
+        case 'top':    inDir = angle > -135 && angle <= -45; break;
+      }
+      if (!inDir) continue;
+    }
+
+    // 3c. 计算到所有锚点的欧氏距离之和
+    //     双锚点时，取两者距离之和最小值，等效于「同时靠近两个锚点」（行列交叉定位）
+    let totalDist = 0;
+    for (const anchor of anchorCenters) {
+      const dx = cx - anchor.cx;
+      const dy = cy - anchor.cy;
+      totalDist += Math.sqrt(dx * dx + dy * dy);
+    }
+    candidates.push({ idx: i, totalDist });
+  }
+
+  if (candidates.length === 0) {
+    const dirMsg = nearOpts.direction ? ` [direction: ${nearOpts.direction}]` : '';
+    throw new Error(
+      `near: no reachable element "${targetLocStr}" found near "${nearOpts.anchors.join('" and "')}"${dirMsg}`
+    );
+  }
+
+  // 4. 按总距离升序排序，按 nth 取第 N 近（默认 0 = 最近）
+  candidates.sort((a, b) => a.totalDist - b.totalDist);
+  const picked = candidates[nearOpts.nth] ?? candidates[candidates.length - 1]!;
+
+  console.log(
+    `[dsl]   📍 near: picked element #${picked.idx}` +
+    ` (dist=${Math.round(picked.totalDist)}px` +
+    (nearOpts.direction ? `, dir=${nearOpts.direction}` : '') +
+    (nearOpts.nth ? `, nth=${nearOpts.nth}` : '') +
+    ')'
+  );
+
+  return targetLoc.nth(picked.idx);
 }

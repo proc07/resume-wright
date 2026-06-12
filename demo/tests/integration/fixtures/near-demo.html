@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Near Proximity Targeting Demo</title>
+  <style>
+    body {
+      font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 40px;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card {
+      background: rgba(30, 41, 59, 0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 650px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      margin-bottom: 24px;
+    }
+    h2 {
+      color: #38bdf8;
+      margin-top: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+    }
+    p.intro {
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    h3 {
+      color: #f59e0b;
+      font-size: 15px;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .user-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      transition: border-color 0.2s;
+    }
+    .user-row:hover {
+      border-color: rgba(56, 189, 248, 0.25);
+    }
+    .user-name {
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-edit {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .btn-edit:hover {
+      background: #38bdf8;
+      color: #0f172a;
+    }
+    .btn-delete {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .btn-delete:hover {
+      background: #ef4444;
+      color: white;
+    }
+    .btn-primary {
+      background: #38bdf8;
+      color: #0f172a;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25);
+    }
+    .btn-primary:hover {
+      background: #0ea5e9;
+    }
+    .btn-sec {
+      background: rgba(255,255,255,0.06);
+      color: #cbd5e1;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-sec:hover {
+      background: rgba(255,255,255,0.12);
+    }
+    
+    /* Directional zone */
+    .dir-container {
+      position: relative;
+      height: 180px;
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      margin-top: 12px;
+      margin-bottom: 24px;
+    }
+    .center-node {
+      position: absolute;
+      left: calc(50% - 40px);
+      top: calc(50% - 20px);
+      width: 80px;
+      height: 40px;
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      text-align: center;
+      line-height: 40px;
+      font-weight: bold;
+    }
+    .dir-btn {
+      position: absolute;
+      width: 60px;
+      height: 32px;
+      padding: 0;
+      line-height: 32px;
+      text-align: center;
+    }
+    
+    /* Results */
+    #result-box {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      color: #10b981;
+      font-weight: 600;
+      font-size: 14px;
+      display: none;
+      text-align: center;
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Modal Backdrop */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-box {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin-bottom: 16px;
+    }
+    .modal-input-group {
+      margin-bottom: 20px;
+    }
+    .modal-input-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .modal-input-group input {
+      width: 100%;
+      padding: 10px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: white;
+      box-sizing: border-box;
+    }
+    .modal-input-group input:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🎯 Near Proximity Targeting Demo</h2>
+    <p class="intro">
+      此页面用于展示 ResumeWright 的 <code>near</code> 近邻定位功能。<br>
+      在同名组件/按钮分布广泛时，可以使用 <code>near</code> 修饰符精准地根据相对位置、朝向以及遮挡层（可达性）来定位。
+    </p>
+
+    <!-- 1. Grid/Row target -->
+    <h3>数据操作列表（双锚点/近邻定位）</h3>
+    <div class="user-row">
+      <span class="user-name">张三</span>
+      <div class="btn-group">
+        <button class="btn-edit" onclick="setResult('编辑了 张三')">编辑</button>
+        <button class="btn-delete" onclick="setResult('删除了 张三')">删除</button>
+      </div>
+    </div>
+    <div class="user-row">
+      <span class="user-name">李四</span>
+      <div class="btn-group">
+        <button class="btn-edit" onclick="setResult('编辑了 李四')">编辑</button>
+        <button class="btn-delete" onclick="setResult('删除了 李四')">删除</button>
+      </div>
+    </div>
+
+    <!-- 2. Directional targeting -->
+    <h3>方向朝向定位（方向限定符）</h3>
+    <div class="dir-container">
+      <div class="center-node">中心点</div>
+      <!-- Right button -->
+      <button class="dir-btn btn-sec" style="left: calc(50% + 70px); top: calc(50% - 16px);" onclick="setResult('右侧目标按钮被点击')">目标</button>
+      <!-- Left button -->
+      <button class="dir-btn btn-sec" style="right: calc(50% + 70px); top: calc(50% - 16px);" onclick="setResult('左侧目标按钮被点击')">目标</button>
+      <!-- Top button -->
+      <button class="dir-btn btn-sec" style="left: calc(50% - 30px); top: 15px;" onclick="setResult('上方目标按钮被点击')">目标</button>
+      <!-- Bottom button -->
+      <button class="dir-btn btn-sec" style="left: calc(50% - 30px); bottom: 15px;" onclick="setResult('下方目标按钮被点击')">目标</button>
+    </div>
+
+    <!-- 3. Modal reachability -->
+    <h3>弹窗层级（可达性过滤）</h3>
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <button id="bg-confirm" class="btn-primary" onclick="setResult('点击了背景页的 确认 按钮')">确认</button>
+      <button class="btn-sec" onclick="openModal()">打开模态框</button>
+      <span style="font-size:12px; color:#64748b;">背景页的“确认”按钮紧挨着“打开模态框”</span>
+    </div>
+
+    <!-- Real-time Result output -->
+    <div id="result-box"></div>
+    <div id="success-msg" style="display:none;"></div>
+  </div>
+
+  <!-- Modal overlay -->
+  <div id="demo-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-title">审核确认</div>
+      <div class="modal-input-group">
+        <label for="username-input">用户名</label>
+        <input id="username-input" type="text" placeholder="请输入操作人账号">
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sec" onclick="closeModal()">取消</button>
+        <button id="modal-confirm" class="btn-primary" onclick="setResult('点击了弹窗里的 确认 按钮')">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setResult(msg) {
+      const box = document.getElementById('result-box');
+      box.textContent = '操作成功: ' + msg;
+      box.style.display = 'block';
+      
+      const successMsg = document.getElementById('success-msg');
+      successMsg.textContent = 'success';
+      successMsg.style.display = 'block';
+
+      // 同时也写到 window 变量上供自动化用例读取
+      window.__nearResult = msg;
+    }
+    
+    function openModal() {
+      document.getElementById('demo-modal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+      document.getElementById('demo-modal').style.display = 'none';
+      document.getElementById('result-box').style.display = 'none';
+      document.getElementById('success-msg').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

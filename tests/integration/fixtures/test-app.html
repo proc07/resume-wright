@@ -115,6 +115,66 @@
       el.className = 'result ' + (success ? 'success' : 'error');
       el.style.display = 'block';
     }
+
+    function triggerNearResult(val) {
+      document.getElementById('near-result').textContent = val;
+    }
+    function showTestModal() {
+      document.getElementById('test-modal').style.display = 'flex';
+    }
+    function closeTestModal() {
+      document.getElementById('test-modal').style.display = 'none';
+    }
   </script>
+
+  <!-- Near modifier test section -->
+  <div id="near-test-section" style="margin-top: 40px; padding-top: 20px; border-top: 2px dashed #ccc;">
+    <h2>Near 方案测试</h2>
+    
+    <!-- 1. basic & dual anchor & direction test -->
+    <div id="grid-test" style="margin-bottom: 20px;">
+      <div class="row" data-row="zhangsan">
+        <span class="label">张三</span>
+        <button class="near-btn" onclick="triggerNearResult('张三 - 删除')">删除</button>
+        <button class="near-btn" onclick="triggerNearResult('张三 - 编辑')">编辑</button>
+      </div>
+      <div class="row" data-row="lisi">
+        <span class="label">李四</span>
+        <button class="near-btn" onclick="triggerNearResult('李四 - 删除')">删除</button>
+        <button class="near-btn" onclick="triggerNearResult('李四 - 编辑')">编辑</button>
+      </div>
+    </div>
+
+    <!-- 2. direction-specific positioning around a central anchor -->
+    <div style="position: relative; height: 180px; margin-bottom: 20px; border: 1px solid #eee;">
+      <div id="center-anchor" style="position: absolute; left: 150px; top: 70px; width: 60px; height: 30px; background: #ddd; text-align: center; line-height: 30px;">中心</div>
+      <!-- Right candidate -->
+      <button class="dir-btn" style="position: absolute; left: 240px; top: 70px;" onclick="triggerNearResult('右边按钮')">目标</button>
+      <!-- Left candidate -->
+      <button class="dir-btn" style="position: absolute; left: 40px; top: 70px;" onclick="triggerNearResult('左边按钮')">目标</button>
+      <!-- Top candidate -->
+      <button class="dir-btn" style="position: absolute; left: 150px; top: 15px;" onclick="triggerNearResult('上边按钮')">目标</button>
+      <!-- Bottom candidate -->
+      <button class="dir-btn" style="position: absolute; left: 150px; top: 125px;" onclick="triggerNearResult('下边按钮')">目标</button>
+    </div>
+
+    <!-- 3. modal coverage reachability test -->
+    <div>
+      <button id="bg-confirm-btn" style="margin-right: 10px;" onclick="triggerNearResult('背景确认')">确认</button>
+      <button id="open-modal-btn" onclick="showTestModal()">打开Modal</button>
+    </div>
+
+    <div id="test-modal" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; padding: 20px; border-radius: 8px; position: relative;">
+        <h3>Modal 表单</h3>
+        <label for="modal-input">用户名</label>
+        <input id="modal-input" type="text" placeholder="输入用户名" style="margin-bottom: 10px;">
+        <button id="modal-confirm-btn" onclick="triggerNearResult('Modal确认')">确认</button>
+        <button id="close-modal-btn" onclick="closeTestModal()">关闭</button>
+      </div>
+    </div>
+
+    <div id="near-result" style="margin-top: 10px; font-weight: bold; color: blue;"></div>
+  </div>
 </body>
 </html>
