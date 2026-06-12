@@ -201,6 +201,9 @@ export function resolveLocator(page: Page, parsed: ParsedLocator): Locator {
       throw new Error(`Unknown locator type: ${(parsed as ParsedLocator).type}`);
   }
 
+  // ── 默认过滤不可见元素（解决 SPA 页面切换过渡期残留 DOM 问题）──
+  locator = locator.filter({ visible: true });
+
   // ── 应用修饰符 ──
   if (parsed.modifier) {
     const mod = parsed.modifier;
@@ -244,9 +247,9 @@ export function resolveInputLocator(page: Page, raw: string): Locator {
       // 无前缀文字：placeholder → label
       const placeholderLoc = page.getByPlaceholder(parsed.value, { exact: true });
       const labelLoc = page.getByLabel(parsed.value, { exact: true });
-      locator = placeholderLoc.or(labelLoc);
+      locator = placeholderLoc.or(labelLoc).filter({ visible: true });
     } else {
-      // 有前缀：走标准解析
+      // 有前缀：走标准解析（内部已含 visible 过滤）
       locator = resolveLocator(page, { ...parsed, modifier: undefined }); // 先不应用修饰符
     }
 
@@ -266,7 +269,7 @@ export function resolveInputLocator(page: Page, raw: string): Locator {
   const placeholderLoc = page.getByPlaceholder(cleaned, { exact: true });
   const labelLoc = page.getByLabel(cleaned, { exact: true });
 
-  return placeholderLoc.or(labelLoc);
+  return placeholderLoc.or(labelLoc).filter({ visible: true });
 }
 
 // ── 工具函数 ─────────────────────────────────────────────────
