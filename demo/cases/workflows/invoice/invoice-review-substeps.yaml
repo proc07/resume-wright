@@ -23,9 +23,9 @@ steps:
         snapshot_before_submit: true
         script: |
           upload "./fixtures/invoice_001.pdf"
-          assert_exists "#invoice-upload-status" 15s
+          assert_exists "上传成功" near "附件上传"
           upload "./fixtures/invoice_002.pdf"
-          assert_exists "#invoice-upload-status" 15s
+          assert_exists "上传成功" near "附件上传"
 
       - id: submit_invoice
         script: |
@@ -53,7 +53,6 @@ steps:
     script: |
       open "$invoice_url"
       assert_exists "已审核通过" 5s
-      $final = ".invoice-status"
-      assert_text_equal "$final" "已审核通过"
+      assert_exists "已审核通过" near "当前状态"
       ? assert_exists "*已入账*" 3s
       screenshot

@@ -67,6 +67,12 @@ export function loadMacro(
 // ── 宏文件路径解析 ────────────────────────────────────────────
 
 function resolveMacroPath(name: string, macrosDir: string): string {
+  // 绝对路径
+  if (path.isAbsolute(name)) {
+    if (name.endsWith('.macro')) return name;
+    return `${name}.macro`;
+  }
+
   // 显式相对路径（以 ./ 或 ../ 开头）
   if (name.startsWith('./') || name.startsWith('../')) {
     const p = path.resolve(process.cwd(), name);

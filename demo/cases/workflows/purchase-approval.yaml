@@ -65,6 +65,5 @@ steps:
     script: |
       open "$workflow_url"
       assert_exists "已完成" 5s
-      $final_status = "testid:purchase-status"
-      assert_text_equal "$final_status" "已完成"
+      assert_exists "已完成" near "当前状态"
       screenshot

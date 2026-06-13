@@ -284,6 +284,28 @@ export interface GlobalConfig {
   on_failure?: z.infer<typeof OnFailureSchema>;
 }
 
+function validateQuotesForPathFields(rawContent: string, filePath: string): void {
+  const lines = rawContent.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const match = line.match(/^\s*login_macro_path\s*:\s*(.*)$/);
+    if (match) {
+      const value = match[1]!.trim();
+      if (value === '') continue;
+      
+      const firstChar = value[0];
+      if (firstChar !== '"' && firstChar !== "'") {
+        throw new Error(`Validation failed for ${filePath} at line ${i + 1}: login_macro_path must be enclosed in quotes (found: ${value})`);
+      }
+      
+      const regex = new RegExp(`^(['"])(.*?)\\1(?:\\s*#.*)?$`);
+      if (!regex.test(value)) {
+        throw new Error(`Validation failed for ${filePath} at line ${i + 1}: login_macro_path must be enclosed in matching quotes (found: ${value})`);
+      }
+    }
+  }
+}
+
 export function loadGlobalConfig(caseFilePath?: string): GlobalConfig {
   let configPath = path.resolve('config.yaml');
   if (caseFilePath) {
@@ -307,6 +329,7 @@ export function loadGlobalConfig(caseFilePath?: string): GlobalConfig {
   }
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
+    validateQuotesForPathFields(raw, configPath);
     const parsed = yaml.load(raw);
     const result = GlobalConfigSchema.safeParse(parsed);
     if (!result.success) {
@@ -314,7 +337,11 @@ export function loadGlobalConfig(caseFilePath?: string): GlobalConfig {
       console.warn(`[yaml-loader] global config validation failed for ${configPath}:\n${issues}`);
       return {};
     }
-    return result.data;
+    const data = result.data;
+    if (data.login_macro_path && (data.login_macro_path.startsWith('./') || data.login_macro_path.startsWith('../'))) {
+      data.login_macro_path = path.resolve(path.dirname(configPath), data.login_macro_path);
+    }
+    return data;
   } catch (err) {
     console.warn(`[yaml-loader] failed to load global config from ${configPath}:`, err);
     return {};
@@ -334,6 +361,7 @@ export function loadCase(filePath: string): CaseDefinition {
   }
 
   const raw = fs.readFileSync(absPath, 'utf-8');
+  validateQuotesForPathFields(raw, absPath);
   let parsed: unknown;
 
   try {

@@ -137,6 +137,22 @@ export class WorkflowRunner {
       if (this.definition.base_url) {
         contextStore.set('base_url', this.definition.base_url);
       }
+      
+      let projectRoot = process.cwd();
+      let dir = path.dirname(path.resolve(this.filePath));
+      while (true) {
+        const p = path.join(dir, 'config.yaml');
+        if (fs.existsSync(p)) {
+          projectRoot = dir;
+          break;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) {
+          break;
+        }
+        dir = parent;
+      }
+      contextStore.set('_project_root', projectRoot);
 
       // 计算续跑信息
       const resumedFromStep = checkpoint.getResumePoint();

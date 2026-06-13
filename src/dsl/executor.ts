@@ -334,7 +334,14 @@ async function executeCommand(
 
     // ── 上传 ─────────────────────────────────────────────────
     case 'upload': {
-      const filePath = path.resolve(process.cwd(), stripQuotes(args[0]!));
+      const rawPath = stripQuotes(args[0]!);
+      let filePath: string;
+      if (path.isAbsolute(rawPath)) {
+        filePath = rawPath;
+      } else {
+        const projectRoot = ctx.get('_project_root') as string | undefined;
+        filePath = path.resolve(projectRoot || process.cwd(), rawPath);
+      }
       let fileInput;
       if (args.length >= 3 && args[1] === 'to') {
         fileInput = resolveLocatorFromString(page, args[2]!);

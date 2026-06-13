@@ -549,4 +549,85 @@ steps:
       expect(() => loadCase(filePath)).toThrow(/use_sub_step.*ghost_sub_step.*not found/i);
     });
   });
+
+  describe('login_macro_path 引号校验', () => {
+    it('当 login_macro_path 带有双引号时，校验应该通过', () => {
+      const caseYaml = `
+name: "引号测试1"
+login_macro_path: "./macros/login.macro"
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/'"
+`;
+      const filePath = writeYaml('quote-valid-double', caseYaml);
+      const def = loadCase(filePath);
+      expect(def.login_macro_path).toContain('macros/login.macro');
+    });
+
+    it('当 login_macro_path 带有单引号时，校验应该通过', () => {
+      const caseYaml = `
+name: "引号测试2"
+login_macro_path: './macros/login.macro'
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/'"
+`;
+      const filePath = writeYaml('quote-valid-single', caseYaml);
+      const def = loadCase(filePath);
+      expect(def.login_macro_path).toContain('macros/login.macro');
+    });
+
+    it('当 login_macro_path 只有简短宏文件名且带有双引号时 (如 "login.macro")，校验应该通过', () => {
+      const caseYaml = `
+name: "引号简短测试"
+login_macro_path: "login.macro"
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/'"
+`;
+      const filePath = writeYaml('quote-valid-short', caseYaml);
+      const def = loadCase(filePath);
+      expect(def.login_macro_path).toBe('login.macro');
+    });
+
+    it('当 login_macro_path 没有引号时，校验应该抛出错误', () => {
+      const caseYaml = `
+name: "无引号测试"
+login_macro_path: ./macros/login.macro
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/'"
+`;
+      const filePath = writeYaml('quote-invalid-none', caseYaml);
+      expect(() => loadCase(filePath)).toThrow(/login_macro_path must be enclosed in quotes/);
+    });
+
+    it('当 login_macro_path 只有单侧引号时，校验应该抛出错误', () => {
+      const caseYaml = `
+name: "单侧引号测试"
+login_macro_path: "./macros/login.macro
+roles:
+  user: { username: "u" }
+steps:
+  - id: step1
+    role: user
+    script: "open '/'"
+`;
+      const filePath = writeYaml('quote-invalid-unclosed', caseYaml);
+      expect(() => loadCase(filePath)).toThrow(/login_macro_path must be enclosed in matching quotes/);
+    });
+  });
 });
+

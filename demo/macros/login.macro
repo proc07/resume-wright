@@ -1,10 +1,6 @@
-# demo/macros/login.macro
-# params: username, password
 # 通用登录宏
-#
-
 open "http://127.0.0.1:61775/login"
-input "$username" to "testid:login-username"
-input "$password" to "testid:login-password"
+input "$username" to "请输入账号"
+input "$password" to "请输入密码"
 tap "role:button[登录]"
 assert_exists "已登录工作台" 10s
