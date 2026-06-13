@@ -194,6 +194,7 @@ export class WorkflowRunner {
         afterHooks: this.definition.after_hooks,
         apiCache: this.opts.apiCache,
         cacheGet: this.opts.cacheGet,
+        readCache: this.opts.readCache,
       });
 
       let completedSteps = checkpoint.completedCount();

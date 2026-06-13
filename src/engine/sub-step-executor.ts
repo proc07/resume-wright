@@ -19,6 +19,7 @@ export interface SubStepExecutorOptions {
   defaultOnFailure?: import('../types/case.types.js').OnFailureConfig;
   apiCache?: boolean;
   cacheGet?: boolean;
+  readCache?: boolean;
 }
 
 /**
@@ -49,7 +50,10 @@ export class SubStepExecutor {
 
     const useCache = this.opts.apiCache !== false;
     if (useCache) {
-      this.interceptor = new NetworkInterceptor(page, this.store.apiCachePath, { cacheGet: this.opts.cacheGet });
+      this.interceptor = new NetworkInterceptor(page, this.store.apiCachePath, {
+        cacheGet: this.opts.cacheGet,
+        readCache: this.opts.readCache,
+      });
     } else {
       this.interceptor = null;
     }

@@ -8,6 +8,18 @@ export interface RunStreamParams {
   apiCache: boolean
   cacheGet: boolean
   concurrency: number
+  readCache: boolean
+}
+
+export interface RunningStatus {
+  running: boolean
+  cases: string[]
+  settings: RunStreamParams | null
+}
+
+export async function fetchRunningStatus(): Promise<RunningStatus> {
+  const res = await fetch('/api/running-status')
+  return res.json()
 }
 
 export function createRunStream(params: RunStreamParams): EventSource {
@@ -19,6 +31,7 @@ export function createRunStream(params: RunStreamParams): EventSource {
     apiCache: String(params.apiCache),
     cacheGet: String(params.cacheGet),
     concurrency: String(params.concurrency),
+    readCache: String(params.readCache),
   })
   return new EventSource(`/api/run-stream?${qs}`)
 }

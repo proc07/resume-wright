@@ -71,7 +71,7 @@ async function runCase(fromStart = false, keepCache = false) {
 
     await runnerStore.run(
       [currentCase.value.filePath],
-      settings,
+      { ...settings, readCache: fromStart && keepCache },
       () => {}, // reactively updated
       async () => {
         // refresh list and details

@@ -1,16 +1,37 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useCasesStore } from '@/stores/cases'
+import { useRunnerStore } from '@/stores/runner'
+import { fetchRunningStatus } from '@/api/run'
 import AppSidebar from '@/components/Sidebar/AppSidebar.vue'
 import CaseDetailView from '@/components/CaseDetail/CaseDetailView.vue'
 import SettingsModal from '@/components/Modals/SettingsModal.vue'
 import LightboxModal from '@/components/Modals/LightboxModal.vue'
 
 const casesStore = useCasesStore()
+const runnerStore = useRunnerStore()
 const showSettings = ref(false)
 
-onMounted(() => {
-  casesStore.loadCases()
+onMounted(async () => {
+  await casesStore.loadCases()
+  try {
+    const status = await fetchRunningStatus()
+    if (status.running && status.cases && status.settings) {
+      runnerStore.run(
+        status.cases,
+        status.settings,
+        () => {},
+        async () => {
+          await casesStore.loadCases()
+          if (casesStore.currentCase?.name) {
+            await casesStore.refreshCaseDetails(casesStore.currentCase.name)
+          }
+        }
+      )
+    }
+  } catch (err) {
+    console.error('获取运行状态失败:', err)
+  }
 })
 </script>
 

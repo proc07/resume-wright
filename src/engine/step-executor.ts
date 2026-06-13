@@ -169,6 +169,7 @@ export class StepExecutor {
               defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
               apiCache: this.execCtx.apiCache,
               cacheGet: this.execCtx.cacheGet,
+              readCache: this.execCtx.readCache,
             }
           );
           await subExec.executeAll(step.sub_steps);
@@ -176,7 +177,10 @@ export class StepExecutor {
           // ── 无子步骤：直接执行 script ──
           const useCache = this.execCtx.apiCache !== false;
           if (useCache) {
-            const interceptor = new NetworkInterceptor(page, apiCachePath, { cacheGet: this.execCtx.cacheGet });
+            const interceptor = new NetworkInterceptor(page, apiCachePath, {
+              cacheGet: this.execCtx.cacheGet,
+              readCache: this.execCtx.readCache,
+            });
             await interceptor.attach();
             try {
               await executeScript(step.script, page, contextStore, {

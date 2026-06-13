@@ -42,7 +42,7 @@ export class NetworkInterceptor {
   constructor(
     private readonly page: Page,
     private readonly cacheFilePath: string,
-    private readonly opts: { cacheGet?: boolean } = {}
+    private readonly opts: { cacheGet?: boolean; readCache?: boolean } = {}
   ) {
     // 加载已有缓存
     this.loadCache();
@@ -95,7 +95,7 @@ export class NetworkInterceptor {
     const normalizedBody = normalizeBody(bodyText);
     const fingerprint = md5(`${method}|${normalizedUrl}|${normalizedBody}`);
 
-    // 计算当前子步骤下该指纹的请求次数序号
+    // 计算当前子步骤下该指纹 of 请求次数序号
     const activeSubId = this.activeSubStepId || '';
     const countKey = `${activeSubId}|${fingerprint}`;
     const count = (this.requestCounts.get(countKey) || 0) + 1;
@@ -107,7 +107,8 @@ export class NetworkInterceptor {
     );
 
     // 命中缓存 → 直接 fulfill（同 fingerprint 同 subStep 返回相同缓存）
-    if (matchedEntries.length > 0) {
+    const readCache = this.opts.readCache !== false;
+    if (readCache && matchedEntries.length > 0) {
       const cached = matchedEntries[0];
       console.log(
         `[network-interceptor] 🎯 Cache HIT: ${method} ${url} (subStep: ${activeSubId || 'none'}, seq: ${count}) → ${cached.status}`

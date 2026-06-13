@@ -60,7 +60,7 @@ export const useRunnerStore = defineStore('runner', () => {
 
   async function run(
     caseFiles: string[],
-    settings: { headed: boolean; trace: boolean; screenshotOnAssert: boolean; apiCache: boolean; cacheGet: boolean; concurrency: number },
+    settings: { headed: boolean; trace: boolean; screenshotOnAssert: boolean; apiCache: boolean; cacheGet: boolean; concurrency: number; readCache?: boolean },
     onAppend: (text: string) => void,
     onFinish: () => void
   ) {
@@ -68,7 +68,16 @@ export const useRunnerStore = defineStore('runner', () => {
     if (eventSource) { eventSource.close(); eventSource = null }
     isRunning.value = true
 
-    eventSource = createRunStream({ cases: caseFiles, ...settings })
+    eventSource = createRunStream({
+      cases: caseFiles,
+      headed: settings.headed,
+      trace: settings.trace,
+      screenshotOnAssert: settings.screenshotOnAssert,
+      apiCache: settings.apiCache,
+      cacheGet: settings.cacheGet,
+      concurrency: settings.concurrency,
+      readCache: settings.readCache ?? true,
+    })
 
     eventSource.addEventListener('log', (e: MessageEvent) => {
       const data = JSON.parse(e.data)

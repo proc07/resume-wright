@@ -17,6 +17,7 @@ export interface SchedulerOptions {
   traceDir?: string;
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
   cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
+  readCache?: boolean;        // 是否从缓存读取数据，默认 true
 }
 
 /** 单个 Case 执行选项 */
@@ -30,6 +31,7 @@ export interface WorkflowRunnerOptions {
   traceDir?: string;
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
   cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
+  readCache?: boolean;        // 是否从缓存读取数据，默认 true
 }
 
 /** Step 执行上下文 */
@@ -48,6 +50,7 @@ export interface StepExecutionContext {
   afterHooks?: string;
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
   cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
+  readCache?: boolean;        // 是否从缓存读取数据，默认 true
 }
 
 /** Case 执行结果 */

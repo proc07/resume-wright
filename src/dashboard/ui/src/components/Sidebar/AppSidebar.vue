@@ -48,7 +48,7 @@ async function handleRunAllSelected() {
 
     await runnerStore.run(
       files,
-      settings,
+      { ...settings, readCache: false },
       () => {}, // Let terminal watch runnerStore.caseLogs reactively
       () => {
         casesStore.loadCases()

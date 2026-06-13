@@ -17,6 +17,10 @@ const __dirname = path.dirname(__filename);
 
 // 缓存当前正在执行的进程及状态
 let activeProcess: any = null;
+let activeCaseFiles: string[] = [];
+let activeSettings: any = null;
+const activeClients = new Set<any>();
+let activeLogsBuffer: Array<{ event: string; data: any }> = [];
 const lastRunStatuses: Record<string, 'passed' | 'failed' | 'running' | 'never_run'> = {};
 
 // 缓存 caseName -> safeCaseName 相对路径映射，避免重复扫描文件系统
@@ -503,6 +507,15 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     }
   }
 
+  // ── REST API: GET /api/running-status — 获取当前执行状态 ──
+  if (pathname === '/api/running-status' && req.method === 'GET') {
+    return jsonRes(res, 200, {
+      running: !!activeProcess,
+      cases: activeCaseFiles,
+      settings: activeSettings
+    });
+  }
+
   // ── Server-Sent Events (SSE): GET /api/run-stream — 执行流式日志 ──
   if (pathname === '/api/run-stream' && req.method === 'GET') {
     const caseFiles = url.searchParams.get('cases')?.split(',') || [];
@@ -511,18 +524,13 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     const screenshotOnAssert = url.searchParams.get('screenshotOnAssert') === 'true';
     const apiCache = url.searchParams.get('apiCache') !== 'false';
     const cacheGet = url.searchParams.get('cacheGet') === 'true';
+    const readCache = url.searchParams.get('readCache') !== 'false';
     const rawConcurrency = parseInt(url.searchParams.get('concurrency') || '3', 10);
     const concurrency = isNaN(rawConcurrency) ? 3 : Math.max(1, Math.min(10, rawConcurrency));
 
     if (caseFiles.length === 0) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'No cases selected' }));
-      return;
-    }
-
-    if (activeProcess) {
-      res.writeHead(409, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Another runner is already active' }));
       return;
     }
 
@@ -538,6 +546,32 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     const sendEvent = (event: string, data: any) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
+
+    const broadcastEvent = (event: string, data: any) => {
+      activeLogsBuffer.push({ event, data });
+      for (const client of activeClients) {
+        try {
+          client.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        } catch { /* ignore */ }
+      }
+    };
+
+    activeClients.add(res);
+
+    req.on('close', () => {
+      activeClients.delete(res);
+    });
+
+    if (activeProcess) {
+      // 已经有进程在运行，直接把已有的日志 buffer 重放给新客户端
+      for (const item of activeLogsBuffer) {
+        sendEvent(item.event, item.data);
+      }
+      return;
+    }
+
+    // 第一次运行，清空日志 buffer
+    activeLogsBuffer = [];
 
     // 解析运行脚本文件名是 .ts 还是 .js
     const runScript = process.argv[1]!;
@@ -564,6 +598,11 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     if (cacheGet) {
       cmdArgs.push('--cache-get');
     }
+    if (readCache) {
+      cmdArgs.push('--read-cache');
+    } else {
+      cmdArgs.push('--no-read-cache');
+    }
     if (concurrency) {
       cmdArgs.push('--concurrency', String(concurrency));
     }
@@ -589,13 +628,15 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       } catch { /* ignore */ }
     });
 
-    sendEvent('log', { text: `[system] Starting process: ${command} ${finalArgs.join(' ')}\n` });
+    broadcastEvent('log', { text: `[system] Starting process: ${command} ${finalArgs.join(' ')}\n` });
 
     const proc = spawn(command, finalArgs, {
       cwd: process.cwd(),
       env: { ...process.env, FORCE_COLOR: '1' }, // 保持彩色输出
     });
     activeProcess = proc;
+    activeCaseFiles = caseFiles;
+    activeSettings = { headed, trace, screenshotOnAssert, apiCache, cacheGet, concurrency, readCache };
 
     let processEnded = false;
 
@@ -610,9 +651,9 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         if (match) {
           const safeCaseName = decodeURIComponent(match[1]!);
           const text = match[2]!;
-          sendEvent('log', { case: safeCaseName, text: text + '\n' });
+          broadcastEvent('log', { case: safeCaseName, text: text + '\n' });
         } else {
-          sendEvent('log', { text: line + '\n' });
+          broadcastEvent('log', { text: line + '\n' });
         }
       }
     };
@@ -624,8 +665,10 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (processEnded) return;
       processEnded = true;
       console.error('[dashboard] Subprocess failed to start:', err);
-      sendEvent('log', { text: `[system] Failed to start process: ${err.message}\n` });
+      broadcastEvent('log', { text: `[system] Failed to start process: ${err.message}\n` });
       activeProcess = null;
+      activeCaseFiles = [];
+      activeSettings = null;
       caseFiles.forEach((f) => {
         try {
           const absolute = path.resolve(process.cwd(), f);
@@ -634,8 +677,12 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
           markHistoryAsTerminated(def.name, -1);
         } catch { /* ignore */ }
       });
-      sendEvent('finish', { exitCode: -1, status: 'failed' });
-      res.end();
+      broadcastEvent('finish', { exitCode: -1, status: 'failed' });
+      for (const client of activeClients) {
+        try { client.end(); } catch {}
+      }
+      activeClients.clear();
+      activeLogsBuffer = [];
     });
 
     proc.on('close', (code) => {
@@ -644,12 +691,14 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (buffer) {
         const match = buffer.match(/^\[case:([^\]]+)\](.*)$/);
         if (match) {
-          sendEvent('log', { case: decodeURIComponent(match[1]!), text: match[2]! });
+          broadcastEvent('log', { case: decodeURIComponent(match[1]!), text: match[2]! });
         } else {
-          sendEvent('log', { text: buffer });
+          broadcastEvent('log', { text: buffer });
         }
       }
       activeProcess = null;
+      activeCaseFiles = [];
+      activeSettings = null;
       const status = code === 0 ? 'passed' : 'failed';
 
       // 刷新用例状态
@@ -662,16 +711,12 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         } catch { /* ignore */ }
       });
 
-      sendEvent('finish', { exitCode: code, status });
-      res.end();
-    });
-
-    req.on('close', () => {
-      if (activeProcess === proc) {
-        console.log('[dashboard] Client disconnected, killing process...');
-        proc.kill();
-        activeProcess = null;
+      broadcastEvent('finish', { exitCode: code, status });
+      for (const client of activeClients) {
+        try { client.end(); } catch {}
       }
+      activeClients.clear();
+      activeLogsBuffer = [];
     });
 
     return;
@@ -682,6 +727,8 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     if (activeProcess) {
       activeProcess.kill();
       activeProcess = null;
+      activeCaseFiles = [];
+      activeSettings = null;
       // 重置所有 running 状态为 failed并标记运行历史为终止
       for (const k of Object.keys(lastRunStatuses)) {
         if (lastRunStatuses[k] === 'running') {

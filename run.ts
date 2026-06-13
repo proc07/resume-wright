@@ -44,6 +44,8 @@ program
   .option('--no-api-cache', 'Disable API response caching')
   .option('--cache-get', 'Also cache GET requests (default: true)')
   .option('--no-cache-get', 'Disable caching of GET requests')
+  .option('--read-cache', 'Read and fulfill API requests from the cache (default: true)')
+  .option('--no-read-cache', 'Do not read from cache (write-only mode for normal runs)')
   .action(async (files: string[], opts) => {
     const headless = !opts.headed;
     const screenshotOnFail = opts.screenshot !== false;
@@ -54,6 +56,7 @@ program
     const enableTrace = !!opts.trace;
     const apiCache = !!opts.apiCache;
     const cacheGet = opts.cacheGet !== false;
+    const readCache = opts.readCache !== false;
 
     // 设置 headed 环境变量（playwright.config.ts 会读取）
     if (opts.headed) process.env['HEADED'] = 'true';
@@ -70,6 +73,7 @@ program
           enableTrace,
           apiCache,
           cacheGet,
+          readCache,
         });
         const result = await runner.run();
         process.exit(result.status === 'passed' ? 0 : 1);
@@ -88,6 +92,7 @@ program
         enableTrace,
         apiCache,
         cacheGet,
+        readCache,
         filter: files && files.length > 1 ? files : undefined,
       });
       const { exitCode } = await scheduler.runAll(

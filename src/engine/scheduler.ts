@@ -90,6 +90,7 @@ export class Scheduler {
           traceDir: this.opts.traceDir,
           apiCache: this.opts.apiCache,
           cacheGet: this.opts.cacheGet,
+          readCache: this.opts.readCache,
         });
         return runner.run();
       })

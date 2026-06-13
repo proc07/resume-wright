@@ -14,12 +14,12 @@ steps:
     role: merchant
     script: |
       open "/merchant/new"
-      input "大牛旗舰店" to "role:textbox" near "店铺名称"
-      input "10000" to "role:spinbutton" near "缴存保证金（元）"
+      input "大牛旗舰店" to "请输入店铺名称"
+      input "10000" to "请输入保证金额度"
       upload "./fixtures/license_v1.pdf"
       assert_exists "上传成功" near "上传营业执照"
-      tap "role:button[提交入驻申请]"
-      
+      tap "提交入驻申请"
+
       assert_exists "入驻申请已提交" 10s
       $merchant_id = url_match "/merchant/([\w-]+)"
       $merchant_url = current_url
@@ -28,17 +28,18 @@ steps:
   - id: step2_compliance_reject
     role: compliance
     script: |
-      open "$merchant_url"
+      open $merchant_url
       assert_exists "合规资质审查 (机审评估得分: 52 分)" 10s
+      # placeholder "请输入合规意见（如果驳回请说明理由）"
       input "营业执照已过期，请重新上传最新执照" to "role:textbox" near "合规意见 / 驳回理由"
-      tap "role:button[退回修改]"
+      tap "退回修改"
       assert_exists "已驳回待修改" 10s
 
   # ── 步骤 3: 商家登录查看退回意见，修改并二次提交 ──
   - id: step3_merchant_modify
     role: merchant
     script: |
-      open "$merchant_url"
+      open $merchant_url
       assert_exists "营业执照已过期，请重新上传最新执照" 10s
       input "大牛旗舰店整改店" to "role:textbox" near "新店铺名称"
       upload "./fixtures/license_v2.pdf"
@@ -50,7 +51,7 @@ steps:
   - id: step4_compliance_approve
     role: compliance
     script: |
-      open "$merchant_url"
+      open $merchant_url
       assert_exists "合规资质审查 (机审评估得分: 95 分)" 10s
       input "资质已补正，同意初审通过" to "role:textbox" near "合规意见 / 驳回理由"
       tap "role:button[初审通过]"
@@ -60,7 +61,7 @@ steps:
   - id: step5_finance_approve
     role: finance
     script: |
-      open "$merchant_url"
+      open $merchant_url
       assert_exists "财务入驻核准" 5s
       input "50000" to "role:spinbutton" near "授信额度（元）"
       input "保证金已收妥，同意入驻并开通额度" to "role:textbox" near "商户入驻财务意见"
@@ -72,7 +73,7 @@ steps:
   - id: step6_merchant_sign
     role: merchant
     script: |
-      open "$merchant_url"
+      open $merchant_url
       assert_exists "¥50000" near "信用额度"
       tap "role:button[在线签署合同]"
       assert_exists "*入驻已核准，电子合同已签署*" 10s
