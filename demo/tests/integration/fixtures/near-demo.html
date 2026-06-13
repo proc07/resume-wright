@@ -224,6 +224,48 @@
       justify-content: flex-end;
       gap: 10px;
     }
+    .user-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .user-table th, .user-table td {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .user-table th {
+      background: rgba(15, 23, 42, 0.8);
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+    }
+    .user-table tr:hover {
+      background: rgba(56, 189, 248, 0.03);
+    }
+    .badge-active {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-inactive {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -236,20 +278,72 @@
 
     <!-- 1. Grid/Row target -->
     <h3>数据操作列表（双锚点/近邻定位）</h3>
-    <div class="user-row">
-      <span class="user-name">张三</span>
-      <div class="btn-group">
-        <button class="btn-edit" onclick="setResult('编辑了 张三')">编辑</button>
-        <button class="btn-delete" onclick="setResult('删除了 张三')">删除</button>
-      </div>
-    </div>
-    <div class="user-row">
-      <span class="user-name">李四</span>
-      <div class="btn-group">
-        <button class="btn-edit" onclick="setResult('编辑了 李四')">编辑</button>
-        <button class="btn-delete" onclick="setResult('删除了 李四')">删除</button>
-      </div>
-    </div>
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>姓名</th>
+          <th>部门</th>
+          <th>角色</th>
+          <th>邮箱</th>
+          <th>状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="user-name">张三</span></td>
+          <td>研发部</td>
+          <td>后端开发</td>
+          <td>zhangsan@company.com</td>
+          <td><span class="badge-active">在职</span></td>
+          <td>
+            <div class="btn-group">
+              <button class="btn-edit" onclick="setResult('编辑了 张三')">编辑</button>
+              <button class="btn-delete" onclick="setResult('删除了 张三')">删除</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="user-name">李四</span></td>
+          <td>设计部</td>
+          <td>UI设计师</td>
+          <td>lisi@company.com</td>
+          <td><span class="badge-active">在职</span></td>
+          <td>
+            <div class="btn-group">
+              <button class="btn-edit" onclick="setResult('编辑了 李四')">编辑</button>
+              <button class="btn-delete" onclick="setResult('删除了 李四')">删除</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="user-name">王五</span></td>
+          <td>市场部</td>
+          <td>市场专员</td>
+          <td>wangwu@company.com</td>
+          <td><span class="badge-active">在职</span></td>
+          <td>
+            <div class="btn-group">
+              <button class="btn-edit" onclick="setResult('编辑了 王五')">编辑</button>
+              <button class="btn-delete" onclick="setResult('删除了 王五')">删除</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="user-name">赵六</span></td>
+          <td>财务部</td>
+          <td>出纳</td>
+          <td>zhaoliu@company.com</td>
+          <td><span class="badge-inactive">离职</span></td>
+          <td>
+            <div class="btn-group">
+              <button class="btn-edit" onclick="setResult('编辑了 赵六')">编辑</button>
+              <button class="btn-delete" onclick="setResult('删除了 赵六')">删除</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
 
     <!-- 2. Directional targeting -->
     <h3>方向朝向定位（方向限定符）</h3>
