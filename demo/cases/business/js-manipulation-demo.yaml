@@ -23,7 +23,7 @@ steps:
       """
       
       # 等待页面加载与状态变更
-      assert_exists "#dashboard-welcome" 5s
+      assert_exists "已登录工作台" 5s
       
       # 通过 JS 提取欢迎词，并将其保存到变量中进行校验
       $welcome_text = execute_script
