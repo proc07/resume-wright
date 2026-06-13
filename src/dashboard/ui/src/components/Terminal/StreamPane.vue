@@ -12,7 +12,7 @@ const preRef = ref<HTMLElement | null>(null)
 
 const logsHtml = computed(() => {
   if (!casesStore.currentCase) return '等待指令...'
-  const safeName = runnerStore.getSafeCaseName(casesStore.currentCase.name)
+  const safeName = runnerStore.getSafeCaseName(casesStore.currentCase.name, casesStore.currentCase.filePath)
   return colorizeLogs(runnerStore.getLog(safeName)) || '等待指令...'
 })
 
@@ -33,7 +33,7 @@ onMounted(() => {
 defineExpose({
   clear() {
     if (casesStore.currentCase) {
-      const safeName = runnerStore.getSafeCaseName(casesStore.currentCase.name)
+      const safeName = runnerStore.getSafeCaseName(casesStore.currentCase.name, casesStore.currentCase.filePath)
       runnerStore.clearLog(safeName)
     }
   }

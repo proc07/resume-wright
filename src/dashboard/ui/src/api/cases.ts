@@ -19,6 +19,7 @@ export interface CaseData {
   traces?: string[]
   error?: string
   variables?: Record<string, any>
+  safeCaseName?: string
 }
 
 export interface SubStepState {

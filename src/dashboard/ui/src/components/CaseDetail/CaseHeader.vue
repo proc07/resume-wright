@@ -63,7 +63,7 @@ async function runCase(fromStart = false, keepCache = false) {
 
   try {
     const settings = await fetchSettings()
-    const safeName = runnerStore.getSafeCaseName(currentCase.value.name)
+    const safeName = runnerStore.getSafeCaseName(currentCase.value.name, currentCase.value.filePath)
     
     // Set status to running
     casesStore.updateCaseStatus(currentCase.value.name, 'running')

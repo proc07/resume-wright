@@ -8,7 +8,16 @@ export const useRunnerStore = defineStore('runner', () => {
   const isRunning = ref(false)
   let eventSource: EventSource | null = null
 
-  function getSafeCaseName(name: string) {
+  function getSafeCaseName(name: string, filePath?: string) {
+    if (filePath) {
+      let relative = filePath.replace(/\\/g, '/');
+      relative = relative.replace(/^cases\//, '');
+      const lastDot = relative.lastIndexOf('.');
+      if (lastDot !== -1) {
+        relative = relative.substring(0, lastDot);
+      }
+      return relative.replace(/[?<>\\:*|"]/g, '_');
+    }
     return name.replace(/[/?<>\\:*|"]/g, '_')
   }
 
@@ -31,7 +40,7 @@ export const useRunnerStore = defineStore('runner', () => {
     if (data.case) {
       appendLog(data.case, cleanedText)
       const currentSafe = casesStore.currentCase
-        ? getSafeCaseName(casesStore.currentCase.name)
+        ? getSafeCaseName(casesStore.currentCase.name, casesStore.currentCase.filePath)
         : null
       if (currentSafe === data.case) {
         onAppend(cleanedText)
@@ -39,9 +48,9 @@ export const useRunnerStore = defineStore('runner', () => {
     } else {
       const runningCases = casesStore.casesData.filter(c => c.status === 'running')
       if (runningCases.length > 0) {
-        runningCases.forEach(c => appendLog(getSafeCaseName(c.name), cleanedText))
+        runningCases.forEach(c => appendLog(getSafeCaseName(c.name, c.filePath), cleanedText))
       } else if (casesStore.currentCase) {
-        appendLog(getSafeCaseName(casesStore.currentCase.name), cleanedText)
+        appendLog(getSafeCaseName(casesStore.currentCase.name, casesStore.currentCase.filePath), cleanedText)
       }
       if (casesStore.currentCase) {
         onAppend(cleanedText)
@@ -71,7 +80,7 @@ export const useRunnerStore = defineStore('runner', () => {
       const finishText = `\n\n[system] Process exited with code: ${data.exitCode}\n`
       const casesStore = useCasesStore()
       casesStore.casesData.filter(c => c.status === 'running').forEach(c => {
-        appendLog(getSafeCaseName(c.name), finishText)
+        appendLog(getSafeCaseName(c.name, c.filePath), finishText)
       })
       if (casesStore.currentCase) onAppend(finishText)
       eventSource?.close()
@@ -84,7 +93,7 @@ export const useRunnerStore = defineStore('runner', () => {
       const errorText = `\n\n[system] EventSource 遇到错误连接断开。\n`
       const casesStore = useCasesStore()
       if (casesStore.currentCase) {
-        appendLog(getSafeCaseName(casesStore.currentCase.name), errorText)
+        appendLog(getSafeCaseName(casesStore.currentCase.name, casesStore.currentCase.filePath), errorText)
         onAppend(errorText)
       }
       eventSource?.close()

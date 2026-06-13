@@ -2071,4 +2071,60 @@ code, pre {
   line-height: 1.4;
 }
 
+/* ── 变量搜索框 ── */
+.variables-search-container {
+  margin-bottom: 12px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.variables-search-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.variables-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 13px;
+}
+
+.variables-search-input {
+  width: 100%;
+  padding: 8px 12px 8px 30px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #f8fafc;
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.variables-search-input:focus {
+  border-color: #38bdf8;
+}
+
+.variables-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+
 

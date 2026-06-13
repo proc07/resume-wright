@@ -42,7 +42,7 @@ async function handleRunAllSelected() {
     files.forEach(filePath => {
       const c = casesStore.casesData.find(item => item.filePath === filePath)
       if (c) {
-        runnerStore.clearLog(runnerStore.getSafeCaseName(c.name))
+        runnerStore.clearLog(runnerStore.getSafeCaseName(c.name, c.filePath))
       }
     })
 

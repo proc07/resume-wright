@@ -40,7 +40,16 @@ export const useCasesStore = defineStore('cases', () => {
     casesData.value.length > 0 && casesData.value.every(c => selectedCasePaths.value.has(c.filePath))
   )
 
-  function getSafeCaseName(name: string) {
+  function getSafeCaseName(name: string, filePath?: string) {
+    if (filePath) {
+      let relative = filePath.replace(/\\/g, '/');
+      relative = relative.replace(/^cases\//, '');
+      const lastDot = relative.lastIndexOf('.');
+      if (lastDot !== -1) {
+        relative = relative.substring(0, lastDot);
+      }
+      return relative.replace(/[?<>\\:*|"]/g, '_');
+    }
     return name.replace(/[/?<>\\:*|"]/g, '_')
   }
 

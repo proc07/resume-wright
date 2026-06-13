@@ -248,6 +248,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             name: definition.name,
             description: definition.description || '',
             filePath: relativePath,
+            safeCaseName,
             steps: definition.steps.map((s) => ({
               id: s.id,
               role: s.role,
@@ -259,10 +260,12 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             totalSteps: definition.steps.length,
           };
         } catch (err) {
+          const safeCaseName = getSafeCaseName(path.basename(file), filePath);
           return {
             name: path.basename(file),
             description: `解析失败: ${String(err)}`,
             filePath: relativePath,
+            safeCaseName,
             steps: [],
             status: 'failed',
             completedCount: 0,
@@ -526,9 +529,11 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     // 设置 SSE Header
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     });
+    res.write(': ok\n\n');
 
     const sendEvent = (event: string, data: any) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
