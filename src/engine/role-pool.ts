@@ -213,7 +213,7 @@ export class RolePool {
           let count = await locator.count();
           let matchedType = 'standard';
 
-          const isPlain = !/^(label:|placeholder:|testid:|title:|alt:|role:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(stripQuotes(locatorStr));
+          const isPlain = !/^(label:|placeholder:|testid:|title:|alt:|role:|css:|xpath:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(stripQuotes(locatorStr));
           if (count === 0 && isPlain) {
             const inputLoc = resolveInputLocator(page, locatorStr);
             const inputCount = await inputLoc.count();

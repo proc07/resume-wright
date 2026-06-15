@@ -494,6 +494,41 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('css: 和 xpath: 前缀定位器', () => {
+    it('应该能够正确通过 css: 前缀和 xpath: 前缀定位并操作元素', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        tap "css:#open-modal-btn"
+      `, page, ctx, {});
+      expect(await page.locator('#test-modal').isVisible()).toBe(true);
+
+      await executeScript(`
+        tap "xpath://button[@id='close-modal-btn']"
+      `, page, ctx, {});
+      expect(await page.locator('#test-modal').isVisible()).toBe(false);
+    });
+
+    it('应该能够正确通过 css:input 和 css:textarea 定位输入框并填充内容', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        input "测试标题内容" to "css:input#title-input"
+        input "测试原因内容" to "css:textarea#reason-input"
+      `, page, ctx, {});
+      expect(await page.locator('#title-input').inputValue()).toBe('测试标题内容');
+      expect(await page.locator('#reason-input').inputValue()).toBe('测试原因内容');
+
+      // 清空并使用 index 索引修饰符进行测试
+      await executeScript(`
+        input "索引输入标题" to "css:input/0"
+        input "索引输入原因" to "css:textarea/0"
+      `, page, ctx, {});
+      expect(await page.locator('#title-input').inputValue()).toBe('索引输入标题');
+      expect(await page.locator('#reason-input').inputValue()).toBe('索引输入原因');
+    });
+  });
+
   describe('可选指令的执行控制流（? 语法增强）', () => {
     it('可选断言指令报错时，应该只跳过本身并继续执行后续指令', async () => {
       const ctx = makeCtx();
@@ -561,12 +596,20 @@ describe('DSL 执行器集成测试', () => {
 
     beforeAll(() => {
       fs.mkdirSync(tempCaseDir, { recursive: true });
+      const cpDir = path.join(process.cwd(), '.resumewright', 'temp-persist-test');
+      if (fs.existsSync(cpDir)) {
+        fs.rmSync(cpDir, { recursive: true, force: true });
+      }
     });
 
     afterAll(() => {
       try {
         if (fs.existsSync(tempYamlPath)) fs.unlinkSync(tempYamlPath);
         if (fs.existsSync(tempCaseDir)) fs.rmdirSync(tempCaseDir);
+        const cpDir = path.join(process.cwd(), '.resumewright', 'temp-persist-test');
+        if (fs.existsSync(cpDir)) {
+          fs.rmSync(cpDir, { recursive: true, force: true });
+        }
         if (fs.existsSync(persistentJsonPath)) {
           fs.unlinkSync(persistentJsonPath);
           fs.rmdirSync(path.dirname(persistentJsonPath));

@@ -1159,7 +1159,7 @@ async function findNearestReachable(
       const testX = rect.left + rect.width / 2;
       const testY = rect.top + rect.height / 2;
       const topEl = document.elementFromPoint(testX, testY);
-      return topEl !== null && (domEl === topEl || domEl.contains(topEl));
+      return topEl !== null && (domEl === topEl || domEl.contains(topEl) || topEl.contains(domEl));
     });
     if (!isReachable) continue;
 

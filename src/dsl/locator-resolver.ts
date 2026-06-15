@@ -64,14 +64,20 @@ export function parseLocator(raw: string): ParsedLocator {
     return { type: 'alias', value: stripQuotes(str.slice(1)), modifier, raw };
   }
 
-  // ── xpath: // 开头 ──
+  // ── xpath: // 开头 或 xpath: 前缀 ──
   if (str.startsWith('//')) {
     return { type: 'xpath', value: stripQuotes(str), modifier, raw };
   }
+  if (str.startsWith('xpath:')) {
+    return { type: 'xpath', value: stripQuotes(str.slice(6)), modifier, raw };
+  }
 
-  // ── css: . 或 # 开头 ──
+  // ── css: . 或 # 开头 或 css: 前缀 ──
   if (str.startsWith('.') || str.startsWith('#')) {
     return { type: 'css', value: stripQuotes(str), modifier, raw };
+  }
+  if (str.startsWith('css:')) {
+    return { type: 'css', value: stripQuotes(str.slice(4)), modifier, raw };
   }
 
   // ── label: 前缀 ──
@@ -287,7 +293,7 @@ export function resolveInputLocator(page: Page, raw: string): Locator {
   }
 
   // 有明确前缀或特殊语法，走标准解析
-  if (/^(label:|placeholder:|testid:|title:|alt:|role:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(cleaned)) {
+  if (/^(label:|placeholder:|testid:|title:|alt:|role:|css:|xpath:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(cleaned)) {
     return resolveLocatorFromString(page, cleaned);
   }
 
