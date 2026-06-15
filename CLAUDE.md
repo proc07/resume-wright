@@ -7,7 +7,7 @@
 
 ```bash
 # 正确方式
-cd demo && npm run dashboard
+cd demo && pnpm run dashboard
 
 # 错误方式（不要这样做）
 npm run dashboard

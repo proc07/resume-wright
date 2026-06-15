@@ -24,8 +24,8 @@
 ### 安装
 
 ```bash
-npm install
-npx playwright install chromium
+pnpm install
+pnpm exec playwright install chromium
 ```
 
 ### 编写 Case
@@ -51,34 +51,34 @@ steps:
 
 ```bash
 # 运行所有 Case（并发 5）
-npx tsx run.ts run
+pnpm tsx run.ts run
 
 # 运行指定 Case
-npx tsx run.ts run cases/my-workflow.yaml
+pnpm tsx run.ts run cases/my-workflow.yaml
 
 # 有头模式（调试）
-npx tsx run.ts run --headed cases/my-workflow.yaml
+pnpm tsx run.ts run --headed cases/my-workflow.yaml
 
 # 并发 10
-npx tsx run.ts run --concurrency 10
+pnpm tsx run.ts run --concurrency 10
 
 # 仅运行上次失败的 Case（续跑）
-npx tsx run.ts run --only-failed
+pnpm tsx run.ts run --only-failed
 
 # 查看状态
-npx tsx run.ts status
+pnpm tsx run.ts status
 
 # 清除指定 Checkpoint
-npx tsx run.ts reset cases/my-workflow.yaml
+pnpm tsx run.ts reset cases/my-workflow.yaml
 
 # 清除所有 Checkpoint
-npx tsx run.ts reset --all
+pnpm tsx run.ts reset --all
 
 # 校验 YAML 语法
-npx tsx run.ts validate
+pnpm tsx run.ts validate
 
 # 列出所有 Case
-npx tsx run.ts list
+pnpm tsx run.ts list
 ```
 
 ---

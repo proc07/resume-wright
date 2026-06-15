@@ -34,32 +34,32 @@ demo/
 
 ```bash
 cd demo
-npm install
+pnpm install
 ```
 
 ### 运行集成测试（验证完整工作流）
 
 ```bash
-npm test
+pnpm test
 ```
 
 ### 运行 Cases（需配置真实应用 URL 和账号）
 
 ```bash
 # 校验 YAML 语法
-npm run validate
+pnpm run validate
 
 # 运行指定 Case
-npm run run:purchase
+pnpm run run:purchase
 
 # 运行全部 Cases（并发 5）
-npm run run:all
+pnpm run run:all
 
 # 查看断点状态
-npm run status
+pnpm run status
 
 # 清除所有 Checkpoint 重新跑
-npm run reset && npm run run:all
+pnpm run reset && pnpm run run:all
 ```
 
 ---
@@ -95,7 +95,7 @@ requesterPage ──────────────────────
 ## 在真实项目中使用（与本 demo 相同方式）
 
 ```bash
-npm install resumewright
+pnpm add resumewright
 ```
 
 ```typescript

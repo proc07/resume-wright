@@ -3,9 +3,7 @@
   "version": "0.4.0",
   "description": "A resumable Playwright execution framework for multi-role workflow automation",
   "type": "module",
-  "workspaces": [
-    "src/dashboard/ui"
-  ],
+
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "exports": {
@@ -38,7 +36,7 @@
     "dsl"
   ],
   "scripts": {
-    "build": "tsc && npm run build -w ui && node scripts/copy-dashboard-dist.js",
+    "build": "tsc && pnpm --filter ui build && node scripts/copy-dashboard-dist.js",
     "dev": "tsx run.ts",
     "run:case": "tsx run.ts run",
     "typecheck": "tsc --noEmit",

@@ -3,23 +3,23 @@
 ## Commands
 
 ```bash
-npm test                    # unit tests (vitest, 10s timeout)
-npm run typecheck           # tsc --noEmit
-npm run build               # tsc + Vue UI build + copy dashboard dist (3-step)
-npm run test:integration    # integration tests (real browser, 60s timeout, single worker)
-npm run dev                 # tsx run.ts (no build needed)
+pnpm test                   # unit tests (vitest, 10s timeout)
+pnpm run typecheck          # tsc --noEmit
+pnpm run build              # tsc + Vue UI build + copy dashboard dist (3-step)
+pnpm run test:integration   # integration tests (real browser, 60s timeout, single worker)
+pnpm run dev                # tsx run.ts (no build needed)
 ```
 
 Demo directory has its own commands — **always run from `demo/`**, never root:
 ```bash
-cd demo && npm test         # demo integration tests
-cd demo && npm run dashboard
-cd demo && npm run server   # mock web app on :61775
+cd demo && pnpm test         # demo integration tests
+cd demo && pnpm run dashboard
+cd demo && pnpm run server   # mock web app on :61775
 ```
 
 Run a single test file:
 ```bash
-npx vitest run tests/unit/dsl/parser.test.ts
+pnpm vitest run tests/unit/dsl/parser.test.ts
 ```
 
 ## Architecture
@@ -46,7 +46,7 @@ src/utils.ts   → shared helpers (stripQuotes, escapeRegex, sleep)
 
 ### Build chain
 
-`tsc` → `npm run build -w ui` (Vue/Vite) → `node scripts/copy-dashboard-dist.js`
+`tsc` → `pnpm --filter ui build` (Vue/Vite) → `node scripts/copy-dashboard-dist.js`
 
 Dashboard UI workspace: `src/dashboard/ui` (Vue 3 + Pinia + Vite, private package)
 
