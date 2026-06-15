@@ -521,11 +521,28 @@ describe('DSL 执行器集成测试', () => {
 
       // 清空并使用 index 索引修饰符进行测试
       await executeScript(`
-        input "索引输入标题" to "css:input/0"
-        input "索引输入原因" to "css:textarea/0"
+        input "索引输入标题" to "css:input"/0
+        input "索引输入原因" to "css:textarea"/0
       `, page, ctx, {});
       expect(await page.locator('#title-input').inputValue()).toBe('索引输入标题');
       expect(await page.locator('#reason-input').inputValue()).toBe('索引输入原因');
+    });
+
+    it('应该能够正确通过包含斜杠的 near 锚点定位元素', async () => {
+      const ctx = makeCtx();
+      // 1. 使用 placeholder: 前缀包含斜杠作为近邻锚点
+      await executeScript(`
+        open "$base_url"
+        input "测试输入斜杠内容" to "css:input" near "placeholder:please user by name/id"
+      `, page, ctx, {});
+      expect(await page.locator('#slash-input-1').inputValue()).toBe('测试输入斜杠内容');
+
+      // 2. 使用纯文本包含斜杠作为近邻锚点
+      await executeScript(`
+        open "$base_url"
+        tap "css:button.slash-btn" near "name/id"
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('点击了第一个按钮');
     });
   });
 

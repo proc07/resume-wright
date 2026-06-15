@@ -263,7 +263,7 @@ async function executeCommand(
       // near 近邻定位修饰符
       const tapNearOpts = parseNearOptions(remainingArgs);
       if (tapNearOpts) {
-        const el = await findNearestReachable(page, stripQuotes(locStr), tapNearOpts);
+        const el = await findNearestReachable(page, locStr, tapNearOpts);
         await el.click();
       } else {
         const locator = resolveLocatorFromString(page, locStr);
@@ -284,7 +284,7 @@ async function executeCommand(
         // near 近邻定位修饰符
         const inputNearOpts = parseNearOptions(remainingArgs);
         if (inputNearOpts) {
-          const el = await findNearestReachable(page, stripQuotes(rawLocStr), inputNearOpts);
+          const el = await findNearestReachable(page, rawLocStr, inputNearOpts);
           if (content === '') {
             await el.clear();
           } else {
@@ -327,7 +327,7 @@ async function executeCommand(
     case 'hover': {
       const hoverNearOpts = parseNearOptions(args.slice(1));
       if (hoverNearOpts) {
-        const el = await findNearestReachable(page, stripQuotes(args[0]!), hoverNearOpts);
+        const el = await findNearestReachable(page, args[0]!, hoverNearOpts);
         await el.hover();
       } else {
         const locator = resolveLocatorFromString(page, args[0]!);
@@ -340,7 +340,7 @@ async function executeCommand(
     case 'scroll_to': {
       const scrollNearOpts = parseNearOptions(args.slice(1));
       if (scrollNearOpts) {
-        const el = await findNearestReachable(page, stripQuotes(args[0]!), scrollNearOpts);
+        const el = await findNearestReachable(page, args[0]!, scrollNearOpts);
         await el.scrollIntoViewIfNeeded();
       } else {
         const locator = resolveLocatorFromString(page, args[0]!);
@@ -1077,7 +1077,7 @@ function parseNearOptions(afterTargetArgs: string[]): NearOptions | null {
         !NEAR_DIRECTIONS.has(afterTargetArgs[i]!) &&
         !afterTargetArgs[i]!.startsWith('nth=')
       ) {
-        anchors.push(stripQuotes(afterTargetArgs[i]!));
+        anchors.push(afterTargetArgs[i]!);
         i++;
       }
     } else if (NEAR_DIRECTIONS.has(token)) {
@@ -1123,7 +1123,7 @@ async function findNearestReachable(
     }
     const box = await anchorLoc.first().boundingBox();
     if (!box) {
-      throw new Error(`near: anchor "${anchorStr}" has no bounding box (not visible?)`);
+      throw new Error(`near: anchor "${stripQuotes(anchorStr)}" has no bounding box (not visible?)`);
     }
     anchorCenters.push({ cx: box.x + box.width / 2, cy: box.y + box.height / 2 });
   }
@@ -1132,7 +1132,7 @@ async function findNearestReachable(
   const targetLoc = resolveLocatorFromString(page, targetLocStr);
   const count = await targetLoc.count();
   if (count === 0) {
-    throw new Error(`near: no elements found matching "${targetLocStr}"`);
+    throw new Error(`near: no elements found matching "${stripQuotes(targetLocStr)}"`);
   }
   if (count === 1) {
     // 仅一个目标，无需距离计算，直接返回
@@ -1191,7 +1191,7 @@ async function findNearestReachable(
   if (candidates.length === 0) {
     const dirMsg = nearOpts.direction ? ` [direction: ${nearOpts.direction}]` : '';
     throw new Error(
-      `near: no reachable element "${targetLocStr}" found near "${nearOpts.anchors.join('" and "')}"${dirMsg}`
+      `near: no reachable element "${stripQuotes(targetLocStr)}" found near "${nearOpts.anchors.map(stripQuotes).join('" and "')}"${dirMsg}`
     );
   }
 

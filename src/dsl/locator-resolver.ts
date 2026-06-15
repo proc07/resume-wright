@@ -7,6 +7,8 @@ import type { ParsedLocator, LocatorModifier } from '../types/dsl.types.js';
 import { getDefaultRegistry } from '../adapters/elements-csv.js';
 import { stripQuotes, escapeRegex } from '../utils.js';
 
+export const SPECIAL_LOCATOR_REGEX = /^(label:|placeholder:|testid:|title:|alt:|role:|css:|xpath:|\.|#|\/\/|@|\*.*\*|.*\|)/;
+
 // ── 解析原始定位字符串 ──────────────────────────────────────
 
 function extractModifier(str: string): { base: string; modifier?: LocatorModifier } {
@@ -293,7 +295,7 @@ export function resolveInputLocator(page: Page, raw: string): Locator {
   }
 
   // 有明确前缀或特殊语法，走标准解析
-  if (/^(label:|placeholder:|testid:|title:|alt:|role:|css:|xpath:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(cleaned)) {
+  if (SPECIAL_LOCATOR_REGEX.test(cleaned)) {
     return resolveLocatorFromString(page, cleaned);
   }
 

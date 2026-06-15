@@ -9,7 +9,7 @@ import type { RoleCredential } from '../types/case.types.js';
 import type { RoleContext } from '../types/engine.types.js';
 import { getDefaultRegistry } from '../adapters/elements-csv.js';
 import { getDebuggerScript } from '../dsl/rw-debugger.js';
-import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes } from '../dsl/locator-resolver.js';
+import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from '../dsl/locator-resolver.js';
 
 
 
@@ -213,7 +213,7 @@ export class RolePool {
           let count = await locator.count();
           let matchedType = 'standard';
 
-          const isPlain = !/^(label:|placeholder:|testid:|title:|alt:|role:|css:|xpath:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(stripQuotes(locatorStr));
+          const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(locatorStr));
           if (count === 0 && isPlain) {
             const inputLoc = resolveInputLocator(page, locatorStr);
             const inputCount = await inputLoc.count();
