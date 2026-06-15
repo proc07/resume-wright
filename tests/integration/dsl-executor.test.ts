@@ -562,6 +562,15 @@ describe('DSL 执行器集成测试', () => {
       `, page, ctx, {});
       expect(await page.locator('#near-result').textContent()).toBe('点击了第二个按钮');
     });
+
+    it('应该能够自动重试等待近邻定位中的延迟加载元素（目标和锚点）', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        input "Jerry" to "please enter nickname" near "confirm nickname"
+      `, page, ctx, {});
+      expect(await page.locator('#async-input').inputValue()).toBe('Jerry');
+    });
   });
 
   describe('可选指令的执行控制流（? 语法增强）', () => {

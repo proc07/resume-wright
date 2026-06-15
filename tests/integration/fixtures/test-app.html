@@ -125,6 +125,19 @@
     function closeTestModal() {
       document.getElementById('test-modal').style.display = 'none';
     }
+
+    // 自动延迟渲染异步元素，用于测试近邻定位的自动等待机制
+    setTimeout(() => {
+      const container = document.getElementById('async-container');
+      if (container) {
+        container.innerHTML = `
+          <div style="margin-top: 10px;">
+            <input id="async-input" type="text" placeholder="please enter nickname" oninput="triggerNearResult('动态输入: ' + this.value)">
+            <button id="async-btn" onclick="triggerNearResult('点击了动态按钮')">confirm nickname</button>
+          </div>
+        `;
+      }
+    }, 800);
   </script>
 
   <!-- Near modifier test section -->
@@ -181,6 +194,12 @@
       <input id="slash-input-2" type="text" placeholder="please user by name/id" oninput="triggerNearResult('输入了第二个: ' + this.value)">
       <button class="slash-btn" onclick="triggerNearResult('点击了第一个按钮')">name/id</button>
       <button class="slash-btn" onclick="triggerNearResult('点击了第二个按钮')">name/id</button>
+    </div>
+
+    <!-- 5. async/delay load test -->
+    <div id="async-test-section" style="margin-top: 20px; padding-top: 10px; border-top: 1px dashed #eee;">
+      <h3>动态延迟加载测试</h3>
+      <div id="async-container"></div>
     </div>
 
     <div id="near-result" style="margin-top: 10px; font-weight: bold; color: blue;"></div>

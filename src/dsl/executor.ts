@@ -263,7 +263,7 @@ async function executeCommand(
       // near 近邻定位修饰符
       const tapNearOpts = parseNearOptions(remainingArgs);
       if (tapNearOpts) {
-        const el = await findNearestReachable(page, locStr, tapNearOpts);
+        const el = await findNearestReachable(page, locStr, tapNearOpts, defaultAssertTimeout);
         await el.click();
       } else {
         const locator = resolveLocatorFromString(page, locStr);
@@ -284,7 +284,7 @@ async function executeCommand(
         // near 近邻定位修饰符
         const inputNearOpts = parseNearOptions(remainingArgs);
         if (inputNearOpts) {
-          const el = await findNearestReachable(page, rawLocStr, inputNearOpts);
+          const el = await findNearestReachable(page, rawLocStr, inputNearOpts, defaultAssertTimeout);
           if (content === '') {
             await el.clear();
           } else {
@@ -327,7 +327,7 @@ async function executeCommand(
     case 'hover': {
       const hoverNearOpts = parseNearOptions(args.slice(1));
       if (hoverNearOpts) {
-        const el = await findNearestReachable(page, args[0]!, hoverNearOpts);
+        const el = await findNearestReachable(page, args[0]!, hoverNearOpts, defaultAssertTimeout);
         await el.hover();
       } else {
         const locator = resolveLocatorFromString(page, args[0]!);
@@ -340,7 +340,7 @@ async function executeCommand(
     case 'scroll_to': {
       const scrollNearOpts = parseNearOptions(args.slice(1));
       if (scrollNearOpts) {
-        const el = await findNearestReachable(page, args[0]!, scrollNearOpts);
+        const el = await findNearestReachable(page, args[0]!, scrollNearOpts, defaultAssertTimeout);
         await el.scrollIntoViewIfNeeded();
       } else {
         const locator = resolveLocatorFromString(page, args[0]!);
@@ -426,7 +426,12 @@ async function executeCommand(
       // near 修饰符：找最近可达元素（找不到则抛出，等同于断言不存在）
       const assertNearOpts = parseNearOptions(args.slice(1));
       if (assertNearOpts) {
-        await findNearestReachable(page, locStr, assertNearOpts);
+        let timeoutMs = defaultAssertTimeout;
+        const lastArg = args[args.length - 1];
+        if (lastArg && /^\d+(\.\d+)?(ms|s|m)$/.test(lastArg)) {
+          timeoutMs = parseDuration(lastArg);
+        }
+        await findNearestReachable(page, locStr, assertNearOpts, timeoutMs);
         if (opts.screenshotOnAssert) {
           const dir = opts.screenshotDir ?? '.resumewright/screenshots';
           fs.mkdirSync(dir, { recursive: true });
@@ -1110,50 +1115,70 @@ export function parseNearOptions(afterTargetArgs: string[]): NearOptions | null 
 export async function findNearestReachable(
   page: Page,
   targetLocStr: string,
-  nearOpts: NearOptions
+  nearOpts: NearOptions,
+  timeoutMs: number = 2000
 ): Promise<import('@playwright/test').Locator> {
-  // 1. 获取所有锚点中心坐标
-  const anchorCenters: Array<{ cx: number; cy: number }> = [];
-  let isFirst = true;
-  for (const anchorStr of nearOpts.anchors) {
-    let anchorLoc = resolveLocatorFromString(page, anchorStr);
-    let anchorCount = await anchorLoc.count();
+  const startTime = Date.now();
+  let anchorCenters: Array<{ cx: number; cy: number }> = [];
+  let targetLoc!: import('@playwright/test').Locator;
+  let count = 0;
 
-    const isAnchorPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(anchorStr));
-    if (anchorCount === 0 && isAnchorPlain) {
-      anchorLoc = resolveInputLocator(page, anchorStr);
-      anchorCount = await anchorLoc.count();
-    }
+  while (true) {
+    try {
+      // 1. 获取所有锚点中心坐标
+      anchorCenters = [];
+      let isFirst = true;
+      for (const anchorStr of nearOpts.anchors) {
+        let anchorLoc = resolveLocatorFromString(page, anchorStr);
+        let anchorCount = await anchorLoc.count();
 
-    if (anchorCount === 0) {
-      throw new Error(`near: no elements found matching anchor "${stripQuotes(anchorStr)}"`);
-    }
+        const isAnchorPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(anchorStr));
+        if (anchorCount === 0 && isAnchorPlain) {
+          anchorLoc = resolveInputLocator(page, anchorStr);
+          anchorCount = await anchorLoc.count();
+        }
 
-    if (isFirst) {
-      await anchorLoc.first().scrollIntoViewIfNeeded({ timeout: 3000 });
-      isFirst = false;
+        if (anchorCount === 0) {
+          throw new Error(`near: no elements found matching anchor "${stripQuotes(anchorStr)}"`);
+        }
+
+        if (isFirst) {
+          await anchorLoc.first().scrollIntoViewIfNeeded({ timeout: 3000 });
+          isFirst = false;
+        }
+        const box = await anchorLoc.first().boundingBox();
+        if (!box) {
+          throw new Error(`near: anchor "${stripQuotes(anchorStr)}" has no bounding box (not visible?)`);
+        }
+        anchorCenters.push({ cx: box.x + box.width / 2, cy: box.y + box.height / 2 });
+      }
+
+      // 2. 获取目标元素集合
+      let tmpTargetLoc = resolveLocatorFromString(page, targetLocStr);
+      let tmpCount = await tmpTargetLoc.count();
+
+      // 如果没有匹配到任何元素，且是普通文字定位器，尝试作为 input 定位器匹配（例如 placeholder/label）
+      const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(targetLocStr));
+      if (tmpCount === 0 && isPlain) {
+        tmpTargetLoc = resolveInputLocator(page, targetLocStr);
+        tmpCount = await tmpTargetLoc.count();
+      }
+
+      if (tmpCount === 0) {
+        throw new Error(`near: no elements found matching "${stripQuotes(targetLocStr)}"`);
+      }
+
+      targetLoc = tmpTargetLoc;
+      count = tmpCount;
+      break;
+    } catch (err) {
+      if (Date.now() - startTime >= timeoutMs) {
+        throw err;
+      }
+      await page.waitForTimeout(200);
     }
-    const box = await anchorLoc.first().boundingBox();
-    if (!box) {
-      throw new Error(`near: anchor "${stripQuotes(anchorStr)}" has no bounding box (not visible?)`);
-    }
-    anchorCenters.push({ cx: box.x + box.width / 2, cy: box.y + box.height / 2 });
   }
 
-  // 2. 获取目标元素集合
-  let targetLoc = resolveLocatorFromString(page, targetLocStr);
-  let count = await targetLoc.count();
-
-  // 如果没有匹配到任何元素，且是普通文字定位器，尝试作为 input 定位器匹配（例如 placeholder/label）
-  const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(targetLocStr));
-  if (count === 0 && isPlain) {
-    targetLoc = resolveInputLocator(page, targetLocStr);
-    count = await targetLoc.count();
-  }
-
-  if (count === 0) {
-    throw new Error(`near: no elements found matching "${stripQuotes(targetLocStr)}"`);
-  }
   if (count === 1) {
     // 仅一个目标，无需距离计算，直接返回
     return targetLoc.first();
