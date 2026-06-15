@@ -9,6 +9,45 @@ import { stripQuotes, escapeRegex } from '../utils.js';
 
 // ── 解析原始定位字符串 ──────────────────────────────────────
 
+function extractModifier(str: string): { base: string; modifier?: LocatorModifier } {
+  // 正则寻找以 /修饰符 结尾的结构
+  const match = str.match(/^(.*?)\/(-?\d+|[a-zA-Z]+)$/);
+  if (!match) {
+    return { base: str };
+  }
+
+  const basePart = match[1]!;
+  const modPart = match[2]!;
+
+  // 校验该斜杠是否在未闭合的引号内
+  let doubleQuoteCount = 0;
+  let singleQuoteCount = 0;
+  
+  for (let i = 0; i < basePart.length; i++) {
+    if (basePart[i] === '"' && (i === 0 || basePart[i - 1] !== '\\')) {
+      doubleQuoteCount++;
+    } else if (basePart[i] === "'" && (i === 0 || basePart[i - 1] !== '\\')) {
+      singleQuoteCount++;
+    }
+  }
+
+  // 如果双引号或单引号总数是奇数，说明斜杠处于未闭合的引号内部，这属于字面值，不作为修饰符
+  if (doubleQuoteCount % 2 !== 0 || singleQuoteCount % 2 !== 0) {
+    return { base: str };
+  }
+
+  // 否则，该斜杠是处于引号外部的，可以安全地作为修饰符分割符！
+  let modifier: LocatorModifier;
+  if (/^-?\d+$/.test(modPart)) {
+    const idx = parseInt(modPart, 10);
+    modifier = idx === -1 ? { last: true } : { index: idx };
+  } else {
+    modifier = { tag: modPart };
+  }
+
+  return { base: basePart.trim(), modifier };
+}
+
 /**
  * 解析原始定位字符串为结构化的 ParsedLocator
  * 支持文本修饰符：/0  /-1  /tagName
@@ -16,60 +55,48 @@ import { stripQuotes, escapeRegex } from '../utils.js';
 export function parseLocator(raw: string): ParsedLocator {
   let str = raw.trim();
 
-  // ── 提取尾部修饰符 (/0, /-1, /button 等) ──
-  const modMatch = str.match(/^(.*?)\/(-?\d+|[a-zA-Z]+)$/);
-  let modifier: LocatorModifier | undefined;
-
-  if (modMatch) {
-    const modPart = modMatch[2]!;
-    str = modMatch[1]!.trim();
-
-    if (/^-?\d+$/.test(modPart)) {
-      const idx = parseInt(modPart, 10);
-      modifier = idx === -1 ? { last: true } : { index: idx };
-    } else {
-      modifier = { tag: modPart };
-    }
-  }
+  // ── 提取尾部修饰符并剥离引号 ──
+  const { base, modifier } = extractModifier(str);
+  str = stripQuotes(base);
 
   // ── alias: @别名 ──
   if (str.startsWith('@')) {
-    return { type: 'alias', value: str.slice(1), modifier, raw };
+    return { type: 'alias', value: stripQuotes(str.slice(1)), modifier, raw };
   }
 
   // ── xpath: // 开头 ──
   if (str.startsWith('//')) {
-    return { type: 'xpath', value: str, modifier, raw };
+    return { type: 'xpath', value: stripQuotes(str), modifier, raw };
   }
 
   // ── css: . 或 # 开头 ──
   if (str.startsWith('.') || str.startsWith('#')) {
-    return { type: 'css', value: str, modifier, raw };
+    return { type: 'css', value: stripQuotes(str), modifier, raw };
   }
 
   // ── label: 前缀 ──
   if (str.startsWith('label:')) {
-    return { type: 'label', value: str.slice(6), modifier, raw };
+    return { type: 'label', value: stripQuotes(str.slice(6)), modifier, raw };
   }
 
   // ── placeholder: 前缀 ──
   if (str.startsWith('placeholder:')) {
-    return { type: 'placeholder', value: str.slice(12), modifier, raw };
+    return { type: 'placeholder', value: stripQuotes(str.slice(12)), modifier, raw };
   }
 
   // ── testid: 前缀 ──
   if (str.startsWith('testid:')) {
-    return { type: 'testid', value: str.slice(7), modifier, raw };
+    return { type: 'testid', value: stripQuotes(str.slice(7)), modifier, raw };
   }
 
   // ── title: 前缀 ──
   if (str.startsWith('title:')) {
-    return { type: 'title', value: str.slice(6), modifier, raw };
+    return { type: 'title', value: stripQuotes(str.slice(6)), modifier, raw };
   }
 
   // ── alt: 前缀 ──
   if (str.startsWith('alt:')) {
-    return { type: 'alt', value: str.slice(4), modifier, raw };
+    return { type: 'alt', value: stripQuotes(str.slice(4)), modifier, raw };
   }
 
   // ── role: 前缀，格式 role:button[确认] ──
@@ -80,22 +107,22 @@ export function parseLocator(raw: string): ParsedLocator {
       return {
         type: 'role',
         value: roleMatch[1]!,
-        roleName: roleMatch[2]!,
+        roleName: stripQuotes(roleMatch[2]!),
         modifier,
         raw,
       };
     }
-    return { type: 'role', value: roleStr, modifier, raw };
+    return { type: 'role', value: stripQuotes(roleStr), modifier, raw };
   }
 
   // ── *text* 包含匹配 ──
   if (str.startsWith('*') && str.endsWith('*') && str.length > 2) {
-    return { type: 'text_contains', value: str.slice(1, -1), modifier, raw };
+    return { type: 'text_contains', value: stripQuotes(str.slice(1, -1)), modifier, raw };
   }
 
   // ── A|B OR 匹配 ──
   if (str.includes('|')) {
-    return { type: 'text_or', value: str, modifier, raw };
+    return { type: 'text_or', value: stripQuotes(str), modifier, raw };
   }
 
   // ── 默认：精确文字匹配 ──
@@ -222,8 +249,7 @@ export function resolveLocator(page: Page, parsed: ParsedLocator): Locator {
 
 // ── 从原始字符串（可能带引号）直接解析并返回 Locator ──────────────
 export function resolveLocatorFromString(page: Page, raw: string): Locator {
-  const cleaned = stripQuotes(raw);
-  return resolveLocator(page, parseLocator(cleaned));
+  return resolveLocator(page, parseLocator(raw.trim()));
 }
 
 /**

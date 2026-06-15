@@ -177,6 +177,28 @@ describe('parseLocator()', () => {
       expect(p3.type).toBe('text');
       expect(p3.value).toBe('采*购');
     });
+
+    it('引号内带有斜杠以及外部带有修饰符的情形', () => {
+      const p1 = parseLocator('"please user by name/id"');
+      expect(p1.type).toBe('text');
+      expect(p1.value).toBe('please user by name/id');
+      expect(p1.modifier).toBeUndefined();
+
+      const p2 = parseLocator('"please user by name/id"/-1');
+      expect(p2.type).toBe('text');
+      expect(p2.value).toBe('please user by name/id');
+      expect(p2.modifier?.last).toBe(true);
+
+      const p3 = parseLocator('placeholder:"please user by name/id"/-1');
+      expect(p3.type).toBe('placeholder');
+      expect(p3.value).toBe('please user by name/id');
+      expect(p3.modifier?.last).toBe(true);
+
+      const p4 = parseLocator('"please user by name/id"/button');
+      expect(p4.type).toBe('text');
+      expect(p4.value).toBe('please user by name/id');
+      expect(p4.modifier?.tag).toBe('button');
+    });
   });
 });
 

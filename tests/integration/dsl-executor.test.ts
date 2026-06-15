@@ -446,6 +446,38 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('含斜杠 / 的定位器与修饰符', () => {
+    it('应该正确点击包含斜杠的文字定位和带有索引修饰符的点击', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        tap "name/id"/0
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('点击了第一个按钮');
+
+      await executeScript(`
+        open "$base_url"
+        tap "name/id"/-1
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('点击了第二个按钮');
+    });
+
+    it('应该正确输入到包含斜杠的输入框中，并支持修饰符', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        input "hello_first" to "please user by name/id"/0
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('输入了第一个: hello_first');
+
+      await executeScript(`
+        open "$base_url"
+        input "hello_second" to "please user by name/id"/-1
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('输入了第二个: hello_second');
+    });
+  });
+
   describe('完整工作流场景', () => {
     it('提交 → 获取 ID → 审批通过', async () => {
       const ctx = makeCtx();

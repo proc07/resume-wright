@@ -198,11 +198,17 @@ async function executeCommand(
 
     // ── 点击 ─────────────────────────────────────────────────
     case 'tap': {
-      const locStr = args[0]!;
+      let locStr = args[0]!;
+      let remainingArgs = args.slice(1);
+
+      if (remainingArgs.length >= 1 && /^\/-?\d+$/.test(remainingArgs[0]!)) {
+        locStr = `${locStr} ${remainingArgs[0]}`;
+        remainingArgs.shift();
+      }
 
       // 坐标点击：tap 0.5 0.5 (相对) 或 tap "100" "200" (绝对像素)
       if (args.length >= 2 && !locStr.startsWith('"') && !locStr.startsWith("'")) {
-        const x = parseFloat(locStr);
+        const x = parseFloat(args[0]!);
         const y = parseFloat(args[1]!);
         if (!isNaN(x) && !isNaN(y)) {
           if (x <= 1 && y <= 1) {
@@ -217,12 +223,12 @@ async function executeCommand(
       }
 
       // near 近邻定位修饰符
-      const tapNearOpts = parseNearOptions(args.slice(1));
+      const tapNearOpts = parseNearOptions(remainingArgs);
       if (tapNearOpts) {
         const el = await findNearestReachable(page, stripQuotes(locStr), tapNearOpts);
         await el.click();
       } else {
-        const locator = resolveLocatorFromString(page, stripQuotes(locStr));
+        const locator = resolveLocatorFromString(page, locStr);
         await locator.click();
       }
       break;
@@ -234,13 +240,13 @@ async function executeCommand(
 
       if (args.length >= 3 && args[1]?.toLowerCase() === 'to') {
         // input "value" to "locator" [near "anchor"] [/0] [/-1]
-        const rawLocStr = stripQuotes(args[2]!);
+        const rawLocStr = args[2]!;
         const remainingArgs = args.slice(3);
 
         // near 近邻定位修饰符
         const inputNearOpts = parseNearOptions(remainingArgs);
         if (inputNearOpts) {
-          const el = await findNearestReachable(page, rawLocStr, inputNearOpts);
+          const el = await findNearestReachable(page, stripQuotes(rawLocStr), inputNearOpts);
           if (content === '') {
             await el.clear();
           } else {
@@ -286,7 +292,7 @@ async function executeCommand(
         const el = await findNearestReachable(page, stripQuotes(args[0]!), hoverNearOpts);
         await el.hover();
       } else {
-        const locator = resolveLocatorFromString(page, stripQuotes(args[0]!));
+        const locator = resolveLocatorFromString(page, args[0]!);
         await locator.hover();
       }
       break;
@@ -299,7 +305,7 @@ async function executeCommand(
         const el = await findNearestReachable(page, stripQuotes(args[0]!), scrollNearOpts);
         await el.scrollIntoViewIfNeeded();
       } else {
-        const locator = resolveLocatorFromString(page, stripQuotes(args[0]!));
+        const locator = resolveLocatorFromString(page, args[0]!);
         await locator.scrollIntoViewIfNeeded();
       }
       break;
