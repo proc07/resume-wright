@@ -554,6 +554,75 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('persistent_variables — 声明式长效持久化变量', () => {
+    const tempCaseDir = path.join(process.cwd(), 'cases', 'temp-persist-test');
+    const tempYamlPath = path.join(tempCaseDir, 'persist_test_case.yaml');
+    const persistentJsonPath = path.join(process.cwd(), 'config', 'persistent', 'temp-persist-test', 'persist_test_case.json');
+
+    beforeAll(() => {
+      fs.mkdirSync(tempCaseDir, { recursive: true });
+    });
+
+    afterAll(() => {
+      try {
+        if (fs.existsSync(tempYamlPath)) fs.unlinkSync(tempYamlPath);
+        if (fs.existsSync(tempCaseDir)) fs.rmdirSync(tempCaseDir);
+        if (fs.existsSync(persistentJsonPath)) {
+          fs.unlinkSync(persistentJsonPath);
+          fs.rmdirSync(path.dirname(persistentJsonPath));
+          fs.rmdirSync(path.dirname(path.dirname(persistentJsonPath)));
+        }
+      } catch (err) { /* ignore */ }
+    });
+
+    it('执行包含 persistent_variables 的用例应该自动将其写盘，并在二次执行时恢复', async () => {
+      const { WorkflowRunner } = await import('../../src/engine/workflow-runner.js');
+      
+      // 1. 创建并执行写盘的用例
+      const writeDef = {
+        name: 'persist_test_case',
+        persistent_variables: ['my_persist_token'],
+        roles: { requester: { username: 'req', password: 'req' } },
+        steps: [
+          {
+            id: 'step_save',
+            role: 'requester',
+            script: `$my_persist_token = "token_value_xyz"`,
+          },
+        ],
+      };
+
+      fs.writeFileSync(tempYamlPath, JSON.stringify(writeDef), 'utf-8');
+      
+      const runner1 = new WorkflowRunner(writeDef, tempYamlPath, { headless: true });
+      const res1 = await runner1.run();
+      expect(res1.status).toBe('passed');
+
+      // 验证是否写盘成功
+      expect(fs.existsSync(persistentJsonPath)).toBe(true);
+      const savedData = JSON.parse(fs.readFileSync(persistentJsonPath, 'utf-8'));
+      expect(savedData.my_persist_token).toBe('token_value_xyz');
+
+      // 2. 创建并执行读盘校验的用例
+      const readDef = {
+        name: 'persist_test_case',
+        persistent_variables: ['my_persist_token'],
+        roles: { requester: { username: 'req', password: 'req' } },
+        steps: [
+          {
+            id: 'step_verify',
+            role: 'requester',
+            script: `assert_text_equal "$my_persist_token" "token_value_xyz"`,
+          },
+        ],
+      };
+
+      const runner2 = new WorkflowRunner(readDef, tempYamlPath, { headless: true });
+      const res2 = await runner2.run();
+      expect(res2.status).toBe('passed');
+    });
+  });
+
   describe('完整工作流场景', () => {
     it('提交 → 获取 ID → 审批通过', async () => {
       const ctx = makeCtx();

@@ -413,6 +413,14 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         variables = cp.getContext();
       } catch { /* ignore */ }
 
+      try {
+        const persistentPath = path.join('config', 'persistent', `${safeCaseName}.json`);
+        if (fs.existsSync(persistentPath)) {
+          const persistentVars = JSON.parse(fs.readFileSync(persistentPath, 'utf-8'));
+          variables = { ...variables, ...persistentVars };
+        }
+      } catch { /* ignore */ }
+
       return jsonRes(res, 200, {
         caseName,
         screenshots,

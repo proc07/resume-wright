@@ -130,6 +130,19 @@ export class WorkflowRunner {
       const screenshotDir = path.join(caseDir, 'screenshots');
 
       const contextStore = new ContextStore();
+
+      // 加载长效持久化变量
+      const persistentVarsPath = path.join('config', 'persistent', `${safeCaseName}.json`);
+      if (fs.existsSync(persistentVarsPath)) {
+        try {
+          const savedData = JSON.parse(fs.readFileSync(persistentVarsPath, 'utf-8'));
+          contextStore.merge(savedData);
+          console.log(`[runner] 📥 Loaded persistent variables: ${Object.keys(savedData).join(', ')}`);
+        } catch (err) {
+          console.error(`[runner] Failed to load persistent variables: ${err}`);
+        }
+      }
+
       const checkpoint = new Checkpoint(caseName, caseDir);
       checkpoint.load();
       checkpoint.restoreContext(contextStore);
@@ -212,6 +225,26 @@ export class WorkflowRunner {
 
           await stepExecutor.execute(step);
           completedSteps++;
+
+          // 保存长效持久化变量
+          const persistentKeys = this.definition.persistent_variables || [];
+          if (persistentKeys.length > 0) {
+            const dataToPersist: Record<string, any> = {};
+            for (const key of persistentKeys) {
+              if (contextStore.has(key)) {
+                dataToPersist[key] = contextStore.get(key);
+              }
+            }
+            if (Object.keys(dataToPersist).length > 0) {
+              try {
+                fs.mkdirSync(path.dirname(persistentVarsPath), { recursive: true });
+                fs.writeFileSync(persistentVarsPath, JSON.stringify(dataToPersist, null, 2), 'utf-8');
+                console.log(`[runner] 💾 Saved persistent variables: ${Object.keys(dataToPersist).join(', ')}`);
+              } catch (err) {
+                console.error(`[runner] Failed to save persistent variables: ${err}`);
+              }
+            }
+          }
         }
 
         const duration = Date.now() - startTime;

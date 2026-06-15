@@ -14,6 +14,7 @@
 - **增强的可选步骤控制流 (`?` 语法)**：优化了以 `?` 开头的可选指令逻辑。可选操作指令（如 `? tap`）执行失败时将跳过当前 step 后续的所有步骤，而可选断言指令（如 `? assert_exists`）执行失败时仅跳过本身，会继续向下执行当前 step 中的其他指令。
 - **`open` 页面打开命令支持 `fast` 与自定义超时选项**：允许为 `open` 指定可选的第二个参数（如 `open "url" fast` 或 `open "url" 2s`）。其中 `fast` 可快速跳过网络空闲稳定等待时间并进入下一步（依靠 Playwright 原生的 Locator 自动等待），时间参数可指定自定义网络等待超时时间。
 - **全局断言默认超时配置 (`assert_timeout`)**：在全局配置 `config.yaml` 或 case 用例文件中支持配置 `assert_timeout` 参数（支持时间字符串如 `"10s"` 或毫秒数如 `10000`）。该超时时长会统一应用到所有未指定行内时间的断言指令（包括 `assert_exists`、`assert_not_exists`、`assert_title_exists`、`assert_url`），从而优雅、统一地应对异步接口查询慢的测试环境。
+- **声明式长效持久化变量 (`persistent_variables`)**：支持在全局配置或 case 用例文件头部通过 `persistent_variables` 数组声明需要跨运行周期保留的变量。在每个步骤执行成功后会自动存储在隔离的 `config/persistent/[case_name].json` 中（不受 `resumewright reset` 缓存重置命令影响），并在下一次用例运行时自动读取恢复至 ContextStore 中，且始终能通过 Web 控制台（Dashboard）的变量可视化面板（Variables Inspector）进行展示与监控。
 
 
 ### 修复 (Fixed)
