@@ -258,7 +258,7 @@ export class RolePool {
 
           if (count > 0) {
             const rwId = 'rw-' + Math.random().toString(36).slice(2);
-            await locator.evaluateAll((elements, id) => {
+            await locator.evaluateAll((elements: Element[], id: string) => {
               for (const el of elements) {
                 el.setAttribute('data-rw-temp-id', id);
               }

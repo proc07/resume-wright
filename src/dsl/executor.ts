@@ -1159,7 +1159,20 @@ export async function findNearestReachable(
       const testX = rect.left + rect.width / 2;
       const testY = rect.top + rect.height / 2;
       const topEl = document.elementFromPoint(testX, testY);
-      return topEl !== null && (domEl === topEl || domEl.contains(topEl) || topEl.contains(domEl));
+      if (topEl === null) return false;
+      if (domEl === topEl || domEl.contains(topEl) || topEl.contains(domEl)) {
+        return true;
+      }
+      // 如果 topEl 是与 domEl 共享近邻祖先的内部元素（如组件内的清除按钮、图标、占位符层等）
+      // 允许最多向上看 3 层祖先节点
+      let ancestor = domEl.parentElement;
+      for (let depth = 0; depth < 3 && ancestor; depth++) {
+        if (ancestor.contains(topEl)) {
+          return true;
+        }
+        ancestor = ancestor.parentElement;
+      }
+      return false;
     });
     if (!isReachable) continue;
 

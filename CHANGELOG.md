@@ -11,14 +11,18 @@
 
 ### 新增 (Added)
 - **基于 RPC 桥接的调试工具 (`$$rw`)**：在页面初始化时通过 `context.exposeBinding` 与 Node.js 进程实现桥接，彻底避免了浏览器和 Node 端双重维护定位逻辑的负担。用户在控制台运行 `await $$rw('指令')` 时将直接使用框架原生的 `resolveLocator` 完成匹配，并可直接在控制台审查匹配到的真实 DOM 元素数组。
+- **调试工具 `$$rw` 对 `near` 近邻定位语法的支持**：将近邻计算与过滤算法从执行器中解耦导出，在 `$$rw` 的桥接接口中引入了分词（`tokenize`）及近邻选项检测，支持了在 F12 浏览器控制台直接调试带 `near` 语法的定位器。
 - **增强的可选步骤控制流 (`?` 语法)**：优化了以 `?` 开头的可选指令逻辑。可选操作指令（如 `? tap`）执行失败时将跳过当前 step 后续的所有步骤，而可选断言指令（如 `? assert_exists`）执行失败时仅跳过本身，会继续向下执行当前 step 中的其他指令。
 - **`open` 页面打开命令支持 `fast` 与自定义超时选项**：允许为 `open` 指定可选的第二个参数（如 `open "url" fast` 或 `open "url" 2s`）。其中 `fast` 可快速跳过网络空闲稳定等待时间并进入下一步（依靠 Playwright 原生的 Locator 自动等待），时间参数可指定自定义网络等待超时时间。
 - **全局断言默认超时配置 (`assert_timeout`)**：在全局配置 `config.yaml` 或 case 用例文件中支持配置 `assert_timeout` 参数（支持时间字符串如 `"10s"` 或毫秒数如 `10000`）。该超时时长会统一应用到所有未指定行内时间的断言指令（包括 `assert_exists`、`assert_not_exists`、`assert_title_exists`、`assert_url`），从而优雅、统一地应对异步接口查询慢的测试环境。
 - **声明式长效持久化变量 (`persistent_variables`)**：支持在全局配置或 case 用例文件头部通过 `persistent_variables` 数组声明需要跨运行周期保留的变量。在每个步骤执行成功后会自动存储在隔离的 `config/persistent/[case_name].json` 中（不受 `resumewright reset` 缓存重置命令影响），并在下一次用例运行时自动读取恢复至 ContextStore 中，且始终能通过 Web 控制台（Dashboard）的变量可视化面板（Variables Inspector）进行展示与监控。
 
-
 ### 修复 (Fixed)
 - **引号定位器中斜杠的转义解析**：修复了定位器中引号剥离与修饰符解析逻辑，支持了引号内含有斜杠的特殊文本定位匹配（例如 `"please user by name/id"/-1`）。
+- **近邻定位可达性检测（`isReachable`）优化**：新增了“向上追溯 3 层祖先”的相对节点判定规则。完美解决了现代组件库中复合输入框（如带搜索图标的 Combobox、带有占位符 Span 覆盖的 Input 框）由于内部层叠节点被误判为遮挡而导致定位失败的问题，同时依然保留了外部真正的 Modal 遮挡过滤能力。
+- **定位器前缀匹配支持**：修复了定位解析器中对 `css:` 和 `xpath:` 显式前缀匹配的遗漏，使得形如 `"css:input"` 或 `"xpath://button"` 的定位指令能被正确识别。
+- **斜杠保护与近邻兼容**：修复了近邻锚点文字由于过早剥去外层双引号而导致字符串内的斜杠被误识别为修饰符的问题。
+- **TS 类型安全修复**：修复了 `evaluateAll` 回调函数在 TypeScript 严格模式下对 `(elements, id)` 参数的隐式 `any` 类型报错，完善了类型安全性。
 
 ### 变更 (Changed)
 - **包管理工具迁移 (npm 转换为 pnpm)**：将项目的依赖管理和 Workspace 工作区模式从 `npm` 迁移至 `pnpm`。清理了旧的锁文件并自动生成 pnpm 锁文件，同步更新了所有开发文档（`AGENTS.md`, `CLAUDE.md`, `README.md`, `demo/README.md`）。
