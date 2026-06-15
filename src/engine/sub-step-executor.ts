@@ -16,6 +16,7 @@ export interface SubStepExecutorOptions {
   macrosDir?: string;
   subStepsBaseDir?: string;
   screenshotOnAssert?: boolean;
+  assertTimeout?: string | number;
   defaultOnFailure?: import('../types/case.types.js').OnFailureConfig;
   apiCache?: boolean;
   cacheGet?: boolean;
@@ -118,6 +119,7 @@ export class SubStepExecutor {
             macrosDir: this.opts.macrosDir,
             stepId: id,
             screenshotOnAssert: this.opts.screenshotOnAssert,
+            assertTimeout: this.opts.assertTimeout,
           });
         }
 

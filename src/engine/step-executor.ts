@@ -103,7 +103,7 @@ export class StepExecutor {
   }
 
   private async runStep(step: Step): Promise<void> {
-    const { rolePool, contextStore, caseName, screenshotDir, screenshotOnAssert } = this.execCtx;
+    const { rolePool, contextStore, caseName, screenshotDir, screenshotOnAssert, assertTimeout } = this.execCtx;
 
     // 获取角色的 Page 和 BrowserContext
     const { page, context } = await rolePool.getRoleContext(step.role);
@@ -150,6 +150,7 @@ export class StepExecutor {
           macrosDir: 'macros',
           stepId: `${step.id}-before`,
           screenshotOnAssert,
+          assertTimeout,
         });
       }
 
@@ -166,6 +167,7 @@ export class StepExecutor {
               macrosDir: 'macros',
               subStepsBaseDir: path.join(caseDir, 'sub-steps'),
               screenshotOnAssert,
+              assertTimeout,
               defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
               apiCache: this.execCtx.apiCache,
               cacheGet: this.execCtx.cacheGet,
@@ -188,6 +190,7 @@ export class StepExecutor {
                 macrosDir: 'macros',
                 stepId: step.id,
                 screenshotOnAssert,
+                assertTimeout,
               });
             } finally {
               await interceptor.detach();
@@ -198,6 +201,7 @@ export class StepExecutor {
               macrosDir: 'macros',
               stepId: step.id,
               screenshotOnAssert,
+              assertTimeout,
             });
           }
         } else {
@@ -210,6 +214,7 @@ export class StepExecutor {
             macrosDir: 'macros',
             stepId: `${step.id}-after`,
             screenshotOnAssert,
+            assertTimeout,
           }).catch((err) => {
             console.error(`[step] Failed to execute after_step hook: ${err}`);
           });

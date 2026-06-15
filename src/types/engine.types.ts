@@ -44,6 +44,7 @@ export interface StepExecutionContext {
   caseDir: string;
   screenshotDir: string;
   screenshotOnAssert?: boolean;
+  assertTimeout?: string | number;
   defaultOnFailure?: import('./case.types.js').OnFailureConfig;
   enableTrace?: boolean;
   beforeHooks?: string;

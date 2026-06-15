@@ -27,6 +27,7 @@ export interface ExecutorOptions {
   macrosDir?: string;
   stepId?: string;
   screenshotOnAssert?: boolean;
+  assertTimeout?: string | number;
 }
 
 // ── 主执行函数 ────────────────────────────────────────────────
@@ -208,6 +209,10 @@ async function executeCommand(
 
   console.log(`[dsl] ${inst.optional ? '? ' : ''}${cmd} ${args.join(' ')}`);
 
+  const defaultAssertTimeout = opts.assertTimeout !== undefined
+    ? (typeof opts.assertTimeout === 'number' ? opts.assertTimeout : parseDuration(String(opts.assertTimeout)))
+    : 5000;
+
   switch (cmd) {
     // ── 导航 ──────────────────────────────────────────────────
     case 'open': {
@@ -216,10 +221,18 @@ async function executeCommand(
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       // 等待 SPA 路由完成（body 可见即可）
       await page.waitForLoadState('load');
-      // 智能等待接口网络空闲，自动忽略轮询/WebSocket/心跳
-      await waitForSmartNetworkIdle(page, 5000, 500);
+      
+      const secondArg = args[1] ? stripQuotes(args[1]).toLowerCase() : '';
+      if (secondArg === 'fast') {
+        // 跳过网络空闲等待，直接进行下一步
+      } else {
+        const timeoutMs = secondArg ? parseDuration(secondArg) : 5000;
+        // 智能等待接口网络空闲，自动忽略轮询/WebSocket/心跳
+        await waitForSmartNetworkIdle(page, timeoutMs, 500);
+      }
       break;
     }
+
 
     // ── 点击 ─────────────────────────────────────────────────
     case 'tap': {
@@ -426,7 +439,7 @@ async function executeCommand(
         break;
       }
 
-      const timeoutMs = args[1] ? parseDuration(args[1]) : 5000;
+      const timeoutMs = args[1] ? parseDuration(args[1]) : defaultAssertTimeout;
 
       // 检测计数断言修饰符（/3, />2, />=1, /<5, /=3）
       const countMatch = locStr.match(/^(.+?)\/(=?>?=?<?\d+)$/);
@@ -455,7 +468,7 @@ async function executeCommand(
     // ── 断言：元素不存在 ──────────────────────────────────────
     case 'assert_not_exists': {
       const locStr = stripQuotes(args[0]!);
-      const timeoutMs = args[1] ? parseDuration(args[1]) : 5000;
+      const timeoutMs = args[1] ? parseDuration(args[1]) : defaultAssertTimeout;
       const locator = resolveLocatorFromString(page, locStr);
       await expect(locator).not.toBeVisible({ timeout: timeoutMs });
       break;
@@ -493,14 +506,14 @@ async function executeCommand(
     // ── 断言：页面标题 ────────────────────────────────────────
     case 'assert_title_exists': {
       const titleText = stripQuotes(args[0]!);
-      await expect(page).toHaveTitle(new RegExp(escapeRegex(titleText)));
+      await expect(page).toHaveTitle(new RegExp(escapeRegex(titleText)), { timeout: defaultAssertTimeout });
       break;
     }
 
     // ── 断言：页面 URL ────────────────────────────────────────
     case 'assert_url': {
       const pattern = stripQuotes(interpolate(args[0]!, ctx));
-      const timeoutMs = args[1] ? parseDuration(args[1]) : 5000;
+      const timeoutMs = args[1] ? parseDuration(args[1]) : defaultAssertTimeout;
 
       const startTime = Date.now();
       let matched = false;

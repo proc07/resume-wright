@@ -35,6 +35,7 @@ export interface CaseDefinition {
   name: string;
   description?: string;
   timeout?: number;                        // 整体超时 ms
+  assert_timeout?: string | number;        // 全局断言默认超时
   login_macro_path?: string;
   base_url?: string;                       // 全局基础 URL
   roles: Record<string, RoleCredential>;

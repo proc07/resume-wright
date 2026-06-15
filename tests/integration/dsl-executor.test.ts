@@ -77,7 +77,23 @@ describe('DSL 执行器集成测试', () => {
       const title = await page.title();
       expect(title).toContain('ResumeWright');
     });
+
+    it('支持 fast 模式快速跳过网络空闲等待', async () => {
+      const ctx = makeCtx();
+      const start = Date.now();
+      await executeScript(`open "$base_url" fast`, page, ctx, {});
+      const duration = Date.now() - start;
+      // 快速模式不应触发 500ms 的网络空闲稳定延迟，通常在几十毫秒内返回
+      expect(duration).toBeLessThan(1000);
+    });
+
+    it('支持指定自定义网络超时时间', async () => {
+      const ctx = makeCtx();
+      await executeScript(`open "$base_url" 1.5s`, page, ctx, {});
+      expect(page.url()).toContain('127.0.0.1');
+    });
   });
+
 
   describe('input — 表单填写', () => {
     it('通过 label 填写输入框', async () => {
@@ -498,6 +514,43 @@ describe('DSL 执行器集成测试', () => {
         tap "打开Modal"
       `, page, ctx, {});
       expect(await page.locator('#test-modal').isVisible()).toBe(false);
+    });
+  });
+
+  describe('assertTimeout — 全局/定制超时覆盖规则', () => {
+    it('当配置了 assertTimeout 时，不带时间参数的断言应使用该默认超时时长', async () => {
+      const ctx = makeCtx();
+      await executeScript(`open "$base_url"`, page, ctx, {});
+      const start = Date.now();
+      let err: any;
+      try {
+        await executeScript(`assert_exists "non_existent_text_xyz"`, page, ctx, {
+          assertTimeout: '600ms',
+        });
+      } catch (e) {
+        err = e;
+      }
+      const duration = Date.now() - start;
+      expect(err).toBeDefined();
+      expect(err.message).toContain('toBeVisible');
+      expect(duration).toBeLessThan(2500); // 应该由 600ms 决定，远小于默认的 5000ms
+    });
+
+    it('行内指定的超时应该覆盖全局 assertTimeout 配置', async () => {
+      const ctx = makeCtx();
+      await executeScript(`open "$base_url"`, page, ctx, {});
+      const start = Date.now();
+      let err: any;
+      try {
+        await executeScript(`assert_exists "non_existent_text_xyz" 300ms`, page, ctx, {
+          assertTimeout: '8s',
+        });
+      } catch (e) {
+        err = e;
+      }
+      const duration = Date.now() - start;
+      expect(err).toBeDefined();
+      expect(duration).toBeLessThan(3000); // 应该由 300ms 决定，远小于 8s
     });
   });
 

@@ -188,6 +188,7 @@ export class WorkflowRunner {
         caseDir,
         screenshotDir: this.opts.screenshotOnFail ? screenshotDir : '',
         screenshotOnAssert: this.opts.screenshotOnAssert,
+        assertTimeout: this.definition.assert_timeout,
         defaultOnFailure: this.definition.on_failure,
         enableTrace: this.opts.enableTrace,
         beforeHooks: this.definition.before_hooks,

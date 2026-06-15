@@ -49,6 +49,7 @@ const CaseSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   timeout: z.number().int().positive().optional(),
+  assert_timeout: z.union([z.string(), z.number()]).optional(),
   login_macro_path: z.string().optional(),
   base_url: z.string().optional(),
   roles: z.record(z.string(), RoleSchema),
@@ -61,6 +62,7 @@ const CaseSchema = z.object({
 const GlobalConfigSchema = z.object({
   base_url: z.string().optional(),
   timeout: z.number().int().positive().optional(),
+  assert_timeout: z.union([z.string(), z.number()]).optional(),
   login_macro_path: z.string().optional(),
   on_failure: OnFailureSchema.optional(),
 });
@@ -280,6 +282,7 @@ function expandSteps(
 export interface GlobalConfig {
   base_url?: string;
   timeout?: number;
+  assert_timeout?: string | number;
   login_macro_path?: string;
   on_failure?: z.infer<typeof OnFailureSchema>;
 }
@@ -397,6 +400,7 @@ export function loadCase(filePath: string): CaseDefinition {
     name: rawData.name || path.basename(filePath, path.extname(filePath)),
     base_url: rawData.base_url || globalConfig.base_url,
     timeout: rawData.timeout ?? globalConfig.timeout,
+    assert_timeout: rawData.assert_timeout ?? globalConfig.assert_timeout,
     login_macro_path: rawData.login_macro_path || globalConfig.login_macro_path,
     on_failure: rawData.on_failure || globalConfig.on_failure,
   };

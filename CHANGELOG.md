@@ -12,6 +12,9 @@
 ### 新增 (Added)
 - **基于 RPC 桥接的调试工具 (`$$rw`)**：在页面初始化时通过 `context.exposeBinding` 与 Node.js 进程实现桥接，彻底避免了浏览器和 Node 端双重维护定位逻辑的负担。用户在控制台运行 `await $$rw('指令')` 时将直接使用框架原生的 `resolveLocator` 完成匹配，并可直接在控制台审查匹配到的真实 DOM 元素数组。
 - **增强的可选步骤控制流 (`?` 语法)**：优化了以 `?` 开头的可选指令逻辑。可选操作指令（如 `? tap`）执行失败时将跳过当前 step 后续的所有步骤，而可选断言指令（如 `? assert_exists`）执行失败时仅跳过本身，会继续向下执行当前 step 中的其他指令。
+- **`open` 页面打开命令支持 `fast` 与自定义超时选项**：允许为 `open` 指定可选的第二个参数（如 `open "url" fast` 或 `open "url" 2s`）。其中 `fast` 可快速跳过网络空闲稳定等待时间并进入下一步（依靠 Playwright 原生的 Locator 自动等待），时间参数可指定自定义网络等待超时时间。
+- **全局断言默认超时配置 (`assert_timeout`)**：在全局配置 `config.yaml` 或 case 用例文件中支持配置 `assert_timeout` 参数（支持时间字符串如 `"10s"` 或毫秒数如 `10000`）。该超时时长会统一应用到所有未指定行内时间的断言指令（包括 `assert_exists`、`assert_not_exists`、`assert_title_exists`、`assert_url`），从而优雅、统一地应对异步接口查询慢的测试环境。
+
 
 ### 修复 (Fixed)
 - **引号定位器中斜杠的转义解析**：修复了定位器中引号剥离与修饰符解析逻辑，支持了引号内含有斜杠的特殊文本定位匹配（例如 `"please user by name/id"/-1`）。
