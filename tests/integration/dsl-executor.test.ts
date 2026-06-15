@@ -544,6 +544,24 @@ describe('DSL 执行器集成测试', () => {
       `, page, ctx, {});
       expect(await page.locator('#near-result').textContent()).toBe('点击了第一个按钮');
     });
+
+    it('应该能够通过 plain text (placeholder/label) 作为目标元素与 near 锚点定位输入框', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        input "测试近邻占位符输入" to "please user by name/id" near "name/id"
+      `, page, ctx, {});
+      expect(await page.locator('#slash-input-2').inputValue()).toBe('测试近邻占位符输入');
+    });
+
+    it('应该能够通过 plain text (placeholder/label) 作为 anchor 锚点定位目标元素', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        tap "name/id" near "please user by name/id"
+      `, page, ctx, {});
+      expect(await page.locator('#near-result').textContent()).toBe('点击了第二个按钮');
+    });
   });
 
   describe('可选指令的执行控制流（? 语法增强）', () => {

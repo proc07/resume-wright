@@ -10,7 +10,7 @@ import { expect } from '@playwright/test';
 import type { DslInstruction } from '../types/dsl.types.js';
 import { parseScript } from './parser.js';
 import { loadMacro } from './macro-loader.js';
-import { resolveLocatorFromString, resolveInputLocator, stripQuotes } from './locator-resolver.js';
+import { resolveLocatorFromString, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from './locator-resolver.js';
 import type { ContextStore } from '../engine/context-store.js';
 import { getFormattedDateTime } from '../engine/datetime-utils.js';
 import { escapeRegex } from '../utils.js';
@@ -1116,9 +1116,21 @@ export async function findNearestReachable(
   const anchorCenters: Array<{ cx: number; cy: number }> = [];
   let isFirst = true;
   for (const anchorStr of nearOpts.anchors) {
-    const anchorLoc = resolveLocatorFromString(page, anchorStr);
+    let anchorLoc = resolveLocatorFromString(page, anchorStr);
+    let anchorCount = await anchorLoc.count();
+
+    const isAnchorPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(anchorStr));
+    if (anchorCount === 0 && isAnchorPlain) {
+      anchorLoc = resolveInputLocator(page, anchorStr);
+      anchorCount = await anchorLoc.count();
+    }
+
+    if (anchorCount === 0) {
+      throw new Error(`near: no elements found matching anchor "${stripQuotes(anchorStr)}"`);
+    }
+
     if (isFirst) {
-      await anchorLoc.first().scrollIntoViewIfNeeded();
+      await anchorLoc.first().scrollIntoViewIfNeeded({ timeout: 3000 });
       isFirst = false;
     }
     const box = await anchorLoc.first().boundingBox();
@@ -1129,8 +1141,16 @@ export async function findNearestReachable(
   }
 
   // 2. 获取目标元素集合
-  const targetLoc = resolveLocatorFromString(page, targetLocStr);
-  const count = await targetLoc.count();
+  let targetLoc = resolveLocatorFromString(page, targetLocStr);
+  let count = await targetLoc.count();
+
+  // 如果没有匹配到任何元素，且是普通文字定位器，尝试作为 input 定位器匹配（例如 placeholder/label）
+  const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(targetLocStr));
+  if (count === 0 && isPlain) {
+    targetLoc = resolveInputLocator(page, targetLocStr);
+    count = await targetLoc.count();
+  }
+
   if (count === 0) {
     throw new Error(`near: no elements found matching "${stripQuotes(targetLocStr)}"`);
   }
