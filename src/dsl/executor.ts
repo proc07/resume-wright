@@ -1058,7 +1058,7 @@ const NEAR_DIRECTIONS = new Set<string>(['left', 'right', 'top', 'bottom']);
  * 语法：[near "anchor1"] [near "anchor2"] [left|right|top|bottom] [nth=N]
  * 返回 null 表示没有 near 修饰符。
  */
-function parseNearOptions(afterTargetArgs: string[]): NearOptions | null {
+export function parseNearOptions(afterTargetArgs: string[]): NearOptions | null {
   if (!afterTargetArgs.includes('near')) return null;
 
   const anchors: string[] = [];
@@ -1107,7 +1107,7 @@ function parseNearOptions(afterTargetArgs: string[]): NearOptions | null {
  * 3. 计算到所有锚点的欧氏距离之和并排序
  * 4. 按 nth 取第 N 近（0 = 最近）
  */
-async function findNearestReachable(
+export async function findNearestReachable(
   page: Page,
   targetLocStr: string,
   nearOpts: NearOptions

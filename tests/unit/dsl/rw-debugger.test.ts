@@ -5,7 +5,9 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getDebuggerScript } from '../../../src/dsl/rw-debugger.js';
-import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes } from '../../../src/dsl/locator-resolver.js';
+import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from '../../../src/dsl/locator-resolver.js';
+import { tokenize } from '../../../src/dsl/parser.js';
+import { parseNearOptions, findNearestReachable } from '../../../src/dsl/executor.js';
 import { getDefaultRegistry } from '../../../src/adapters/elements-csv.js';
 
 import { chromium, type Page } from '@playwright/test';
@@ -33,21 +35,49 @@ describe('$$rw Browser Debugger Tool', () => {
 
     // 绑定 Node.js 端的真实解析与标记逻辑
     await context.exposeBinding('$$rw_node', async ({ page }, locatorStr: string) => {
-
       try {
-        const parsed = parseLocator(locatorStr);
-        let locator = resolveLocator(page, parsed);
-        let count = await locator.count();
+        let locator: any;
+        let count = 0;
         let matchedType = 'standard';
+        let parsed: any = null;
 
-        const isPlain = !/^(label:|placeholder:|testid:|title:|alt:|role:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(stripQuotes(locatorStr));
-        if (count === 0 && isPlain) {
-          const inputLoc = resolveInputLocator(page, locatorStr);
-          const inputCount = await inputLoc.count();
-          if (inputCount > 0) {
-            locator = inputLoc;
-            count = inputCount;
-            matchedType = 'input';
+        const tokens = tokenize(locatorStr);
+        const nearIdx = tokens.indexOf('near');
+
+        if (nearIdx !== -1) {
+          const targetLocStr = tokens.slice(0, nearIdx).join(' ');
+          const nearArgs = tokens.slice(nearIdx);
+          const nearOpts = parseNearOptions(nearArgs);
+          if (nearOpts) {
+            try {
+              locator = await findNearestReachable(page, targetLocStr, nearOpts);
+              count = await locator.count();
+              matchedType = 'near';
+              parsed = { type: 'near', target: targetLocStr, nearOpts };
+            } catch (e) {
+              count = 0;
+              matchedType = 'near';
+              parsed = { type: 'near', target: targetLocStr, nearOpts, error: String(e) };
+            }
+          } else {
+            parsed = parseLocator(locatorStr);
+            locator = resolveLocator(page, parsed);
+            count = await locator.count();
+          }
+        } else {
+          parsed = parseLocator(locatorStr);
+          locator = resolveLocator(page, parsed);
+          count = await locator.count();
+
+          const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(locatorStr));
+          if (count === 0 && isPlain) {
+            const inputLoc = resolveInputLocator(page, locatorStr);
+            const inputCount = await inputLoc.count();
+            if (inputCount > 0) {
+              locator = inputLoc;
+              count = inputCount;
+              matchedType = 'input';
+            }
           }
         }
 
@@ -239,5 +269,13 @@ describe('$$rw Browser Debugger Tool', () => {
       return el ? el.id : null;
     });
     expect(resFallback).toBe('username-input');
+
+    // 16. near 语法定位支持
+    const resNear = await page.evaluate(async () => {
+      const elements = await (window as any).$$rw('role:button[Edit] near "User A"');
+      const el = elements[0];
+      return el ? el.id : null;
+    });
+    expect(resNear).toBe('edit-1');
   });
 });

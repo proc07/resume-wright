@@ -10,6 +10,8 @@ import type { RoleContext } from '../types/engine.types.js';
 import { getDefaultRegistry } from '../adapters/elements-csv.js';
 import { getDebuggerScript } from '../dsl/rw-debugger.js';
 import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from '../dsl/locator-resolver.js';
+import { tokenize } from '../dsl/parser.js';
+import { parseNearOptions, findNearestReachable } from '../dsl/executor.js';
 
 
 
@@ -208,19 +210,49 @@ export class RolePool {
     try {
       await context.exposeBinding('$$rw_node', async ({ page }, locatorStr: string) => {
         try {
-          const parsed = parseLocator(locatorStr);
-          let locator = resolveLocator(page, parsed);
-          let count = await locator.count();
+          let locator: any;
+          let count = 0;
           let matchedType = 'standard';
+          let parsed: any = null;
 
-          const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(locatorStr));
-          if (count === 0 && isPlain) {
-            const inputLoc = resolveInputLocator(page, locatorStr);
-            const inputCount = await inputLoc.count();
-            if (inputCount > 0) {
-              locator = inputLoc;
-              count = inputCount;
-              matchedType = 'input';
+          const tokens = tokenize(locatorStr);
+          const nearIdx = tokens.indexOf('near');
+
+          if (nearIdx !== -1) {
+            // 解析 near 定位，例如："css:button.slash-btn" near "name/id"
+            const targetLocStr = tokens.slice(0, nearIdx).join(' ');
+            const nearArgs = tokens.slice(nearIdx);
+            const nearOpts = parseNearOptions(nearArgs);
+            if (nearOpts) {
+              try {
+                locator = await findNearestReachable(page, targetLocStr, nearOpts);
+                count = await locator.count();
+                matchedType = 'near';
+                parsed = { type: 'near', target: targetLocStr, nearOpts };
+              } catch (e) {
+                count = 0;
+                matchedType = 'near';
+                parsed = { type: 'near', target: targetLocStr, nearOpts, error: String(e) };
+              }
+            } else {
+              parsed = parseLocator(locatorStr);
+              locator = resolveLocator(page, parsed);
+              count = await locator.count();
+            }
+          } else {
+            parsed = parseLocator(locatorStr);
+            locator = resolveLocator(page, parsed);
+            count = await locator.count();
+
+            const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(locatorStr));
+            if (count === 0 && isPlain) {
+              const inputLoc = resolveInputLocator(page, locatorStr);
+              const inputCount = await inputLoc.count();
+              if (inputCount > 0) {
+                locator = inputLoc;
+                count = inputCount;
+                matchedType = 'input';
+              }
             }
           }
 
