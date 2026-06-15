@@ -7,6 +7,11 @@ import path from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import type { RoleCredential } from '../types/case.types.js';
 import type { RoleContext } from '../types/engine.types.js';
+import { getDefaultRegistry } from '../adapters/elements-csv.js';
+import { getDebuggerScript } from '../dsl/rw-debugger.js';
+import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes } from '../dsl/locator-resolver.js';
+
+
 
 const STATES_DIR = '.resumewright/states';
 
@@ -108,7 +113,9 @@ export class RolePool {
     const context = await this.browser.newContext({
       ignoreHTTPSErrors: true,
     });
+    await this.injectDebuggerToContext(context);
     const page = await context.newPage();
+
 
     if (this.opts.loginMacroPath) {
       // 使用自定义登录宏
@@ -188,14 +195,69 @@ export class RolePool {
   private async createContextFromState(
     storageState: unknown
   ): Promise<RoleContext> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const context = await this.browser.newContext({
       storageState: storageState as any,
       ignoreHTTPSErrors: true,
     });
+    await this.injectDebuggerToContext(context);
     const page = await context.newPage();
     return { context, page };
   }
+
+  private async injectDebuggerToContext(context: BrowserContext) {
+    try {
+      await context.exposeBinding('$$rw_node', async ({ page }, locatorStr: string) => {
+        try {
+          const parsed = parseLocator(locatorStr);
+          let locator = resolveLocator(page, parsed);
+          let count = await locator.count();
+          let matchedType = 'standard';
+
+          const isPlain = !/^(label:|placeholder:|testid:|title:|alt:|role:|\.|#|\/\/|@|\*.*\*|.*\|)/.test(stripQuotes(locatorStr));
+          if (count === 0 && isPlain) {
+            const inputLoc = resolveInputLocator(page, locatorStr);
+            const inputCount = await inputLoc.count();
+            if (inputCount > 0) {
+              locator = inputLoc;
+              count = inputCount;
+              matchedType = 'input';
+            }
+          }
+
+          if (count > 0) {
+            const rwId = 'rw-' + Math.random().toString(36).slice(2);
+            await locator.evaluateAll((elements, id) => {
+              for (const el of elements) {
+                el.setAttribute('data-rw-temp-id', id);
+              }
+            }, rwId);
+            return { rwId, parsed, matchedType };
+          }
+
+          return { rwId: null, parsed, matchedType };
+        } catch (err) {
+          console.error(`[role-pool] Error in $$rw_node binding resolving "${locatorStr}":`, err);
+          throw err;
+        }
+      });
+    } catch (err) {
+      console.warn(`[role-pool] Failed to expose $$rw_node binding to context:`, err);
+    }
+
+    try {
+      const registry = getDefaultRegistry();
+      const aliases: Record<string, string> = {};
+      for (const a of registry.all()) {
+        aliases[a.name] = a.locator;
+      }
+      const script = getDebuggerScript(aliases);
+      await context.addInitScript(script);
+    } catch (err) {
+      console.warn(`[role-pool] Failed to inject $$rw debugger script to context:`, err);
+    }
+  }
+
+
 
   private getStatePath(roleName: string): string {
     const safe = roleName.replace(/[^\w-]/g, '_');

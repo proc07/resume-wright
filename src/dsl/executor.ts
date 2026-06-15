@@ -31,6 +31,15 @@ export interface ExecutorOptions {
 
 // ── 主执行函数 ────────────────────────────────────────────────
 
+// ── 断言指令集合（用于可选指令报错时的跳过判断） ───────────────
+const ASSERT_COMMANDS = new Set<string>([
+  'assert_exists',
+  'assert_not_exists',
+  'assert_text_equal',
+  'assert_title_exists',
+  'assert_url',
+]);
+
 /**
  * 执行一段 DSL 脚本字符串
  */
@@ -40,6 +49,8 @@ export async function executeScript(
   ctx: ContextStore,
   opts: ExecutorOptions = {}
 ): Promise<void> {
+  // 重置上一次 step 运行残留的跳过状态标记
+  ctx.set('_skip_remaining_instructions', false);
   const instructions = parseScript(script);
   await executeInstructions(instructions, page, ctx, opts);
 }
@@ -66,6 +77,11 @@ async function executeOne(
   ctx: ContextStore,
   opts: ExecutorOptions
 ): Promise<void> {
+  // 如果已触发跳过剩余指令的标记，则直接默默跳过该指令
+  if (ctx.get('_skip_remaining_instructions')) {
+    return;
+  }
+
   const run = async () => {
     if (inst.command === null) {
       // 变量赋值
@@ -81,6 +97,15 @@ async function executeOne(
     } catch (err) {
       const lineInfo = inst.lineNumber ? ` (第 ${inst.lineNumber} 行)` : '';
       console.warn(`[dsl] ⚠ Optional step failed (skipped): ${inst.raw}${lineInfo}\n  ${String(err)}`);
+      
+      const isAssert = inst.command !== null && ASSERT_COMMANDS.has(inst.command);
+      if (isAssert) {
+        // 断言类型：仅跳过该行，继续执行后面的命令
+      } else {
+        // 操作类型：设置跳过标记，使当前 step/sub step 后续所有命令默默跳过
+        ctx.set('_skip_remaining_instructions', true);
+        console.warn(`[dsl] ⏭  Skipping remaining instructions in current step due to optional action failure.`);
+      }
     }
   } else {
     try {

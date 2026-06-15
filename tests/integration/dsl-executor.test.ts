@@ -478,6 +478,29 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('可选指令的执行控制流（? 语法增强）', () => {
+    it('可选断言指令报错时，应该只跳过本身并继续执行后续指令', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        ? assert_exists "non_existent_text_xyz" 1s
+        tap "打开Modal"
+      `, page, ctx, {});
+      expect(await page.locator('#test-modal').isVisible()).toBe(true);
+      await page.locator('#close-modal-btn').click();
+    });
+
+    it('可选操作指令报错时，应该跳过当前 step 的剩余所有指令', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        ? tap "non_existent_btn_abc"
+        tap "打开Modal"
+      `, page, ctx, {});
+      expect(await page.locator('#test-modal').isVisible()).toBe(false);
+    });
+  });
+
   describe('完整工作流场景', () => {
     it('提交 → 获取 ID → 审批通过', async () => {
       const ctx = makeCtx();
