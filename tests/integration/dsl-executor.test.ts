@@ -585,25 +585,33 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
-  describe('可选指令的执行控制流（? 语法增强）', () => {
-    it('可选断言指令报错时，应该只跳过本身并继续执行后续指令', async () => {
+  describe('可选指令的执行控制流（? 语法连续性控制）', () => {
+    it('连续的 ? 指令：只要有一个报错，后面连续的 ? 指令都会被跳过，但不影响后面的非 ? 指令', async () => {
       const ctx = makeCtx();
+      // 在 test-app.html 中，"打开Modal" 按钮存在，"non_existent_btn_abc" 和 "non_existent_btn_xyz" 不存在。
+      // 我们在连续的 ? 块中，放置一个报错的操作，验证后续连续的 ? 被跳过，但非 ? 的 "tap 打开Modal" 依然执行。
       await executeScript(`
         open "$base_url"
-        ? assert_exists "non_existent_text_xyz" 1s
+        ? tap "non_existent_btn_abc"
+        ? tap "non_existent_btn_xyz"
         tap "打开Modal"
       `, page, ctx, {});
       expect(await page.locator('#test-modal').isVisible()).toBe(true);
       await page.locator('#close-modal-btn').click();
     });
 
-    it('可选操作指令报错时，应该跳过当前 step 的剩余所有指令', async () => {
+    it('非连续的 ? 块：前一个 ? 块报错，执行非 ? 指令后，后续新 ? 块中的指令依然能够执行', async () => {
       const ctx = makeCtx();
+      // 1. 第一个 ? 块中 ? assert_exists 报错
+      // 2. 接着执行非 ? 的 tap "打开Modal"
+      // 3. 接着执行一个新的 ? 块中的 ? tap "关闭按钮"
       await executeScript(`
         open "$base_url"
-        ? tap "non_existent_btn_abc"
+        ? assert_exists "non_existent_text_xyz" 1s
         tap "打开Modal"
+        ? tap "xpath://button[@id='close-modal-btn']"
       `, page, ctx, {});
+      // 如果最后一个 ? tap "关闭按钮" 成功执行，则 modal 应该被关闭（不可见）
       expect(await page.locator('#test-modal').isVisible()).toBe(false);
     });
   });

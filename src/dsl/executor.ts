@@ -53,8 +53,6 @@ export async function executeScript(
   ctx: ContextStore,
   opts: ExecutorOptions = {}
 ): Promise<void> {
-  // 重置上一次 step 运行残留的跳过状态标记
-  ctx.set('_skip_remaining_instructions', false);
   const instructions = parseScript(script);
   await executeInstructions(instructions, page, ctx, opts);
 }
@@ -69,8 +67,36 @@ export async function executeInstructions(
   opts: ExecutorOptions = {}
 ): Promise<void> {
   activeContexts.set(page, ctx);
+  
+  const actionTimeout = opts.assertTimeout !== undefined
+    ? (typeof opts.assertTimeout === 'number' ? opts.assertTimeout : parseDuration(String(opts.assertTimeout)))
+    : 2000;
+  page.setDefaultTimeout(actionTimeout);
+  
+  let skipConsecutiveOptionals = false;
+
   for (const inst of instructions) {
-    await executeOne(inst, page, ctx, opts);
+    if (!inst.optional) {
+      // 一旦遇到非可选指令，重置连续可选块跳过标记
+      skipConsecutiveOptionals = false;
+    }
+
+    if (inst.optional && skipConsecutiveOptionals) {
+      console.log(`[dsl] ⏭  Skipping consecutive optional instruction: ${inst.raw.trim()}`);
+      continue;
+    }
+
+    try {
+      await executeOne(inst, page, ctx, opts);
+    } catch (err) {
+      if (inst.optional) {
+        const lineInfo = inst.lineNumber ? ` (第 ${inst.lineNumber} 行)` : '';
+        console.warn(`[dsl] ⚠ Optional step failed (skipped): ${inst.raw}${lineInfo}\n  ${String(err)}`);
+        skipConsecutiveOptionals = true;
+      } else {
+        throw err;
+      }
+    }
   }
 }
 
@@ -82,11 +108,6 @@ async function executeOne(
   ctx: ContextStore,
   opts: ExecutorOptions
 ): Promise<void> {
-  // 如果已触发跳过剩余指令的标记，则直接默默跳过该指令
-  if (ctx.get('_skip_remaining_instructions')) {
-    return;
-  }
-
   const run = async () => {
     if (inst.command === null) {
       // 变量赋值
@@ -96,29 +117,11 @@ async function executeOne(
     }
   };
 
-  if (inst.optional) {
-    try {
-      await run();
-    } catch (err) {
-      const lineInfo = inst.lineNumber ? ` (第 ${inst.lineNumber} 行)` : '';
-      console.warn(`[dsl] ⚠ Optional step failed (skipped): ${inst.raw}${lineInfo}\n  ${String(err)}`);
-      
-      const isAssert = inst.command !== null && ASSERT_COMMANDS.has(inst.command);
-      if (isAssert) {
-        // 断言类型：仅跳过该行，继续执行后面的命令
-      } else {
-        // 操作类型：设置跳过标记，使当前 step/sub step 后续所有命令默默跳过
-        ctx.set('_skip_remaining_instructions', true);
-        console.warn(`[dsl] ⏭  Skipping remaining instructions in current step due to optional action failure.`);
-      }
-    }
-  } else {
-    try {
-      await run();
-    } catch (err) {
-      const lineInfo = inst.lineNumber ? `\n  📍 位于脚本第 ${inst.lineNumber} 行: ${inst.raw.trim()}` : '';
-      throw new Error(`${String(err)}${lineInfo}`);
-    }
+  try {
+    await run();
+  } catch (err) {
+    const lineInfo = inst.lineNumber ? `\n  📍 位于脚本第 ${inst.lineNumber} 行: ${inst.raw.trim()}` : '';
+    throw new Error(`${String(err)}${lineInfo}`);
   }
 }
 
