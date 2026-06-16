@@ -1208,7 +1208,8 @@ export async function findNearestReachable(
 
   // 3. 候选过滤 + 距离计算
   type Candidate = { idx: number; totalDist: number };
-  const candidates: Candidate[] = [];
+  const reachableCandidates: Candidate[] = [];
+  const visibleCandidates: Candidate[] = [];
   const primaryAnchor = anchorCenters[0]!;
 
   for (let i = 0; i < count; i++) {
@@ -1219,8 +1220,30 @@ export async function findNearestReachable(
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
 
-    // 3a. elementFromPoint 可达性检测
-    //     判断该元素的视觉中心点是否「暴露在最顶层」（未被 Modal/Overlay/Tooltip 遮挡）
+    // 方向扇区过滤（以主锚点为原点，使用角度范围划分四个方向）
+    // right: -45°~45°  bottom: 45°~135°  left: 135°~225°  top: -135°~-45°
+    if (nearOpts.direction) {
+      const angle = Math.atan2(cy - primaryAnchor.cy, cx - primaryAnchor.cx) * 180 / Math.PI;
+      let inDir = false;
+      switch (nearOpts.direction) {
+        case 'right':  inDir = angle > -45  && angle <= 45;  break;
+        case 'bottom': inDir = angle > 45   && angle <= 135; break;
+        case 'left':   inDir = angle > 135  || angle <= -135; break;
+        case 'top':    inDir = angle > -135 && angle <= -45; break;
+      }
+      if (!inDir) continue;
+    }
+
+    // 计算到所有锚点的欧氏距离之和
+    let totalDist = 0;
+    for (const anchor of anchorCenters) {
+      const dx = cx - anchor.cx;
+      const dy = cy - anchor.cy;
+      totalDist += Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // elementFromPoint 可达性检测
+    // 判断该元素的视觉中心点是否「暴露在最顶层」（未被 Modal/Overlay/Tooltip 遮挡）
     const isReachable: boolean = await el.evaluate((domEl: Element) => {
       const rect = domEl.getBoundingClientRect();
       const testX = rect.left + rect.width / 2;
@@ -1241,37 +1264,25 @@ export async function findNearestReachable(
       }
       return false;
     });
-    if (!isReachable) continue;
 
-    // 3b. 方向扇区过滤（以主锚点为原点，使用角度范围划分四个方向）
-    //     right: -45°~45°  bottom: 45°~135°  left: 135°~225°  top: -135°~-45°
-    if (nearOpts.direction) {
-      const angle = Math.atan2(cy - primaryAnchor.cy, cx - primaryAnchor.cx) * 180 / Math.PI;
-      let inDir = false;
-      switch (nearOpts.direction) {
-        case 'right':  inDir = angle > -45  && angle <= 45;  break;
-        case 'bottom': inDir = angle > 45   && angle <= 135; break;
-        case 'left':   inDir = angle > 135  || angle <= -135; break;
-        case 'top':    inDir = angle > -135 && angle <= -45; break;
-      }
-      if (!inDir) continue;
+    if (isReachable) {
+      reachableCandidates.push({ idx: i, totalDist });
+    } else {
+      visibleCandidates.push({ idx: i, totalDist });
     }
+  }
 
-    // 3c. 计算到所有锚点的欧氏距离之和
-    //     双锚点时，取两者距离之和最小值，等效于「同时靠近两个锚点」（行列交叉定位）
-    let totalDist = 0;
-    for (const anchor of anchorCenters) {
-      const dx = cx - anchor.cx;
-      const dy = cy - anchor.cy;
-      totalDist += Math.sqrt(dx * dx + dy * dy);
-    }
-    candidates.push({ idx: i, totalDist });
+  let candidates = reachableCandidates;
+  let isFallback = false;
+  if (candidates.length === 0) {
+    candidates = visibleCandidates;
+    isFallback = true;
   }
 
   if (candidates.length === 0) {
     const dirMsg = nearOpts.direction ? ` [direction: ${nearOpts.direction}]` : '';
     throw new Error(
-      `near: no reachable element "${stripQuotes(targetLocStr)}" found near "${nearOpts.anchors.map(stripQuotes).join('" and "')}"${dirMsg}`
+      `near: no reachable or visible element "${stripQuotes(targetLocStr)}" found near "${nearOpts.anchors.map(stripQuotes).join('" and "')}"${dirMsg}`
     );
   }
 
@@ -1280,7 +1291,7 @@ export async function findNearestReachable(
   const picked = candidates[nearOpts.nth] ?? candidates[candidates.length - 1]!;
 
   console.log(
-    `[dsl]   📍 near: picked element #${picked.idx}` +
+    `[dsl]   📍 near: ${isFallback ? '(fallback to covered) ' : ''}picked element #${picked.idx}` +
     ` (dist=${Math.round(picked.totalDist)}px` +
     (nearOpts.direction ? `, dir=${nearOpts.direction}` : '') +
     (nearOpts.nth ? `, nth=${nearOpts.nth}` : '') +

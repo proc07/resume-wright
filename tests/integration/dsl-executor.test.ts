@@ -460,6 +460,85 @@ describe('DSL 执行器集成测试', () => {
       `, page, ctx, {});
       expect(await page.locator('#near-result').textContent()).toBe('Modal确认');
     });
+
+    it('当所有候选元素均被遮挡时，应该触发降级回退机制，成功定位并操作该元素', async () => {
+      const ctx = makeCtx();
+      await executeScript(`open "$base_url"`, page, ctx, {});
+      
+      // 动态在页面上加一个绝对定位的全屏 div 遮罩，把所有页面元素挡住
+      await page.evaluate(() => {
+        const overlay = document.createElement('div');
+        overlay.id = 'temp-test-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.zIndex = '999999';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.1)';
+        document.body.appendChild(overlay);
+      });
+
+      // 验证在 near 阶段能够成功定位到被遮盖的输入框，并通过 input 指令（不需要 Receives Events）输入内容
+      await executeScript(`
+        input "降级输入测试" to "please user by name/id" near "name/id"
+      `, page, ctx, {});
+
+      // 验证输入是否成功
+      expect(await page.locator('#near-result').textContent()).toBe('输入了第二个: 降级输入测试');
+
+      // 移除遮罩以还原页面状态
+      await page.evaluate(() => {
+        document.getElementById('temp-test-overlay')?.remove();
+      });
+    });
+
+    it('复杂真实场景测试：模拟下拉菜单（如日期选择器）挡住相邻输入框时，降级定位并聚焦自动收起下拉框', async () => {
+      const ctx = makeCtx();
+      await executeScript(`open "$base_url"`, page, ctx, {});
+
+      // 1. 动态生成测试场景：两个相邻输入框和自建的遮挡下拉菜单
+      await page.evaluate(() => {
+        const container = document.createElement('div');
+        container.id = 'complex-test-container';
+        container.style.marginTop = '20px';
+        container.style.position = 'relative';
+
+        container.innerHTML = `
+          <div class="form-group" style="position: relative;">
+            <label for="date-input-field">开始日期</label>
+            <input id="date-input-field" type="text" placeholder="选择日期" value="2026-06-16">
+            <!-- 模拟日期弹窗展开，绝对定位盖在下方输入框上面 -->
+            <div id="datepicker-popup" style="position: absolute; left: 0; top: 40px; width: 200px; height: 100px; background: #e0e7ff; border: 1px solid #4f46e5; z-index: 10000; padding: 10px;">
+              日期选择器面板 (盖在下方输入框上)
+            </div>
+          </div>
+          
+          <div class="form-group" style="margin-top: 30px;">
+            <label for="username-input-field">用户名称</label>
+            <input id="username-input-field" type="text" placeholder="输入账号" onfocus="document.getElementById('datepicker-popup').style.display='none'">
+          </div>
+        `;
+        document.body.appendChild(container);
+      });
+
+      // 2. 使用 near 语法来向被挡住的 "输入账号" 输入框填值：
+      await executeScript(`
+        input "JackSmith" to "placeholder:输入账号" near "label:用户名称"
+      `, page, ctx, {});
+
+      // 3. 验证此时面板被成功聚焦隐藏，且内容成功被填入
+      const inputValue = await page.locator('#username-input-field').inputValue();
+      expect(inputValue).toBe('JackSmith');
+
+      const isPopupVisible = await page.locator('#datepicker-popup').isVisible();
+      expect(isPopupVisible).toBe(false);
+
+      // 清理 DOM
+      await page.evaluate(() => {
+        document.getElementById('complex-test-container')?.remove();
+      });
+    });
   });
 
   describe('含斜杠 / 的定位器与修饰符', () => {
