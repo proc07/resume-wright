@@ -23,6 +23,7 @@ steps:
 
       # 点击李四对应的删除按钮
       tap "删除" near "李四"
+      inspect "操作成功: 删除了 李四"
       assert_exists "操作成功: 删除了 李四"
       screenshot
 

@@ -573,6 +573,18 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('inspect — 调试检查指令', () => {
+    it('能够成功审查 SVG 节点而不抛出 className.trim 错误', async () => {
+      const ctx = makeCtx();
+      // 在 headless 模式下，page.pause() 会立即 resolve 返回，从而测试不会挂起。
+      // 我们测试该命令能够正常解析定位并打印，而不发生 TypeError。
+      await expect(executeScript(`
+        open "$base_url"
+        inspect "css:#svg-element"
+      `, page, ctx, {})).resolves.not.toThrow();
+    });
+  });
+
   describe('可选指令的执行控制流（? 语法增强）', () => {
     it('可选断言指令报错时，应该只跳过本身并继续执行后续指令', async () => {
       const ctx = makeCtx();

@@ -616,7 +616,7 @@ async function executeCommand(
               index: 0, // filled below
               tag: el.tagName.toLowerCase(),
               id: el.id,
-              className: el.className,
+              className: typeof el.className === 'string' ? el.className : (el.getAttribute('class') ?? ''),
               text: (el.textContent ?? '').trim().slice(0, 200),
               visible,
               disabled: (el as HTMLInputElement).disabled ?? false,
@@ -668,23 +668,38 @@ async function executeCommand(
       console.log(`${DIM}──────────────────────────────────────────────────────${RESET}\n`);
 
       // ── 浏览器 console 输出 ─────────────────────────────────
-      await page.evaluate(({ locStr, nodes }: { locStr: string; nodes: NodeInfo[] }) => {
-        console.group(`%c🔍 DSL inspect: "${locStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
-        console.log('%cMatched elements:', 'color:#a3e635;font-weight:bold', nodes.length);
-        for (const n of nodes) {
-          console.groupCollapsed(`%c[${n.index}] <${n.tag}>${n.id ? ' #' + n.id : ''}`, 'color:#f59e0b;font-weight:bold');
-          console.log('text:', n.text);
-          console.log('visible:', n.visible);
-          console.log('disabled:', n.disabled);
-          console.log('bbox:', n.bbox);
-          console.log('attrs:', n.attrs);
-          console.groupEnd();
-        }
-        if (nodes.length === 0) {
+      if (nodes.length === 0) {
+        await page.evaluate(({ locStr }) => {
+          console.group(`%c🔍 DSL inspect: "${locStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
           console.warn('⚠ No elements found for locator:', locStr);
-        }
-        console.groupEnd();
-      }, { locStr, nodes });
+          console.groupEnd();
+        }, { locStr });
+      } else {
+        const locator = resolveLocatorFromString(page, locStr);
+        await locator.evaluateAll((elements, { locStr }) => {
+          console.group(`%c🔍 DSL inspect: "${locStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
+          console.log('%cMatched elements:', 'color:#a3e635;font-weight:bold', elements.length, elements);
+          elements.forEach((el, index) => {
+            console.groupCollapsed(`%c[${index}] <${el.tagName.toLowerCase()}>${el.id ? ' #' + el.id : ''}`, 'color:#f59e0b;font-weight:bold');
+            console.log('%cDOM Node  :', 'color:#3b82f6;font-weight:bold', el); // 输出真实 DOM 节点！
+            console.log('visible   :', (() => {
+              const rect = el.getBoundingClientRect();
+              const style = window.getComputedStyle(el);
+              return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && rect.width > 0 && rect.height > 0;
+            })());
+            console.log('textContent:', el.textContent);
+            console.log('attrs     :', (() => {
+              const attrs: Record<string, string> = {};
+              for (const attr of Array.from(el.attributes)) {
+                attrs[attr.name] = attr.value;
+              }
+              return attrs;
+            })());
+            console.groupEnd();
+          });
+          console.groupEnd();
+        }, { locStr });
+      }
 
       // ── 暂停页面 ────────────────────────────────────────────
       await page.pause();
