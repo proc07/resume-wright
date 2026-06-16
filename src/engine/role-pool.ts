@@ -11,7 +11,7 @@ import { getDefaultRegistry } from '../adapters/elements-csv.js';
 import { getDebuggerScript } from '../dsl/rw-debugger.js';
 import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from '../dsl/locator-resolver.js';
 import { tokenize } from '../dsl/parser.js';
-import { parseNearOptions, findNearestReachable } from '../dsl/executor.js';
+import { parseNearOptions, findNearestReachable, activeContexts, interpolate } from '../dsl/executor.js';
 
 
 
@@ -214,6 +214,11 @@ export class RolePool {
           let count = 0;
           let matchedType = 'standard';
           let parsed: any = null;
+
+          const activeCtx = activeContexts.get(page);
+          if (activeCtx) {
+            locatorStr = interpolate(locatorStr, activeCtx);
+          }
 
           const tokens = tokenize(locatorStr);
           const nearIdx = tokens.indexOf('near');

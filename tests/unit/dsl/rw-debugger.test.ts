@@ -7,8 +7,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getDebuggerScript } from '../../../src/dsl/rw-debugger.js';
 import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from '../../../src/dsl/locator-resolver.js';
 import { tokenize } from '../../../src/dsl/parser.js';
-import { parseNearOptions, findNearestReachable } from '../../../src/dsl/executor.js';
+import { parseNearOptions, findNearestReachable, activeContexts, interpolate } from '../../../src/dsl/executor.js';
 import { getDefaultRegistry } from '../../../src/adapters/elements-csv.js';
+import { ContextStore } from '../../../src/engine/context-store.js';
 
 import { chromium, type Page } from '@playwright/test';
 
@@ -40,6 +41,11 @@ describe('$$rw Browser Debugger Tool', () => {
         let count = 0;
         let matchedType = 'standard';
         let parsed: any = null;
+
+        const activeCtx = activeContexts.get(page);
+        if (activeCtx) {
+          locatorStr = interpolate(locatorStr, activeCtx);
+        }
 
         const tokens = tokenize(locatorStr);
         const nearIdx = tokens.indexOf('near');
@@ -277,5 +283,25 @@ describe('$$rw Browser Debugger Tool', () => {
       return el ? el.id : null;
     });
     expect(resNear).toBe('edit-1');
+
+    // 17. 变量插值支持 (如 $$rw('$var'))
+    const testCtx = new ContextStore();
+    testCtx.set('username_val', 'Enter username');
+    testCtx.set('pwd_label', 'Password');
+    activeContexts.set(page, testCtx);
+
+    const resVar1 = await page.evaluate(async () => {
+      const elements = await (window as any).$$rw('$username_val');
+      const el = elements[0];
+      return el ? el.id : null;
+    });
+    expect(resVar1).toBe('username-input');
+
+    const resVar2 = await page.evaluate(async () => {
+      const elements = await (window as any).$$rw('label:$pwd_label');
+      const el = elements[0];
+      return el ? el.id : null;
+    });
+    expect(resVar2).toBe('pwd-input');
   });
 });

@@ -30,6 +30,9 @@ export interface ExecutorOptions {
   assertTimeout?: string | number;
 }
 
+
+export const activeContexts = new WeakMap<Page, ContextStore>();
+
 // ── 主执行函数 ────────────────────────────────────────────────
 
 // ── 断言指令集合（用于可选指令报错时的跳过判断） ───────────────
@@ -65,6 +68,7 @@ export async function executeInstructions(
   ctx: ContextStore,
   opts: ExecutorOptions = {}
 ): Promise<void> {
+  activeContexts.set(page, ctx);
   for (const inst of instructions) {
     await executeOne(inst, page, ctx, opts);
   }

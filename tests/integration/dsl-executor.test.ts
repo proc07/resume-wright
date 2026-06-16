@@ -747,4 +747,39 @@ describe('DSL 执行器集成测试', () => {
       await pwExpect(statusBadge).toHaveText('已审批');
     });
   });
+
+  describe('$$rw 调试器与 RolePool 变量插值', () => {
+    it('在 RolePool 管理的页面中，$$rw 能够自动解析当前活跃 ContextStore 中的变量', async () => {
+      const { RolePool } = await import('../../src/engine/role-pool.js');
+      const rolePool = new RolePool(browser, {
+        admin: { username: 'admin', password: '123' },
+      });
+      const rolePage = await rolePool.getPage('admin');
+      
+      await rolePage.setContent(`
+        <html><body>
+          <div id="target-btn">Click Me</div>
+        </body></html>
+      `);
+
+      const ctx = makeCtx();
+      ctx.set('my_btn_text', 'Click Me');
+
+      // 执行空脚本以绑定 activeContexts
+      await executeScript(`
+        # 绑定 activeContexts
+      `, rolePage, ctx);
+
+      // 验证通过 $$rw 传入变量名 $my_btn_text 能够匹配到 DOM 元素
+      const matchedIds = await rolePage.evaluate(async () => {
+        const elements = await (window as any).$$rw('$my_btn_text');
+        return elements.map((el: any) => el.id);
+      });
+
+      expect(matchedIds).toContain('target-btn');
+
+      // 关闭 Page 以释放资源
+      await rolePage.context().close();
+    });
+  });
 });
