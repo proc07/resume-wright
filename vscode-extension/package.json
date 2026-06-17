@@ -1,0 +1,46 @@
+{
+  "name": "resumewright-dsl",
+  "displayName": "ResumeWright DSL Support",
+  "description": "Syntax highlighting and language support for the ResumeWright DSL scripting language.",
+  "version": "0.1.5",
+  "publisher": "resumewright",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "resumewright",
+        "aliases": [
+          "ResumeWright DSL",
+          "resumewright"
+        ],
+        "extensions": [
+          ".macro"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "resumewright",
+        "scopeName": "source.resumewright",
+        "path": "./syntaxes/resumewright.tmLanguage.json"
+      },
+      {
+        "scopeName": "injection.resumewright.yaml",
+        "path": "./syntaxes/resumewright-yaml-injection.json",
+        "injectTo": [
+          "source.yaml"
+        ],
+        "embeddedLanguages": {
+          "source.resumewright": "resumewright"
+        }
+      }
+    ]
+  },
+  "dependencies": {}
+}

@@ -7,6 +7,17 @@
 
 ---
 
+## [0.6.0] - 2026-06-17
+
+### 新增 (Added)
+- **VS Code 官方语法高亮插件**：在 `vscode-extension/` 目录下开发并打包了配套的 VS Code 语言支持插件，为 `.macro` 宏脚本文件提供高精度的指令、变量、定位前缀高亮，并支持在 YAML 测试用例文件的 `script:` 键值块下自动高亮嵌入的 DSL 脚本（通过 TextMate 语法注入）。
+- **一键安装插件命令 (`install-extension`)**：在 CLI 工具中新增了 `resumewright install-extension` 命令。在 npm 包发布后，用户只需运行此命令，便会自动寻找 `.vsix` 文件并调用本地 VS Code 命令行工具进行安装。
+
+### 优化 (Changed)
+- **打包精简与依赖清理**：移除了本地语法测试所需的 `vscode-textmate` 和 `vscode-oniguruma` 依赖，重构包体积使插件体积从 213KB 骤降至 5.8KB，并将插件文件关联限制为仅激活真正的 `.macro` 宏脚本。
+
+---
+
 ## [0.5.0] - 2026-06-15
 
 ### 新增 (Added)

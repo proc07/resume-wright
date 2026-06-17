@@ -1,0 +1,40 @@
+{
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        "scope": "keyword.control.flow.action.resumewright",
+        "settings": {
+          "foreground": "#ff007f",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "entity.name.function.assertion.resumewright",
+        "settings": {
+          "foreground": "#ffb86c",
+          "fontStyle": "italic"
+        }
+      },
+      {
+        "scope": "variable.other.readwrite.resumewright",
+        "settings": {
+          "foreground": "#8be9fd",
+          "fontStyle": "bold italic"
+        }
+      },
+      {
+        "scope": "string.quoted.double.resumewright",
+        "settings": {
+          "foreground": "#50fa7b"
+        }
+      },
+      {
+        "scope": "keyword.operator.locator.separator.resumewright",
+        "settings": {
+          "foreground": "#bd93f9",
+          "fontStyle": "bold"
+        }
+      }
+    ]
+  }
+}

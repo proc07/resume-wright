@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ResumeWright DSL YAML Injection",
+  "scopeName": "injection.resumewright.yaml",
+  "injectionSelector": "L:string.unquoted.block.yaml, L:meta.scalar.yaml",
+  "patterns": [
+    { "include": "source.resumewright" }
+  ]
+}

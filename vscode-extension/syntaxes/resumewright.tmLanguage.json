@@ -1,0 +1,376 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ResumeWright DSL",
+  "scopeName": "source.resumewright",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#triple-quoted-strings"
+    },
+    {
+      "include": "#double-quoted-strings"
+    },
+    {
+      "include": "#single-quoted-strings"
+    },
+    {
+      "include": "#optional-prefix"
+    },
+    {
+      "include": "#commands"
+    },
+    {
+      "include": "#variables"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#trailing-modifiers"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#numbers-durations"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "match": "#.*$",
+          "name": "comment.line.number-sign.resumewright"
+        }
+      ]
+    },
+    "optional-prefix": {
+      "patterns": [
+        {
+          "match": "^\\s*(\\?)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.optional.resumewright"
+            }
+          }
+        }
+      ]
+    },
+    "triple-quoted-strings": {
+      "patterns": [
+        {
+          "begin": "\"\"\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.resumewright"
+            }
+          },
+          "end": "\"\"\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.resumewright"
+            }
+          },
+          "name": "string.quoted.triple.double.resumewright",
+          "patterns": [
+            {
+              "include": "#variables"
+            }
+          ]
+        }
+      ]
+    },
+    "double-quoted-strings": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.resumewright"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.resumewright"
+            }
+          },
+          "name": "string.quoted.double.resumewright",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.resumewright"
+            },
+            {
+              "include": "#variables"
+            },
+            {
+              "include": "#locator-elements"
+            }
+          ]
+        }
+      ]
+    },
+    "single-quoted-strings": {
+      "patterns": [
+        {
+          "begin": "'",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.resumewright"
+            }
+          },
+          "end": "'",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.resumewright"
+            }
+          },
+          "name": "string.quoted.single.resumewright",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.resumewright"
+            }
+          ]
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "match": "\\$(today|date|now)(?:([+-]\\d+)([dmhyM]))?\\b",
+          "name": "variable.language.datetime.resumewright",
+          "captures": {
+            "1": {
+              "name": "variable.language.datetime.base.resumewright"
+            },
+            "2": {
+              "name": "keyword.operator.arithmetic.resumewright"
+            },
+            "3": {
+              "name": "constant.numeric.offset.unit.resumewright"
+            }
+          }
+        },
+        {
+          "match": "\\$[1-9]\\d*\\b",
+          "name": "variable.parameter.macro.resumewright"
+        },
+        {
+          "match": "\\$[a-zA-Z_]\\w*(?:\\.\\w+)*\\b",
+          "name": "variable.other.readwrite.resumewright"
+        }
+      ]
+    },
+    "commands": {
+      "patterns": [
+        {
+          "match": "\\b(goto|back|open|tap|input|keyboard|hover|scroll_to|screenshot|wait|check|upload|execute_script|macro|inspect)\\b",
+          "name": "keyword.control.flow.action.resumewright"
+        },
+        {
+          "match": "\\b(assert_exists|assert_not_exists|assert_text_equal|assert_title_exists|assert_url)\\b",
+          "name": "entity.name.function.assertion.resumewright"
+        },
+        {
+          "match": "\\b(do_get|do_post|do_put|do_delete)\\b",
+          "name": "support.class.http.resumewright"
+        },
+        {
+          "match": "\\b(current_url|url_match|url_param)\\b",
+          "name": "support.function.builtin.resumewright"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\b(to|near)\\b",
+          "name": "keyword.operator.word.resumewright"
+        },
+        {
+          "match": "\\b(left|right|top|bottom)\\b",
+          "name": "support.constant.direction.resumewright"
+        },
+        {
+          "match": "\\b(nth)(=)(\\d+)\\b",
+          "captures": {
+            "1": {
+              "name": "support.constant.nth.name.resumewright"
+            },
+            "2": {
+              "name": "keyword.operator.assignment.resumewright"
+            },
+            "3": {
+              "name": "constant.numeric.nth.value.resumewright"
+            }
+          }
+        }
+      ]
+    },
+    "trailing-modifiers": {
+      "patterns": [
+        {
+          "match": "(/)(<=|>=|<|>|=)?(-?\\d+)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.modifier.separator.resumewright"
+            },
+            "2": {
+              "name": "keyword.operator.comparison.resumewright"
+            },
+            "3": {
+              "name": "constant.numeric.modifier.resumewright"
+            }
+          }
+        },
+        {
+          "match": "(/)([a-zA-Z]+)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.modifier.separator.resumewright"
+            },
+            "2": {
+              "name": "entity.name.tag.modifier.resumewright"
+            }
+          }
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "match": "=",
+          "name": "keyword.operator.assignment.resumewright"
+        }
+      ]
+    },
+    "numbers-durations": {
+      "patterns": [
+        {
+          "match": "\\b\\d+(?:\\.\\d+)?(ms|s|m)\\b",
+          "name": "constant.numeric.duration.resumewright"
+        },
+        {
+          "match": "\\b\\d+(?:\\.\\d+)?\\b",
+          "name": "constant.numeric.resumewright"
+        }
+      ]
+    },
+    "locator-elements": {
+      "patterns": [
+        {
+          "begin": "\\b(role)(:)(button|checkbox|combobox|dialog|gridcell|heading|img|link|listbox|menuitem|menubar|option|radio|row|searchbox|slider|spinbutton|status|switch|tab|tabpanel|textbox|tree|treeitem|alert|log|marquee|timer|tooltip|feed|figure|main|navigation|region|article|form)(\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "support.type.locator.prefix.resumewright"
+            },
+            "2": {
+              "name": "keyword.operator.locator.separator.resumewright"
+            },
+            "3": {
+              "name": "support.constant.role.name.resumewright"
+            },
+            "4": {
+              "name": "punctuation.section.bracket.begin.resumewright"
+            }
+          },
+          "end": "(\\])",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.bracket.end.resumewright"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#variables"
+            },
+            {
+              "match": "[^\\]]+",
+              "name": "string.other.role.value.resumewright"
+            }
+          ]
+        },
+        {
+          "begin": "\\b(role)(:)([a-zA-Z]+)(\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "support.type.locator.prefix.resumewright"
+            },
+            "2": {
+              "name": "keyword.operator.locator.separator.resumewright"
+            },
+            "3": {
+              "name": "support.constant.role.name.resumewright"
+            },
+            "4": {
+              "name": "punctuation.section.bracket.begin.resumewright"
+            }
+          },
+          "end": "(\\])",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.bracket.end.resumewright"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#variables"
+            },
+            {
+              "match": "[^\\]]+",
+              "name": "string.other.role.value.resumewright"
+            }
+          ]
+        },
+        {
+          "match": "\\b(role)(:)([a-zA-Z]+)\\b",
+          "captures": {
+            "1": {
+              "name": "support.type.locator.prefix.resumewright"
+            },
+            "2": {
+              "name": "keyword.operator.locator.separator.resumewright"
+            },
+            "3": {
+              "name": "support.constant.role.name.resumewright"
+            }
+          }
+        },
+        {
+          "match": "\\b(label|placeholder|testid|title|alt|css|xpath)(:)",
+          "captures": {
+            "1": {
+              "name": "support.type.locator.prefix.resumewright"
+            },
+            "2": {
+              "name": "keyword.operator.locator.separator.resumewright"
+            }
+          }
+        },
+        {
+          "match": "(@)([a-zA-Z0-9_\\u4e00-\\u9fa5]+)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.alias.prefix.resumewright"
+            },
+            "2": {
+              "name": "variable.other.alias.resumewright"
+            }
+          }
+        },
+        {
+          "match": "^[.#][a-zA-Z_][-a-zA-Z0-9_]*",
+          "name": "entity.other.attribute-name.css.resumewright"
+        },
+        {
+          "match": "^//.*",
+          "name": "string.regexp.xpath.resumewright"
+        }
+      ]
+    }
+  }
+}

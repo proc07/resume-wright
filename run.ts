@@ -12,6 +12,7 @@ import { Command } from 'commander';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { Scheduler } from './src/engine/scheduler.js';
 import { WorkflowRunner } from './src/engine/workflow-runner.js';
 import { listCheckpoints, Checkpoint, resetCaseRuntime, resetAllRuntimes, getSafeCaseName } from './src/engine/checkpoint.js';
@@ -240,6 +241,42 @@ program
   .action(async (opts) => {
     const { startDashboardServer } = await import('./src/dashboard/server.js');
     await startDashboardServer(parseInt(opts.port, 10));
+  });
+
+// ── install-extension 命令 ────────────────────────────────────
+
+program
+  .command('install-extension')
+  .description('Install the ResumeWright DSL VS Code Extension')
+  .action(async () => {
+    const { exec } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execAsync = promisify(exec);
+
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    const devPath = path.resolve(currentDir, './vscode-extension/resumewright-dsl-0.1.5.vsix');
+    const prodPath = path.resolve(currentDir, '../vscode-extension/resumewright-dsl-0.1.5.vsix');
+
+    let vsixPath = '';
+    if (fs.existsSync(devPath)) {
+      vsixPath = devPath;
+    } else if (fs.existsSync(prodPath)) {
+      vsixPath = prodPath;
+    } else {
+      console.error('❌ 未找到 VS Code 插件的 .vsix 安装文件。');
+      process.exit(1);
+    }
+
+    console.log(`正在安装 VS Code 插件: ${path.basename(vsixPath)}...`);
+    try {
+      const { stdout } = await execAsync(`code --install-extension "${vsixPath}"`);
+      console.log(stdout.trim());
+      console.log('✅ ResumeWright DSL VS Code 插件安装成功！请重启/重新加载 VS Code 以生效。');
+    } catch (err) {
+      console.error('❌ 安装失败：请确保系统已安装 VS Code 且已将 "code" 命令添加到 PATH 环境变量中。');
+      console.error('配置方法：在 VS Code 中按下 Cmd+Shift+P，输入 "Shell Command: Install \'code\' command in PATH" 并回车。');
+      process.exit(1);
+    }
   });
 
 program.parse(process.argv);
