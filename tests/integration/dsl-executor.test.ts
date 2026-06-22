@@ -93,6 +93,13 @@ describe('DSL 执行器集成测试', () => {
       expect(page.url()).toContain('127.0.0.1');
     });
 
+    it('当指定极短的导航超时时间且页面加载较慢时，应触发导航超时报错', async () => {
+      const ctx = makeCtx();
+      // 使用 1ms 的超时，goto 肯定来不及，应当抛出超时错误
+      await expect(executeScript(`open "$base_url" 1ms`, page, ctx, {}))
+        .rejects.toThrow(/timeout|Timeout/);
+    });
+
     it('支持相对路径缩写（自动使用 base_url 补全）', async () => {
       const ctx = makeCtx();
       await executeScript(`open "/workflow/test-relative"`, page, ctx, {});

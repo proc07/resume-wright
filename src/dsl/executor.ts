@@ -225,17 +225,23 @@ async function executeCommand(
     case 'open': {
       let url = stripQuotes(args[0]!);
       url = resolveUrl(url, ctx);
-      await page.goto(url, { waitUntil: 'domcontentloaded' });
-      // 等待 SPA 路由完成（body 可见即可）
-      await page.waitForLoadState('load');
-      
+
       const secondArg = args[1] ? stripQuotes(args[1]).toLowerCase() : '';
+      let timeoutMs = 30000; // 默认 Playwright 导航超时 30s
+      if (secondArg && secondArg !== 'fast') {
+        timeoutMs = parseDuration(secondArg);
+      }
+
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+      // 等待 SPA 路由完成（body 可见即可）
+      await page.waitForLoadState('load', { timeout: timeoutMs });
+      
       if (secondArg === 'fast') {
         // 跳过网络空闲等待，直接进行下一步
       } else {
-        const timeoutMs = secondArg ? parseDuration(secondArg) : 5000;
+        const networkTimeoutMs = secondArg ? timeoutMs : 5000;
         // 智能等待接口网络空闲，自动忽略轮询/WebSocket/心跳
-        await waitForSmartNetworkIdle(page, timeoutMs, 500);
+        await waitForSmartNetworkIdle(page, networkTimeoutMs, 500);
       }
       break;
     }
