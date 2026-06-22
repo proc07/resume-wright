@@ -583,6 +583,8 @@ async function executeCommand(
     // ── 调试检查 ─────────────────────────────────────────────
     case 'inspect': {
       const locStr = args[0] ? stripQuotes(args[0]) : '';
+      const inspectNearOpts = parseNearOptions(args.slice(1));
+      const displayLocStr = args.map(stripQuotes).join(' ');
 
       // 收集节点信息（在浏览器端执行）
       type NodeInfo = {
@@ -598,9 +600,14 @@ async function executeCommand(
       };
 
       let nodes: NodeInfo[] = [];
+      let locator: import('@playwright/test').Locator | null = null;
 
       if (locStr) {
-        const locator = resolveLocatorFromString(page, locStr);
+        if (inspectNearOpts) {
+          locator = await findNearestReachable(page, locStr, inspectNearOpts, defaultAssertTimeout);
+        } else {
+          locator = resolveLocatorFromString(page, locStr);
+        }
         const count = await locator.count();
 
         for (let idx = 0; idx < count; idx++) {
@@ -646,16 +653,16 @@ async function executeCommand(
       const BOLD = '\x1b[1m';
 
       console.log(`\n${BOLD}${CYAN}╔══════════════════════════════════════════════════════╗${RESET}`);
-      console.log(`${BOLD}${CYAN}║  🔍 inspect${RESET}  ${YELLOW}${locStr || '(no locator)'}${RESET}`);
+      console.log(`${BOLD}${CYAN}║  🔍 inspect${RESET}  ${YELLOW}${displayLocStr || '(no locator)'}${RESET}`);
       console.log(`${BOLD}${CYAN}╚══════════════════════════════════════════════════════╝${RESET}`);
       console.log(`${DIM}  Current URL: ${page.url()}${RESET}`);
 
       if (!locStr) {
         console.log(`${YELLOW}  ⚠  No locator provided — page paused for manual inspection${RESET}`);
       } else if (nodes.length === 0) {
-        console.log(`${RED}  ✗  No elements matched: "${locStr}"${RESET}`);
+        console.log(`${RED}  ✗  No elements matched: "${displayLocStr}"${RESET}`);
       } else {
-        console.log(`${GREEN}  ✓  Found ${nodes.length} element(s) matching: "${locStr}"${RESET}\n`);
+        console.log(`${GREEN}  ✓  Found ${nodes.length} element(s) matching: "${displayLocStr}"${RESET}\n`);
         for (const n of nodes) {
           console.log(`  ${BOLD}[${n.index}]${RESET} <${CYAN}${n.tag}${RESET}>${n.id ? ` #${n.id}` : ''}${n.className ? ` .${n.className.trim().replace(/\s+/g, '.')}` : ''}`);
           console.log(`       text     : ${n.text ? `"${n.text}"` : DIM + '(empty)' + RESET}`);
@@ -676,15 +683,14 @@ async function executeCommand(
 
       // ── 浏览器 console 输出 ─────────────────────────────────
       if (nodes.length === 0) {
-        await page.evaluate(({ locStr }) => {
-          console.group(`%c🔍 DSL inspect: "${locStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
-          console.warn('⚠ No elements found for locator:', locStr);
+        await page.evaluate(({ displayLocStr }) => {
+          console.group(`%c🔍 DSL inspect: "${displayLocStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
+          console.warn('⚠ No elements found for locator:', displayLocStr);
           console.groupEnd();
-        }, { locStr });
-      } else {
-        const locator = resolveLocatorFromString(page, locStr);
-        await locator.evaluateAll((elements, { locStr }) => {
-          console.group(`%c🔍 DSL inspect: "${locStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
+        }, { displayLocStr });
+      } else if (locator) {
+        await locator.evaluateAll((elements, { displayLocStr }) => {
+          console.group(`%c🔍 DSL inspect: "${displayLocStr}"`, 'color:#06b6d4;font-weight:bold;font-size:14px');
           console.log('%cMatched elements:', 'color:#a3e635;font-weight:bold', elements.length, elements);
           elements.forEach((el, index) => {
             console.groupCollapsed(`%c[${index}] <${el.tagName.toLowerCase()}>${el.id ? ' #' + el.id : ''}`, 'color:#f59e0b;font-weight:bold');
@@ -705,7 +711,7 @@ async function executeCommand(
             console.groupEnd();
           });
           console.groupEnd();
-        }, { locStr });
+        }, { displayLocStr });
       }
 
       // ── 暂停页面 ────────────────────────────────────────────

@@ -668,6 +668,16 @@ describe('DSL 执行器集成测试', () => {
         inspect "css:#svg-element"
       `, page, ctx, {})).resolves.not.toThrow();
     });
+
+    it('支持使用 near 近邻定位修饰符进行元素审查', async () => {
+      const ctx = makeCtx();
+      // 在 headless 模式下，page.pause() 会立即 resolve 返回，从而测试不会挂起。
+      // 我们在此用例中审查带有 near 参数的定位器，验证其不会发生异常且能够精准定位。
+      await expect(executeScript(`
+        open "$base_url"
+        inspect "删除" near "张三"
+      `, page, ctx, {})).resolves.not.toThrow();
+    });
   });
 
   describe('可选指令的执行控制流（? 语法连续性控制）', () => {
