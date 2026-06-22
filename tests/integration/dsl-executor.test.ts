@@ -92,6 +92,12 @@ describe('DSL 执行器集成测试', () => {
       await executeScript(`open "$base_url" 1.5s`, page, ctx, {});
       expect(page.url()).toContain('127.0.0.1');
     });
+
+    it('支持相对路径缩写（自动使用 base_url 补全）', async () => {
+      const ctx = makeCtx();
+      await executeScript(`open "/workflow/test-relative"`, page, ctx, {});
+      expect(page.url()).toBe(`${baseUrl}/workflow/test-relative`);
+    });
   });
 
 

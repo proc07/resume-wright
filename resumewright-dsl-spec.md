@@ -106,9 +106,10 @@ navigation   region       article      form
 ### open — 打开页面
 
 ```bash
-open "https://app.example.com/login"
+open "/login"                    # 相对路径（自动拼装 base_url）
+open "https://app.example.com/login" # 完整绝对路径
 open "$workflow_url"             # 使用变量（动态 URL）
-open "https://app.example.com/workflow/$workflow_id/review"  # 字符串插值
+open "/workflow/$workflow_id/review" # 相对路径且包含变量插值
 ```
 
 ---
@@ -549,7 +550,7 @@ do_post "https://api.example.com/task/$task_id/approve"
 
 ```bash
 # macros/login.macro
-open "https://app.example.com/login"
+open "/login"
 input "$1" to "label:邮箱账号/手机号"
 input "$2" to "label:密码"
 tap "role:button[登录]"

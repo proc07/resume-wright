@@ -188,6 +188,7 @@ export class WorkflowRunner {
           enableTrace: this.opts.enableTrace,
           traceDir: this.opts.traceDir ?? path.join(caseDir, 'traces'),
           loginMacroPath: this.definition.login_macro_path ?? this.opts.loginMacroPath,
+          baseUrl: this.definition.base_url,
         },
         path.join(caseDir, 'states')
       );

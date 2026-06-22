@@ -25,6 +25,7 @@ export interface RolePoolOptions {
   headless?: boolean;
   enableTrace?: boolean;
   traceDir?: string;
+  baseUrl?: string;
 }
 
 /**
@@ -138,6 +139,9 @@ export class RolePool {
       );
       const tempCtx = new ContextStore();
       tempCtx.set('roles', this.roles);
+      if (this.opts.baseUrl) {
+        tempCtx.set('base_url', this.opts.baseUrl);
+      }
       for (const [key, value] of Object.entries(creds)) {
         tempCtx.set(key, value);
       }

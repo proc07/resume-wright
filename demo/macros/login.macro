@@ -1,5 +1,5 @@
 # 通用登录宏
-open "http://127.0.0.1:61775/login"
+open "/login"
 input "$username" to "请输入账号"
 input "$password" to "请输入密码"
 tap "role:button[登录]"
