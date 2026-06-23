@@ -7,6 +7,18 @@
 
 ---
 
+## [0.7.0] - 2026-06-23
+
+### 新增 (Added)
+- **表单标签与 Role 免前缀自动识别**：简化常见表单控制元素（如 `checkbox`、`radio`、`button`、`input`、`textarea`、`select`）的定位编写。当不指定特殊定位前缀时，解析器会自动映射为底层的 CSS 或 Role 定位，同时完整支持索引修饰符（如 `input/0` 或 `textarea/-1`）。
+
+### 优化 (Changed)
+- **防冲突的混合截图命名方案**：重构了截图命名规则，在文件名中融合了执行序列号与脚本行号（格式：`${paddedCount}_${lineStr}_${cleanTag}-${stepId}.png`，例如 `01_L12_manual-step_1.png`）。彻底解决了多图截取及多次运行时的名称冲突覆盖问题，并方便用户直接根据行号精准定位 DSL 代码。
+- **慢速请求中止优化**：在 `NetworkInterceptor` 注销时，对所有处于真实网络等待状态（`route.fetch`）的路由进行并行 `abort()` 中止，并在 `catch` 块中通过全局注销状态信号进行拦截过滤，彻底避免了退出步骤时由异步请求造成的 `Route is already handled!` unhandled rejection 崩溃。
+
+### 修复 (Fixed)
+- **子步骤变量实时写盘与断续恢复**：为 `ContextStore` 引入了 `onChange` 变动监听机制，在变量被修改时立即同步写入 `checkpoint.json`。解决了包含子步骤的主步骤执行中途报错或中断后，因跳过已完成子步骤导致其内定义变量丢失的缺陷，并支持了 Dashboard 中间变量的实时可视化展现。
+
 ## [0.6.0] - 2026-06-17
 
 ### 新增 (Added)

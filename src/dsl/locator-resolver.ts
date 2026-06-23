@@ -50,6 +50,15 @@ function extractModifier(str: string): { base: string; modifier?: LocatorModifie
   return { base: basePart.trim(), modifier };
 }
 
+const AUTO_TAG_LOCATORS = new Map<string, Omit<ParsedLocator, 'raw'>>([
+  ['checkbox', { type: 'role', value: 'checkbox' }],
+  ['radio', { type: 'role', value: 'radio' }],
+  ['input', { type: 'css', value: 'input' }],
+  ['textarea', { type: 'css', value: 'textarea' }],
+  ['select', { type: 'css', value: 'select' }],
+  ['button', { type: 'role', value: 'button' }],
+]);
+
 /**
  * 解析原始定位字符串为结构化的 ParsedLocator
  * 支持文本修饰符：/0  /-1  /tagName
@@ -60,6 +69,17 @@ export function parseLocator(raw: string): ParsedLocator {
   // ── 提取尾部修饰符并剥离引号 ──
   const { base, modifier } = extractModifier(str);
   str = stripQuotes(base);
+
+  // ── 自动识别表单标签/Role (不带前缀的 checkbox, input, textarea 等) ──
+  const lowerStr = str.toLowerCase();
+  const autoParsed = AUTO_TAG_LOCATORS.get(lowerStr);
+  if (autoParsed) {
+    return {
+      ...autoParsed,
+      modifier,
+      raw,
+    } as ParsedLocator;
+  }
 
   // ── alias: @别名 ──
   if (str.startsWith('@')) {
@@ -266,44 +286,30 @@ export function resolveLocatorFromString(page: Page, raw: string): Locator {
  * 支持索引修饰符：/0  /-1  /2 等
  */
 export function resolveInputLocator(page: Page, raw: string): Locator {
-  const cleaned = stripQuotes(raw);
+  const parsed = parseLocator(raw.trim());
 
-  // 检查是否有索引修饰符（/0, /-1, /2 等）
-  const indexMatch = cleaned.match(/^(.+?)\s+\/(-?\d+)$/);
-  if (indexMatch) {
-    const baseLocator = indexMatch[1]!;
-    const index = parseInt(indexMatch[2]!, 10);
-    const parsed = parseLocator(baseLocator);
-
-    // 先构建基础 locator
-    let locator: Locator;
-    if (parsed.type === 'text') {
-      // 无前缀文字：placeholder → label
-      const placeholderLoc = page.getByPlaceholder(parsed.value, { exact: true });
-      const labelLoc = page.getByLabel(parsed.value, { exact: true });
-      locator = placeholderLoc.or(labelLoc).filter({ visible: true });
-    } else {
-      // 有前缀：走标准解析（内部已含 visible 过滤）
-      locator = resolveLocator(page, { ...parsed, modifier: undefined }); // 先不应用修饰符
-    }
-
-    // 应用索引修饰符
-    if (index === -1) {
-      return locator.last();
-    }
-    return locator.nth(index);
-  }
-
-  // 有明确前缀或特殊语法，走标准解析
-  if (SPECIAL_LOCATOR_REGEX.test(cleaned)) {
-    return resolveLocatorFromString(page, cleaned);
+  // 如果是有特殊前缀或自动识别的表单标签，直接走标准解析
+  if (parsed.type !== 'text') {
+    return resolveLocator(page, parsed);
   }
 
   // 无前缀：placeholder → label（大多数表单用 placeholder，优先匹配）
-  const placeholderLoc = page.getByPlaceholder(cleaned, { exact: true });
-  const labelLoc = page.getByLabel(cleaned, { exact: true });
+  const textVal = parsed.value;
+  const placeholderLoc = page.getByPlaceholder(textVal, { exact: true });
+  const labelLoc = page.getByLabel(textVal, { exact: true });
+  let locator = placeholderLoc.or(labelLoc).filter({ visible: true });
 
-  return placeholderLoc.or(labelLoc).filter({ visible: true });
+  // 应用修饰符（如索引）
+  if (parsed.modifier) {
+    const mod = parsed.modifier;
+    if (mod.last) {
+      locator = locator.last();
+    } else if (typeof mod.index === 'number') {
+      locator = locator.nth(mod.index);
+    }
+  }
+
+  return locator;
 }
 
 // ── 工具函数 ─────────────────────────────────────────────────

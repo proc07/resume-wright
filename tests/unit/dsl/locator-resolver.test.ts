@@ -248,4 +248,41 @@ describe('resolveInputLocator — 索引修饰符', () => {
     expect(p.modifier?.index).toBe(1);
   });
 });
+
+  describe('表单标签自动识别', () => {
+    it('不带前缀的 checkbox', () => {
+      const p = parseLocator('checkbox');
+      expect(p.type).toBe('role');
+      expect(p.value).toBe('checkbox');
+    });
+
+    it('不带前缀的 input/textarea/select', () => {
+      expect(parseLocator('input').type).toBe('css');
+      expect(parseLocator('input').value).toBe('input');
+
+      expect(parseLocator('textarea').type).toBe('css');
+      expect(parseLocator('textarea').value).toBe('textarea');
+
+      expect(parseLocator('select').type).toBe('css');
+      expect(parseLocator('select').value).toBe('select');
+    });
+
+    it('不带前缀的 button', () => {
+      const p = parseLocator('button');
+      expect(p.type).toBe('role');
+      expect(p.value).toBe('button');
+    });
+
+    it('带修饰符的自动识别标签', () => {
+      const p = parseLocator('checkbox/0');
+      expect(p.type).toBe('role');
+      expect(p.value).toBe('checkbox');
+      expect(p.modifier?.index).toBe(0);
+
+      const p2 = parseLocator('textarea /1');
+      expect(p2.type).toBe('css');
+      expect(p2.value).toBe('textarea');
+      expect(p2.modifier?.index).toBe(1);
+    });
+  });
 });

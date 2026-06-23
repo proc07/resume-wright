@@ -325,6 +325,36 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
+  describe('表单标签/Role 自动识别 (不带 css: 或 role: 前缀)', () => {
+    it('应该能够直接通过 tag/role 定位并操作 checkbox, textarea, input 等', async () => {
+      const ctx = makeCtx();
+
+      // 1. 测试不带前缀的 checkbox
+      await executeScript(`
+        open "$base_url"
+        tap checkbox
+      `, page, ctx, {});
+      let checked = await page.getByTestId('urgent-checkbox').isChecked();
+      expect(checked).toBe(true);
+
+      // 2. 测试不带前缀的 textarea (input 命令)
+      await executeScript(`
+        open "$base_url"
+        input "测试不带前缀的输入框" to textarea
+      `, page, ctx, {});
+      let val = await page.locator('textarea').inputValue();
+      expect(val).toBe('测试不带前缀的输入框');
+
+      // 3. 测试不带前缀的 input (input 命令)
+      await executeScript(`
+        open "$base_url"
+        input "测试标题输入框" to input/0
+      `, page, ctx, {});
+      let titleVal = await page.locator('input').first().inputValue();
+      expect(titleVal).toBe('测试标题输入框');
+    });
+  });
+
   describe('变量插值', () => {
     it('URL 中的变量被正确替换 (支持无引号与有引号两种形式)', async () => {
       const ctx = makeCtx();
