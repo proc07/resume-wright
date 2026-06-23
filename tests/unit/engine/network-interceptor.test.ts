@@ -876,4 +876,82 @@ describe('NetworkInterceptor', () => {
       expect(page.unroute).toHaveBeenCalledWith('**/*', expect.any(Function));
     });
   });
+
+  // ── 防护与等待测试 ─────────────────────────────────────────
+
+  describe('防护与等待', () => {
+    it('应该捕获 "Route is already handled" 异常而不崩溃进程', async () => {
+      const page = createMockPage();
+      const interceptor = new NetworkInterceptor(page, cacheFilePath);
+      await interceptor.attach();
+
+      const handler = (page.route as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
+
+      const { route } = createMockRoute();
+      route.fulfill = vi.fn().mockRejectedValue(new Error('Route is already handled!'));
+
+      const request = createMockRequest({ method: 'POST' });
+
+      // 应正常 resolve，不向上抛出异常
+      await expect(handler(route, request)).resolves.not.toThrow();
+      expect(route.fulfill).toHaveBeenCalled();
+    });
+
+    it('发生其他 API 异常时应该尝试 route.continue() 避免请求挂住', async () => {
+      const page = createMockPage();
+      const interceptor = new NetworkInterceptor(page, cacheFilePath);
+      await interceptor.attach();
+
+      const handler = (page.route as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
+
+      const { route } = createMockRoute();
+      route.fetch = vi.fn().mockRejectedValue(new Error('Some network failure'));
+      route.continue = vi.fn().mockResolvedValue(undefined);
+
+      const request = createMockRequest({ method: 'POST' });
+
+      // 应正常 resolve，不向上抛出异常，并触发 continue()
+      await expect(handler(route, request)).resolves.not.toThrow();
+      expect(route.fetch).toHaveBeenCalled();
+      expect(route.continue).toHaveBeenCalled();
+    });
+
+    it('detach 时应该等待所有 in-flight 的 route handler 执行完成', async () => {
+      const page = createMockPage();
+      const interceptor = new NetworkInterceptor(page, cacheFilePath);
+      await interceptor.attach();
+
+      const handler = (page.route as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
+
+      const { route } = createMockRoute();
+      const abortSpy = vi.fn().mockResolvedValue(undefined);
+      route.abort = abortSpy;
+
+      // 1. 模拟一个永久挂起（极慢）的网络 fetch：
+      // 除非我们手动调用 rejectFetch，否则这个 Promise 会永远卡住
+      let rejectFetch!: (e: Error) => void;
+      route.fetch = vi.fn().mockImplementation(async () => {
+        return new Promise<any>((_, reject) => { rejectFetch = reject; });
+      });
+
+      // 2. 模拟 abort 方法：当拦截器调用 abort() 时，去触发上面的 Promise 失败报错
+      abortSpy.mockImplementation(async () => {
+        rejectFetch(new Error('aborted'));
+      });
+
+      const request = createMockRequest({ method: 'POST' });
+
+      // 3. 启动请求，此时 handlerPromise 处于 pending 状态（卡在 fetch 里）
+      const handlerPromise = handler(route, request);
+
+      // 4. 调用 detach()：
+      // 测试期望：detach() 会主动去触发 route.abort()，从而解开上面那个永远卡住的 Promise
+      await interceptor.detach();
+
+      // 5. 验证 handlerPromise 最终能够顺利退出，没有无限卡死
+      await handlerPromise;
+
+      expect(abortSpy).toHaveBeenCalledWith('aborted');
+    });
+  });
 });
