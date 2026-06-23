@@ -28,6 +28,27 @@ export interface ExecutorOptions {
   stepId?: string;
   screenshotOnAssert?: boolean;
   assertTimeout?: string | number;
+  screenshotCounter?: { count: number };
+}
+
+function getScreenshotPath(
+  dir: string,
+  opts: ExecutorOptions,
+  inst: DslInstruction,
+  businessTag: string
+): string {
+  if (!opts.screenshotCounter) {
+    opts.screenshotCounter = { count: 0 };
+  }
+  const count = ++opts.screenshotCounter.count;
+  const paddedCount = String(count).padStart(2, '0');
+  const lineStr = inst.lineNumber ? `L${inst.lineNumber}` : 'L0';
+  const stepId = opts.stepId ?? 'unknown';
+  const cleanTag = sanitizeFilename(businessTag) || 'target';
+  
+  // 格式：自增序号_行号_业务标识-stepId.png
+  const filename = `${paddedCount}_${lineStr}_${cleanTag}-${stepId}.png`;
+  return path.join(dir, filename);
 }
 
 
@@ -67,6 +88,10 @@ export async function executeInstructions(
   opts: ExecutorOptions = {}
 ): Promise<void> {
   activeContexts.set(page, ctx);
+  
+  if (!opts.screenshotCounter) {
+    opts.screenshotCounter = { count: 0 };
+  }
   
   const actionTimeout = opts.assertTimeout !== undefined
     ? (typeof opts.assertTimeout === 'number' ? opts.assertTimeout : parseDuration(String(opts.assertTimeout)))
@@ -366,9 +391,7 @@ async function executeCommand(
     case 'screenshot': {
       const dir = opts.screenshotDir ?? '.resumewright/screenshots';
       fs.mkdirSync(dir, { recursive: true });
-      const timestamp = getFormattedDateTime();
-      const stepId = opts.stepId ?? 'unknown';
-      const screenshotPath = path.join(dir, `${stepId}-${timestamp}.png`);
+      const screenshotPath = getScreenshotPath(dir, opts, inst, 'manual');
       await page.screenshot({ path: screenshotPath, fullPage: false });
       console.log(`[dsl]   📸 Screenshot saved: ${decodeURIComponent(screenshotPath)}`);
       break;
@@ -448,9 +471,7 @@ async function executeCommand(
         if (opts.screenshotOnAssert) {
           const dir = opts.screenshotDir ?? '.resumewright/screenshots';
           fs.mkdirSync(dir, { recursive: true });
-          const stepId = opts.stepId ?? 'unknown';
-          const sanitizedArg = sanitizeFilename(locStr) || 'target';
-          const screenshotPath = path.join(dir, `${sanitizedArg}-${stepId}.png`);
+          const screenshotPath = getScreenshotPath(dir, opts, inst, locStr);
           await page.screenshot({ path: screenshotPath, fullPage: false });
           console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
         }
@@ -474,9 +495,7 @@ async function executeCommand(
       if (opts.screenshotOnAssert) {
         const dir = opts.screenshotDir ?? '.resumewright/screenshots';
         fs.mkdirSync(dir, { recursive: true });
-        const stepId = opts.stepId ?? 'unknown';
-        const sanitizedArg = sanitizeFilename(locStr) || 'target';
-        const screenshotPath = path.join(dir, `${sanitizedArg}-${stepId}.png`);
+        const screenshotPath = getScreenshotPath(dir, opts, inst, locStr);
         await page.screenshot({ path: screenshotPath, fullPage: false });
         console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
       }
@@ -555,9 +574,7 @@ async function executeCommand(
       if (opts.screenshotOnAssert) {
         const dir = opts.screenshotDir ?? '.resumewright/screenshots';
         fs.mkdirSync(dir, { recursive: true });
-        const stepId = opts.stepId ?? 'unknown';
-        const sanitizedArg = sanitizeFilename(pattern) || 'target';
-        const screenshotPath = path.join(dir, `${sanitizedArg}-${stepId}.png`);
+        const screenshotPath = getScreenshotPath(dir, opts, inst, pattern);
         await page.screenshot({ path: screenshotPath, fullPage: false });
         console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
       }
