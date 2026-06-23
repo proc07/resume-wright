@@ -167,6 +167,11 @@ export class WorkflowRunner {
       }
       contextStore.set('_project_root', projectRoot);
 
+      // 当 contextStore 变动时，自动将最新的变量状态同步至 checkpoint.json，确保子步骤执行和中断续跑能完全还原
+      contextStore.onChange((store) => {
+        checkpoint.syncContext(store);
+      });
+
       // 计算续跑信息
       const resumedFromStep = checkpoint.getResumePoint();
       if (resumedFromStep) {

@@ -13,11 +13,30 @@ import path from 'node:path';
  */
 export class ContextStore {
   private store: Map<string, unknown> = new Map();
+  private onChangeListeners = new Set<(store: ContextStore) => void>();
 
   constructor(
     /** 持久化文件路径（由 Checkpoint 管理，此处仅用于独立持久化需求） */
     private readonly persistPath?: string
   ) {}
+
+  /**
+   * 注册变量变动监听器
+   */
+  onChange(listener: (store: ContextStore) => void): () => void {
+    this.onChangeListeners.add(listener);
+    return () => this.onChangeListeners.delete(listener);
+  }
+
+  private notify(): void {
+    for (const listener of this.onChangeListeners) {
+      try {
+        listener(this);
+      } catch (err) {
+        console.error(`[context-store] Failed to trigger onChange listener: ${err}`);
+      }
+    }
+  }
 
   // ── 读取 ─────────────────────────────────────────────────
 
@@ -65,6 +84,7 @@ export class ContextStore {
     // 如果 key 包含点号，只取第一段作为顶层 key
     const topKey = key.split('.')[0]!;
     this.store.set(topKey, value);
+    this.notify();
   }
 
   /**
@@ -74,6 +94,7 @@ export class ContextStore {
     for (const [k, v] of Object.entries(data)) {
       this.store.set(k, v);
     }
+    this.notify();
   }
 
   // ── 序列化 ───────────────────────────────────────────────
@@ -102,6 +123,7 @@ export class ContextStore {
    */
   clear(): void {
     this.store.clear();
+    this.notify();
   }
 
   /**

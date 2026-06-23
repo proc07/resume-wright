@@ -160,4 +160,44 @@ describe('ContextStore', () => {
       expect(ctx.keys()).toHaveLength(0);
     });
   });
+
+  // ── 变动监听 ──────────────────────────────────────────────
+
+  describe('onChange 变动监听', () => {
+    it('在变量 set / merge / clear / fromJSON 时应该正确触发监听器', () => {
+      let triggerCount = 0;
+      let lastStore: ContextStore | null = null;
+
+      const unsubscribe = ctx.onChange((store) => {
+        triggerCount++;
+        lastStore = store;
+      });
+
+      // 1. set 变动
+      ctx.set('testKey', 'value1');
+      expect(triggerCount).toBe(1);
+      expect(lastStore).toBe(ctx);
+      expect(ctx.get('testKey')).toBe('value1');
+
+      // 2. merge 变动
+      ctx.merge({ testKey2: 'value2', testKey3: 'value3' });
+      expect(triggerCount).toBe(2);
+
+      // 3. fromJSON 变动
+      ctx.fromJSON({ newKey: 'newValue' });
+      expect(triggerCount).toBe(3);
+      expect(ctx.get('testKey')).toBeUndefined();
+      expect(ctx.get('newKey')).toBe('newValue');
+
+      // 4. clear 变动
+      ctx.clear();
+      expect(triggerCount).toBe(4);
+      expect(ctx.keys()).toHaveLength(0);
+
+      // 5. 取消监听
+      unsubscribe();
+      ctx.set('afterUnsubscribe', 'ignored');
+      expect(triggerCount).toBe(4);
+    });
+  });
 });
