@@ -1156,28 +1156,29 @@ export function parseNearOptions(afterTargetArgs: string[]): NearOptions | null 
  * 在所有匹配 targetLocStr 的可见元素中，找到「距所有锚点最近且可达」的元素。
  *
  * 步骤：
- * 1. 获取各锚点元素的屏幕中心坐标
+ * 1. 获取各锚点元素的几何信息（中心坐标及宽高）
  * 2. 遍历目标元素，依次过滤：
- *    a. elementFromPoint 可达性（自动过滤被 Modal/Overlay 遮挡的元素）
- *    b. 方向扇区（left/right/top/bottom，以主锚点为原点）
- * 3. 计算到所有锚点的欧氏距离之和并排序
- * 4. 按 nth 取第 N 近（0 = 最近）
+ *    a. 方向过滤：先根据主锚点与目标的夹角确认方向。再使用基于元素尺寸比例的自适应中心线容差限制（而非硬编码物理常量），
+ *       过滤掉水平/垂直偏差过大的元素，防止在密集列表或紧凑间距下误匹配相邻行的同名元素。
+ *    b. elementFromPoint 可达性检测（自动过滤被 Modal/Overlay 遮挡的元素，允许向上 3 层以内的共享近邻拓扑可达）
+ * 3. 若当前没有找到符合要求的候选元素，则在未超时范围内每隔 200ms 全局重试等待（以支持动态加载的近邻元素）。
+ * 4. 计算符合过滤条件候选者到所有锚点的欧氏距离之和并排序
+ * 5. 按 nth 取第 N 近（0 = 最近）
  */
 export async function findNearestReachable(
   page: Page,
   targetLocStr: string,
   nearOpts: NearOptions,
-  timeoutMs: number = 2000
-): Promise<import('@playwright/test').Locator> {
+  timeoutMs: number = 2000,
+): Promise<import("@playwright/test").Locator> {
   const startTime = Date.now();
-  let anchorCenters: Array<{ cx: number; cy: number }> = [];
-  let targetLoc!: import('@playwright/test').Locator;
-  let count = 0;
+  type Geometry = { x: number; y: number; width: number; height: number; cx: number; cy: number };
+  type Candidate = { idx: number; totalDist: number };
 
   while (true) {
     try {
       // 1. 获取所有锚点中心坐标
-      anchorCenters = [];
+      const anchorGeometries: Geometry[] = [];
       let isFirst = true;
       for (const anchorStr of nearOpts.anchors) {
         let anchorLoc = resolveLocatorFromString(page, anchorStr);
@@ -1201,7 +1202,7 @@ export async function findNearestReachable(
         if (!box) {
           throw new Error(`near: anchor "${stripQuotes(anchorStr)}" has no bounding box (not visible?)`);
         }
-        anchorCenters.push({ cx: box.x + box.width / 2, cy: box.y + box.height / 2 });
+        anchorGeometries.push({ ...box, cx: box.x + box.width / 2, cy: box.y + box.height / 2 });
       }
 
       // 2. 获取目标元素集合
@@ -1219,9 +1220,119 @@ export async function findNearestReachable(
         throw new Error(`near: no elements found matching "${stripQuotes(targetLocStr)}"`);
       }
 
-      targetLoc = tmpTargetLoc;
-      count = tmpCount;
-      break;
+      // 3. 筛选过滤 + 距离计算
+      const targetLoc = tmpTargetLoc;
+      const count = tmpCount;
+      const reachableCandidates: Candidate[] = [];
+      const visibleCandidates: Candidate[] = [];
+      const primaryAnchor = anchorGeometries[0]!;
+
+      for (let i = 0; i < count; i++) {
+        const el = targetLoc.nth(i);
+        const box = await el.boundingBox();
+        if (!box) continue;
+
+        const targetGeometry: Geometry = { ...box, cx: box.x + box.width / 2, cy: box.y + box.height / 2 };
+
+        // 方向过滤：先按方向扇区过滤，再按垂直/水平投影中心偏差过滤
+        // 对 left/right，要求目标与锚点在同一水平带；对 top/bottom，要求在同一垂直带
+        // 这样可以避免目标偏离过大时，误选中上一行/下一行的同名 icon
+        if (nearOpts.direction) {
+          const angle = (Math.atan2(targetGeometry.cy - primaryAnchor.cy, targetGeometry.cx - primaryAnchor.cx) * 180) / Math.PI;
+          let inDir = false;
+          switch (nearOpts.direction) {
+            case "right":
+              inDir = angle > -45 && angle <= 45;
+              break;
+            case "bottom":
+              inDir = angle > 45 && angle <= 135;
+              break;
+            case "left":
+              inDir = angle > 135 || angle <= -135;
+              break;
+            case "top":
+              inDir = angle > -135 && angle <= -45;
+              break;
+          }
+          if (!inDir) continue;
+
+          if (nearOpts.direction === "left" || nearOpts.direction === "right") {
+            const verticalCenterDiff = Math.abs(primaryAnchor.cy - targetGeometry.cy);
+            const maxAllowedDiff = Math.max(primaryAnchor.height, targetGeometry.height) * 0.5;
+            if (verticalCenterDiff > maxAllowedDiff) continue;
+          } else {
+            const horizontalCenterDiff = Math.abs(primaryAnchor.cx - targetGeometry.cx);
+            const maxAllowedDiff = Math.max(primaryAnchor.width, targetGeometry.width) * 0.5;
+            if (horizontalCenterDiff > maxAllowedDiff) continue;
+          }
+        }
+
+        // 计算到所有锚点的欧氏距离之和
+        let totalDist = 0;
+        for (const anchor of anchorGeometries) {
+          const dx = targetGeometry.cx - anchor.cx;
+          const dy = targetGeometry.cy - anchor.cy;
+          totalDist += Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // elementFromPoint 可达性检测
+        // 判断该元素的视觉中心点是否“暴露在最顶层”（未被 Modal/Overlay/Tooltip 遮挡）
+        const isReachable: boolean = await el.evaluate((domEl: Element) => {
+          const rect = domEl.getBoundingClientRect();
+          const testX = rect.left + rect.width / 2;
+          const testY = rect.top + rect.height / 2;
+          const topEl = document.elementFromPoint(testX, testY);
+          if (topEl === null) return false;
+          if (domEl === topEl || domEl.contains(topEl) || topEl.contains(domEl)) {
+            return true;
+          }
+
+          // 如果 topEl 并非 domEl 共享近邻拓扑的内部元素（如组件内的清除按钮、图标、占位符层等）
+          // 允许最多向上看 3 层祖先节点
+          let ancestor = domEl.parentElement;
+          for (let depth = 0; depth < 3 && ancestor; depth++) {
+            if (ancestor.contains(topEl)) {
+              return true;
+            }
+            ancestor = ancestor.parentElement;
+          }
+          return false;
+        });
+
+        if (isReachable) {
+          reachableCandidates.push({ idx: i, totalDist });
+        } else {
+          visibleCandidates.push({ idx: i, totalDist });
+        }
+      }
+
+      let candidates = reachableCandidates;
+      let isFallback = false;
+      if (candidates.length === 0) {
+        candidates = visibleCandidates;
+        isFallback = true;
+      }
+
+      if (candidates.length === 0) {
+        const dirMsg = nearOpts.direction ? ` [direction: ${nearOpts.direction}]` : "";
+        throw new Error(
+          `near: no reachable or visible element "${stripQuotes(targetLocStr)}" found near "${nearOpts.anchors.map(stripQuotes).join(" and ")}"${dirMsg}`,
+        );
+      }
+
+      // 4. 按总距离升序排序，按 nth 取第 N 近（默认 0 = 最近）
+      candidates.sort((a, b) => a.totalDist - b.totalDist);
+      const picked = candidates[nearOpts.nth] ?? candidates[candidates.length - 1]!;
+
+      console.log(
+        `[dsl] 📍 near: ${isFallback ? "(fallback to covered) " : ""}picked element #${picked.idx} ` +
+        `(dist=${Math.round(picked.totalDist)}px` +
+        (nearOpts.direction ? `, dir=${nearOpts.direction}` : "") +
+        (nearOpts.nth ? `, nth=${nearOpts.nth}` : "") +
+        `)`,
+      );
+
+      return targetLoc.nth(picked.idx);
     } catch (err) {
       if (Date.now() - startTime >= timeoutMs) {
         throw err;
@@ -1229,103 +1340,4 @@ export async function findNearestReachable(
       await page.waitForTimeout(200);
     }
   }
-
-  if (count === 1) {
-    // 仅一个目标，无需距离计算，直接返回
-    return targetLoc.first();
-  }
-
-  // 3. 候选过滤 + 距离计算
-  type Candidate = { idx: number; totalDist: number };
-  const reachableCandidates: Candidate[] = [];
-  const visibleCandidates: Candidate[] = [];
-  const primaryAnchor = anchorCenters[0]!;
-
-  for (let i = 0; i < count; i++) {
-    const el = targetLoc.nth(i);
-    const box = await el.boundingBox();
-    if (!box) continue;
-
-    const cx = box.x + box.width / 2;
-    const cy = box.y + box.height / 2;
-
-    // 方向扇区过滤（以主锚点为原点，使用角度范围划分四个方向）
-    // right: -45°~45°  bottom: 45°~135°  left: 135°~225°  top: -135°~-45°
-    if (nearOpts.direction) {
-      const angle = Math.atan2(cy - primaryAnchor.cy, cx - primaryAnchor.cx) * 180 / Math.PI;
-      let inDir = false;
-      switch (nearOpts.direction) {
-        case 'right':  inDir = angle > -45  && angle <= 45;  break;
-        case 'bottom': inDir = angle > 45   && angle <= 135; break;
-        case 'left':   inDir = angle > 135  || angle <= -135; break;
-        case 'top':    inDir = angle > -135 && angle <= -45; break;
-      }
-      if (!inDir) continue;
-    }
-
-    // 计算到所有锚点的欧氏距离之和
-    let totalDist = 0;
-    for (const anchor of anchorCenters) {
-      const dx = cx - anchor.cx;
-      const dy = cy - anchor.cy;
-      totalDist += Math.sqrt(dx * dx + dy * dy);
-    }
-
-    // elementFromPoint 可达性检测
-    // 判断该元素的视觉中心点是否「暴露在最顶层」（未被 Modal/Overlay/Tooltip 遮挡）
-    const isReachable: boolean = await el.evaluate((domEl: Element) => {
-      const rect = domEl.getBoundingClientRect();
-      const testX = rect.left + rect.width / 2;
-      const testY = rect.top + rect.height / 2;
-      const topEl = document.elementFromPoint(testX, testY);
-      if (topEl === null) return false;
-      if (domEl === topEl || domEl.contains(topEl) || topEl.contains(domEl)) {
-        return true;
-      }
-      // 如果 topEl 是与 domEl 共享近邻祖先的内部元素（如组件内的清除按钮、图标、占位符层等）
-      // 允许最多向上看 3 层祖先节点
-      let ancestor = domEl.parentElement;
-      for (let depth = 0; depth < 3 && ancestor; depth++) {
-        if (ancestor.contains(topEl)) {
-          return true;
-        }
-        ancestor = ancestor.parentElement;
-      }
-      return false;
-    });
-
-    if (isReachable) {
-      reachableCandidates.push({ idx: i, totalDist });
-    } else {
-      visibleCandidates.push({ idx: i, totalDist });
-    }
-  }
-
-  let candidates = reachableCandidates;
-  let isFallback = false;
-  if (candidates.length === 0) {
-    candidates = visibleCandidates;
-    isFallback = true;
-  }
-
-  if (candidates.length === 0) {
-    const dirMsg = nearOpts.direction ? ` [direction: ${nearOpts.direction}]` : '';
-    throw new Error(
-      `near: no reachable or visible element "${stripQuotes(targetLocStr)}" found near "${nearOpts.anchors.map(stripQuotes).join('" and "')}"${dirMsg}`
-    );
-  }
-
-  // 4. 按总距离升序排序，按 nth 取第 N 近（默认 0 = 最近）
-  candidates.sort((a, b) => a.totalDist - b.totalDist);
-  const picked = candidates[nearOpts.nth] ?? candidates[candidates.length - 1]!;
-
-  console.log(
-    `[dsl]   📍 near: ${isFallback ? '(fallback to covered) ' : ''}picked element #${picked.idx}` +
-    ` (dist=${Math.round(picked.totalDist)}px` +
-    (nearOpts.direction ? `, dir=${nearOpts.direction}` : '') +
-    (nearOpts.nth ? `, nth=${nearOpts.nth}` : '') +
-    ')'
-  );
-
-  return targetLoc.nth(picked.idx);
 }

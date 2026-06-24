@@ -13,6 +13,7 @@ steps:
     script: |
       # 打开近邻定位演示页面
       open "/near-demo"
+      assert_exists "李四"
 
       # ── 1. 表格/数据列表定位（基本近邻定位） ──
       
@@ -23,7 +24,7 @@ steps:
 
       # 点击李四对应的删除按钮
       tap "删除" near "李四"
-      inspect "操作成功: 删除了 李四"
+      # inspect "操作成功: 删除了 李四"
       assert_exists "操作成功: 删除了 李四"
       screenshot
 
@@ -54,3 +55,16 @@ steps:
       
       assert_exists "操作成功: 点击了弹窗里的 确认 按钮"
       screenshot
+
+      # ── 4. 动态加载与高精度轴投影定位 ──
+      
+      # 触发 product - 3 的图标加载
+      tap "开始加载 product-3 的图标"
+      screenshot
+      # 寻找并点击 product - 3 的图标
+      # 注意：product - 1 和 product - 2 的“图标”按钮因为垂直位置偏差大会被 axisGap 投影限制过滤，
+      # 并且算法在 product - 3 的图标尚未加载出来时会不断自动重试，
+      # 直到加载成功后精确选中并点击它。
+      tap "图标" near "product - 3" right
+      
+      assert_exists "操作成功: 点击了 product-3 的图标"

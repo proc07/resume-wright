@@ -209,6 +209,7 @@ describe('DSL 基础命令（插件用法验证）', () => {
     const ctx = makeCtx();
     await executeScript(`
       open "$base_url/near-demo"
+      assert_exists "李四"
       
       # 1. 列表定位
       tap "编辑" near "李四"
@@ -223,6 +224,11 @@ describe('DSL 基础命令（插件用法验证）', () => {
       input "admin" to "placeholder:请输入操作人账号"
       tap "确认" near "用户名"
       assert_exists "操作成功: 点击了弹窗里的 确认 按钮"
+
+      # 4. 动态加载与高精度轴投影定位
+      tap "开始加载 product-3 的图标"
+      tap "图标" near "product - 3" right
+      assert_exists "操作成功: 点击了 product-3 的图标"
     `, requesterPage, ctx, {});
   });
 });

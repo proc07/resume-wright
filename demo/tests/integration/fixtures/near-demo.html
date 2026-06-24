@@ -267,6 +267,38 @@
       font-weight: 600;
     }
   </style>
+  <script>
+    function setResult(msg) {
+      const box = document.getElementById('result-box');
+      box.textContent = '操作成功: ' + msg;
+      box.style.display = 'block';
+      
+      const successMsg = document.getElementById('success-msg');
+      successMsg.textContent = 'success';
+      successMsg.style.display = 'block';
+
+      // 同时也写到 window 变量上供自动化用例读取
+      window.__nearResult = msg;      
+    }
+    
+    function openModal() {
+      document.getElementById('demo-modal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+      document.getElementById('demo-modal').style.display = 'none';
+      document.getElementById('result-box').style.display = 'none';
+      document.getElementById('success-msg').style.display = 'none';
+    }
+
+    function triggerProduct3Load() {
+      const box = document.getElementById('product-3-box');
+      box.innerHTML = '<span style="font-size:12px; color:#f59e0b; margin-right:8px;">准备中...</span>';
+      setTimeout(() => {
+        box.innerHTML = '<button class="icon-btn btn-sec" onclick="setResult(\'点击了 product-3 的图标\')">图标</button>';
+      }, 800);
+    }
+  </script>
 </head>
 <body>
   <div class="card">
@@ -361,10 +393,30 @@
 
     <!-- 3. Modal reachability -->
     <h3>弹窗层级（可达性过滤）</h3>
-    <div style="display: flex; gap: 12px; align-items: center;">
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 24px;">
       <button id="bg-confirm" class="btn-primary" onclick="setResult('点击了背景页的 确认 按钮')">确认</button>
       <button class="btn-sec" onclick="openModal()">打开模态框</button>
       <span style="font-size:12px; color:#64748b;">背景页的“确认”按钮紧挨着“打开模态框”</span>
+    </div>
+
+    <!-- 4. 动态加载与高精度轴投影定位 (验证 axisGap 与 延迟重试) -->
+    <h3>动态加载与轴投影限制（验证 axisGap 与 延迟重试）</h3>
+    <div class="dynamic-container" style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+      <div class="product-row" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 8px;">
+        <span class="product-label">product - 1</span>
+        <button class="icon-btn btn-sec" onclick="setResult('点击了 product-1 的图标')">图标</button>
+      </div>
+      <div class="product-row" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 8px;">
+        <span class="product-label">product - 2</span>
+        <button class="icon-btn btn-sec" onclick="setResult('点击了 product-2 的图标')">图标</button>
+      </div>
+      <div class="product-row" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 12px;">
+        <span class="product-label">product - 3</span>
+        <div id="product-3-box">
+          <span style="font-size: 12px; color: #94a3b8;">加载中...</span>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="triggerProduct3Load()">开始加载 product-3 的图标</button>
     </div>
 
     <!-- Real-time Result output -->
@@ -382,34 +434,10 @@
       </div>
       <div class="modal-footer">
         <button class="btn-sec" onclick="closeModal()">取消</button>
-        <button id="modal-confirm" class="btn-primary" onclick="setResult('点击了弹窗里的 确认 按钮')">确认</button>
+        <button id="modal-confirm" class="btn-primary" onclick="setResult('点击了弹窗里的 确认 按钮'); document.getElementById('demo-modal').style.display = 'none';">确认</button>
       </div>
     </div>
   </div>
 
-  <script>
-    function setResult(msg) {
-      const box = document.getElementById('result-box');
-      box.textContent = '操作成功: ' + msg;
-      box.style.display = 'block';
-      
-      const successMsg = document.getElementById('success-msg');
-      successMsg.textContent = 'success';
-      successMsg.style.display = 'block';
-
-      // 同时也写到 window 变量上供自动化用例读取
-      window.__nearResult = msg;
-    }
-    
-    function openModal() {
-      document.getElementById('demo-modal').style.display = 'flex';
-    }
-    
-    function closeModal() {
-      document.getElementById('demo-modal').style.display = 'none';
-      document.getElementById('result-box').style.display = 'none';
-      document.getElementById('success-msg').style.display = 'none';
-    }
-  </script>
 </body>
 </html>
