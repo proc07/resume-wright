@@ -942,4 +942,93 @@ describe('DSL 执行器集成测试', () => {
       expect(ctx.get('js_result')).toBe('ok');
     });
   });
+
+  describe('local use_step 复用主步骤与子步骤', () => {
+    const tempCaseDir = path.join(process.cwd(), 'cases', 'temp-local-use-step');
+    const tempYamlPath = path.join(tempCaseDir, 'local_use_step_test.yaml');
+
+    beforeAll(() => {
+      fs.mkdirSync(tempCaseDir, { recursive: true });
+    });
+
+    afterAll(() => {
+      try {
+        if (fs.existsSync(tempYamlPath)) fs.unlinkSync(tempYamlPath);
+        if (fs.existsSync(tempCaseDir)) fs.rmdirSync(tempCaseDir);
+      } catch (err) { /* ignore */ }
+    });
+
+    it('使用本地 use_step 的主步骤和子步骤应该成功合并展开并执行', async () => {
+      const { loadCase } = await import('../../src/adapters/yaml-loader.js');
+      const { WorkflowRunner } = await import('../../src/engine/workflow-runner.js');
+
+      const def = {
+        name: 'local_use_step_test',
+        roles: { requester: { username: 'req', password: 'req' } },
+        steps: [
+          {
+            id: 'step1_base',
+            role: 'requester',
+            sub_steps: [
+              {
+                id: 'sub_base',
+                script: `$val1 = "hello"`,
+              },
+              {
+                id: 'sub_action',
+                script: `$val2 = "world"`,
+              }
+            ],
+            script: `$main_val = "main_base"`,
+          },
+          {
+            id: 'step2_inherit',
+            use_step: 'step1_base',
+            // 覆盖 main_val
+            script: `$main_val = "main_override"`,
+          },
+          {
+            id: 'step3_sub_inherit',
+            role: 'requester',
+            sub_steps: [
+              {
+                id: 'sub_local_base',
+                script: `$val3 = "base_sub"`,
+              },
+              {
+                id: 'sub_local_inherit',
+                use_step: 'sub_local_base',
+                script: `$val3 = "override_sub"`,
+              }
+            ]
+          }
+        ],
+      };
+
+      fs.writeFileSync(tempYamlPath, JSON.stringify(def), 'utf-8');
+
+      // 1. 验证 loadCase 展开后的数据结构是否正确
+      const loaded = loadCase(tempYamlPath);
+      expect(loaded.steps.length).toBe(3);
+
+      // step2_inherit 继承自 step1_base，覆盖了 script，但应该同样继承其子步骤
+      const step2 = loaded.steps[1]!;
+      expect(step2.id).toBe('step2_inherit');
+      expect(step2.script).toBe('$main_val = "main_override"');
+      expect(step2.sub_steps?.length).toBe(2);
+      expect(step2.sub_steps?.[0]?.id).toBe('sub_base');
+      expect(step2.sub_steps?.[0]?.script).toBe('$val1 = "hello"');
+
+      // step3_sub_inherit 包含本地子步骤引用，子步骤 sub_local_inherit 应该继承并覆盖 sub_local_base
+      const step3 = loaded.steps[2]!;
+      expect(step3.sub_steps?.length).toBe(2);
+      expect(step3.sub_steps?.[1]?.id).toBe('sub_local_inherit');
+      expect(step3.sub_steps?.[1]?.script).toBe('$val3 = "override_sub"');
+
+      // 2. 运行用例验证执行逻辑是否正确
+      const runner = new WorkflowRunner(loaded, tempYamlPath, { headless: true });
+      const res = await runner.run();
+      expect(res.status).toBe('passed');
+    });
+  });
 });

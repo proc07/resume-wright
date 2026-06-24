@@ -22,7 +22,7 @@ const SubStepSchema = z.object({
   script: z.string().optional(),
   snapshot_before_submit: z.boolean().optional(),
   on_failure: OnFailureSchema.optional(),
-  use_sub_step: z.string().optional(),
+  use_step: z.string().optional(),
 });
 
 const StepSchema = z.object({
@@ -188,7 +188,7 @@ export function resolveSharedSteps(caseFilePath: string): SharedStepsRegistry {
 // ── 引用展开 ──────────────────────────────────────────────────
 
 /**
- * 展开单个 step 中的 use_step 引用（local wins 合并）
+ * 展开单个 step 中的 use_step 引用（外部共享步骤，local wins 合并）
  */
 function expandStep(
   rawStep: Record<string, unknown>,
@@ -218,30 +218,24 @@ function expandStep(
     merged['id'] = template.id;
   }
 
-  // sub_steps 中也可能含有 use_sub_step，递归展开
-  if (Array.isArray(merged['sub_steps'])) {
-    merged['sub_steps'] = (merged['sub_steps'] as Record<string, unknown>[])
-      .map((ss) => expandSubStep(ss, registry, caseFilePath));
-  }
-
   return merged;
 }
 
 /**
- * 展开单个 sub_step 中的 use_sub_step 引用（local wins 合并）
+ * 展开单个 sub_step 中的 use_step 引用（外部共享子步骤，local wins 合并）
  */
 function expandSubStep(
   rawSubStep: Record<string, unknown>,
   registry: SharedStepsRegistry,
   caseFilePath: string
 ): Record<string, unknown> {
-  const ref = rawSubStep['use_sub_step'];
+  const ref = rawSubStep['use_step'];
   if (typeof ref !== 'string') return rawSubStep;
 
   const template = registry.subSteps.get(ref);
   if (!template) {
     throw new Error(
-      `[yaml-loader] 'use_sub_step: ${ref}' not found in case "${caseFilePath}".\n` +
+      `[yaml-loader] 'use_step: ${ref}' (sub_step) not found in case "${caseFilePath}".\n` +
       `  Available sub_step refs: ${[...registry.subSteps.keys()].join(', ') || '(none)'}`
     );
   }
@@ -250,7 +244,7 @@ function expandSubStep(
     ...template,
     ...rawSubStep,
   };
-  delete merged['use_sub_step'];
+  delete merged['use_step'];
 
   if (!merged['id']) {
     merged['id'] = template.id;
@@ -260,23 +254,111 @@ function expandSubStep(
 }
 
 /**
- * 对 Case 的原始 steps 数组进行递归展开，返回展开后的步骤列表
+ * 对子步骤数组进行递归展开，支持本地 use_step 引用及外部 use_step 引用
+ */
+function expandSubSteps(
+  rawSubSteps: Record<string, unknown>[],
+  registry: SharedStepsRegistry,
+  caseFilePath: string
+): Record<string, unknown>[] {
+  const expandedSubSteps: Record<string, unknown>[] = [];
+  const localSubStepsMap = new Map<string, Record<string, unknown>>();
+
+  for (const rawSubStep of rawSubSteps) {
+    const ref = rawSubStep['use_step'];
+    let subStep: Record<string, unknown>;
+
+    if (typeof ref === 'string' && !ref.includes('.')) {
+      // 1. 本地子步骤引用
+      const template = localSubStepsMap.get(ref);
+      if (!template) {
+        throw new Error(
+          `[yaml-loader] Local 'use_step: ${ref}' (sub_step) not found in the same step of case "${caseFilePath}".\n` +
+          `  Ensure the referenced sub_step exists before this one.`
+        );
+      }
+      subStep = {
+        ...template,
+        ...rawSubStep,
+      };
+      delete subStep['use_step'];
+      if (!subStep['id']) {
+        subStep['id'] = template.id;
+      }
+    } else {
+      // 2. 外部子步骤引用或无引用
+      subStep = expandSubStep(rawSubStep, registry, caseFilePath);
+    }
+
+    expandedSubSteps.push(subStep);
+    if (typeof subStep['id'] === 'string') {
+      localSubStepsMap.set(subStep['id'], subStep);
+    }
+  }
+
+  return expandedSubSteps;
+}
+
+/**
+ * 对 Case 的原始 steps 数组进行递归展开，支持本地 use_step 引用及外部 use_step 引用
  */
 function expandSteps(
   rawSteps: Record<string, unknown>[],
   registry: SharedStepsRegistry,
   caseFilePath: string
 ): Record<string, unknown>[] {
-  return rawSteps.map((rawStep) => {
-    // 先展开 step 本身的 use_step
-    const step = expandStep(rawStep, registry, caseFilePath);
-    // 再展开 step 内部所有 sub_steps 的 use_sub_step
-    if (Array.isArray(step['sub_steps'])) {
-      step['sub_steps'] = (step['sub_steps'] as Record<string, unknown>[])
-        .map((ss) => expandSubStep(ss, registry, caseFilePath));
+  const expandedSteps: Record<string, unknown>[] = [];
+  const localStepsMap = new Map<string, Record<string, unknown>>();
+
+  for (const rawStep of rawSteps) {
+    const ref = rawStep['use_step'];
+    let step: Record<string, unknown>;
+
+    if (typeof ref === 'string' && !ref.includes('.')) {
+      // 1. 本地主步骤引用
+      const template = localStepsMap.get(ref);
+      if (!template) {
+        throw new Error(
+          `[yaml-loader] Local 'use_step: ${ref}' not found in case "${caseFilePath}".\n` +
+          `  Ensure the referenced step exists before this step.`
+        );
+      }
+      step = {
+        ...template,
+        ...rawStep,
+      };
+      delete step['use_step'];
+      if (!step['id']) {
+        step['id'] = template.id;
+      }
+
+      // 展开内部子步骤
+      if (Array.isArray(step['sub_steps'])) {
+        step['sub_steps'] = expandSubSteps(
+          step['sub_steps'] as Record<string, unknown>[],
+          registry,
+          caseFilePath
+        );
+      }
+    } else {
+      // 2. 外部主步骤引用或无引用
+      step = expandStep(rawStep, registry, caseFilePath);
+      if (Array.isArray(step['sub_steps'])) {
+        step['sub_steps'] = expandSubSteps(
+          step['sub_steps'] as Record<string, unknown>[],
+          registry,
+          caseFilePath
+        );
+      }
     }
-    return step;
-  });
+
+    expandedSteps.push(step);
+    if (typeof step['id'] === 'string') {
+      localStepsMap.set(step['id'], step);
+    }
+  }
+
+  return expandedSteps;
 }
 
 // ── 配置加载 ──────────────────────────────────────────────────

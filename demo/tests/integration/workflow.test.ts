@@ -384,7 +384,34 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
     expect(def.steps[0]!.sub_steps![1]!.snapshot_before_submit).toBe(true);
   });
 
+  it('use-step-test.yaml 结构展开与复用正确', () => {
+    const def = loadCase(path.join(DIR, 'workflows/use-step-test.yaml'));
+    expect(def.name).toBe('use-step-test');
+    expect(def.steps).toHaveLength(6);
+    // step 2 继承 step 1
+    expect(def.steps[1]!.id).toBe('step2_login_reuse');
+    expect(def.steps[1]!.role).toBe('requester');
+    // step 3 有 3 个子步骤：两个本地，一个外部
+    expect(def.steps[2]!.sub_steps).toHaveLength(3);
+    expect(def.steps[2]!.sub_steps![0]!.id).toBe('fill_title_base');
+    expect(def.steps[2]!.sub_steps![1]!.id).toBe('fill_title_reuse');
+    expect(def.steps[2]!.sub_steps![2]!.id).toBe('submit_external');
+    expect(def.steps[2]!.sub_steps![2]!.script).toContain('提交申请');
+    // step 4 继承 manager_approve
+    expect(def.steps[3]!.id).toBe('step4_manager_approve');
+    expect(def.steps[3]!.role).toBe('manager');
+    // step 4b is finance approve
+    expect(def.steps[4]!.id).toBe('step4b_finance_approve');
+    expect(def.steps[4]!.role).toBe('finance');
+    // step 5 继承 verify_purchase_completed 并覆盖 role 为 requester
+    expect(def.steps[5]!.id).toBe('step5_verify_completed');
+    expect(def.steps[5]!.role).toBe('requester');
+  });
+
+
   it('不存在的文件抛出有意义错误', () => {
     expect(() => loadCase('/nonexistent/path.yaml')).toThrow(/not found/i);
   });
 });
+
+

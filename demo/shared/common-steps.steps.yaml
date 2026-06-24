@@ -3,7 +3,7 @@
 #
 # 引用方式：
 #   Step 级别：use_step: "common-steps.<step_id>"
-#   SubStep 级别：use_sub_step: "common-steps.<sub_step_id>"
+#   SubStep 级别：use_step: "common-steps.<sub_step_id>"
 #
 # 引用时可覆盖任意字段（Local wins 原则）
 

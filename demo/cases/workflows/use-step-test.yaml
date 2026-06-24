@@ -1,0 +1,68 @@
+# demo/cases/workflows/use-step-test.yaml
+# 测试 use_step 功能（包含本地步骤复用、本地子步骤复用、外部共享步骤/子步骤复用）
+
+description: "测试 use_step 的主步骤与子步骤、本地与外部复用机制"
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+  manager:   { username: "manager",   password: "mgr_pass" }
+  finance:   { username: "finance",   password: "fin_pass" }
+
+steps:
+  # ── 1. 基础主步骤与子步骤定义 ──
+  - id: step1_login_base
+    role: requester
+    script: |
+      open "/login"
+      input "requester" to "testid:login-username"
+      input "req_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+
+  # ── 2. 本地主步骤复用 ──
+  - id: step2_login_reuse
+    use_step: step1_login_base
+    script: |
+      open "/dashboard"
+      assert_exists "role:heading[我的申请]" 5s
+
+  # ── 3. 本地子步骤复用与外部子步骤复用 ──
+  - id: step3_substeps_test
+    role: requester
+    sub_steps:
+      # 定义基础本地子步骤
+      - id: fill_title_base
+        script: |
+          open "/purchase/new"
+          input "UseStep 测试用例" to "label:申请标题"
+      
+      # 本地子步骤复用：复用 fill_title_base，并覆盖/追加操作
+      - id: fill_title_reuse
+        use_step: fill_title_base
+        script: |
+          input "15000" to "label:申请金额"
+          input "测试本地 use_step" to "label:申请原因"
+      
+      # 外部子步骤复用：复用 common-steps.submit_and_capture_id
+      - id: submit_external
+        use_step: "common-steps.submit_and_capture_id"
+
+  # ── 4. 外部主步骤复用 ──
+  - id: step4_manager_approve
+    use_step: "common-steps.manager_approve"
+
+  # ── 5. 财务审批步骤（过渡） ──
+  - id: step4b_finance_approve
+    role: finance
+    script: |
+      open "$workflow_url"
+      assert_exists "待财务审核" 10s
+      input "金额合规，财务确认" to "label:财务意见"
+      tap "role:button[财务确认通过]"
+      assert_exists "流程完成" 10s
+      screenshot
+
+  # ── 6. 外部主步骤复用并覆盖角色（Local Wins） ──
+  - id: step5_verify_completed
+    use_step: "common-steps.verify_purchase_completed"
+    role: requester # 覆盖原来的 finance 角色，改为以 requester 角色查看

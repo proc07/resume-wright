@@ -396,7 +396,7 @@ steps:
   });
 
   // ── 共享步骤（Shared Steps）──────────────────────────────────
-  describe('共享步骤 use_step / use_sub_step', () => {
+  describe('共享步骤 use_step 复用', () => {
     let sharedDir: string;
 
     beforeAll(() => {
@@ -477,7 +477,7 @@ steps:
       expect(step2.script).toContain('已完成'); // 仍继承 template.script
     });
 
-    it('use_sub_step 能够展开共享 SubStep，继承模板的 script', () => {
+    it('子步骤层级 use_step 能够展开共享 SubStep，继承模板的 script', () => {
       const caseYaml = `
 name: "共享子步骤测试"
 roles:
@@ -488,7 +488,7 @@ steps:
     sub_steps:
       - id: fill
         script: "open '/purchase/new'"
-      - use_sub_step: "common.capture_id"
+      - use_step: "common.capture_id"
 `;
       const filePath = writeCaseInTmp('use-sub-step-basic', caseYaml);
       const def = loadCase(filePath);
@@ -499,7 +499,7 @@ steps:
       expect(ss2.script).toContain('workflow_url');
     });
 
-    it('use_sub_step 引用时局部覆盖 on_failure（local wins）', () => {
+    it('子步骤层级 use_step 引用时局部覆盖 on_failure（local wins）', () => {
       const caseYaml = `
 name: "覆盖子步骤 on_failure"
 roles:
@@ -508,7 +508,7 @@ steps:
   - id: step1
     role: requester
     sub_steps:
-      - use_sub_step: "common.capture_id"
+      - use_step: "common.capture_id"
         id: capture_custom
         on_failure:
           strategy: retry
@@ -534,7 +534,7 @@ steps:
       expect(() => loadCase(filePath)).toThrow(/use_step.*non_existent_step.*not found/i);
     });
 
-    it('use_sub_step 引用不存在时抛出友好错误', () => {
+    it('子步骤层级 use_step 引用不存在时抛出友好错误', () => {
       const caseYaml = `
 name: "子步骤引用不存在测试"
 roles:
@@ -543,10 +543,10 @@ steps:
   - id: step1
     role: requester
     sub_steps:
-      - use_sub_step: "common.ghost_sub_step"
+      - use_step: "common.ghost_sub_step"
 `;
       const filePath = writeCaseInTmp('use-sub-step-missing', caseYaml);
-      expect(() => loadCase(filePath)).toThrow(/use_sub_step.*ghost_sub_step.*not found/i);
+      expect(() => loadCase(filePath)).toThrow(/use_step.*ghost_sub_step.*not found/i);
     });
   });
 
