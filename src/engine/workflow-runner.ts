@@ -136,8 +136,13 @@ export class WorkflowRunner {
       if (fs.existsSync(persistentVarsPath)) {
         try {
           const savedData = JSON.parse(fs.readFileSync(persistentVarsPath, 'utf-8'));
-          contextStore.merge(savedData);
-          console.log(`[runner] 📥 Loaded persistent variables: ${Object.keys(savedData).join(', ')}`);
+          const normalizedData: Record<string, any> = {};
+          for (const [rawKey, val] of Object.entries(savedData)) {
+            const key = rawKey.startsWith('$') ? rawKey.slice(1) : rawKey;
+            normalizedData[key] = val;
+          }
+          contextStore.merge(normalizedData);
+          console.log(`[runner] 📥 Loaded persistent variables: ${Object.keys(normalizedData).join(', ')}`);
         } catch (err) {
           console.error(`[runner] Failed to load persistent variables: ${err}`);
         }
@@ -233,10 +238,11 @@ export class WorkflowRunner {
           completedSteps++;
 
           // 保存长效持久化变量
-          const persistentKeys = this.definition.persistent_variables || [];
+          const persistentKeys = this.definition.persist_vars || [];
           if (persistentKeys.length > 0) {
             const dataToPersist: Record<string, any> = {};
-            for (const key of persistentKeys) {
+            for (const rawKey of persistentKeys) {
+              const key = rawKey.startsWith('$') ? rawKey.slice(1) : rawKey;
               if (contextStore.has(key)) {
                 dataToPersist[key] = contextStore.get(key);
               }

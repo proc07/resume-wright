@@ -50,7 +50,7 @@ const CaseSchema = z.object({
   description: z.string().optional(),
   timeout: z.number().int().positive().optional(),
   assert_timeout: z.union([z.string(), z.number()]).optional(),
-  persistent_variables: z.array(z.string()).optional(),
+  persist_vars: z.array(z.string()).optional(),
   login_macro_path: z.string().optional(),
   base_url: z.string().optional(),
   roles: z.record(z.string(), RoleSchema),
@@ -64,7 +64,7 @@ const GlobalConfigSchema = z.object({
   base_url: z.string().optional(),
   timeout: z.number().int().positive().optional(),
   assert_timeout: z.union([z.string(), z.number()]).optional(),
-  persistent_variables: z.array(z.string()).optional(),
+  persist_vars: z.array(z.string()).optional(),
   login_macro_path: z.string().optional(),
   on_failure: OnFailureSchema.optional(),
 });
@@ -285,7 +285,7 @@ export interface GlobalConfig {
   base_url?: string;
   timeout?: number;
   assert_timeout?: string | number;
-  persistent_variables?: string[];
+  persist_vars?: string[];
   login_macro_path?: string;
   on_failure?: z.infer<typeof OnFailureSchema>;
 }
@@ -404,7 +404,7 @@ export function loadCase(filePath: string): CaseDefinition {
     base_url: rawData.base_url || globalConfig.base_url,
     timeout: rawData.timeout ?? globalConfig.timeout,
     assert_timeout: rawData.assert_timeout ?? globalConfig.assert_timeout,
-    persistent_variables: rawData.persistent_variables || globalConfig.persistent_variables,
+    persist_vars: rawData.persist_vars || globalConfig.persist_vars,
     login_macro_path: rawData.login_macro_path || globalConfig.login_macro_path,
     on_failure: rawData.on_failure || globalConfig.on_failure,
   };

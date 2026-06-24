@@ -4,6 +4,9 @@
 
 description: "覆盖申请人提交、主管审批、财务确认的完整链路"
 
+persist_vars:
+  - $workflow_id
+
 roles:
   requester: { username: "requester", password: "req_pass" }
   manager:   { username: "manager",   password: "mgr_pass" }

@@ -6,7 +6,7 @@ const terminalStore = useTerminalStore()
 
 const visible = computed(() => terminalStore.lightboxVisible)
 const currentIndex = computed(() => terminalStore.lightboxIndex)
-const screenshots = computed(() => terminalStore.screenshots)
+const screenshots = computed(() => terminalStore.lightboxImages)
 
 const currentImageSrc = computed(() => {
   if (currentIndex.value >= 0 && currentIndex.value < screenshots.value.length) {

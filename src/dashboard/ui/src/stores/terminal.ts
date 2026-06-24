@@ -7,6 +7,7 @@ export const useTerminalStore = defineStore('terminal', () => {
   const activeTab = ref<TerminalTab>('stream')
   const terminalHeight = ref<number>(320)
   const screenshots = ref<string[]>([])
+  const lightboxImages = ref<string[]>([])
   const lightboxIndex = ref<number>(-1)
   const lightboxVisible = ref<boolean>(false)
   const activeHistoryRunId = ref<string | null>(null)
@@ -29,8 +30,10 @@ export const useTerminalStore = defineStore('terminal', () => {
     screenshots.value = list
   }
 
-  function openLightbox(index: number) {
-    if (index < 0 || index >= screenshots.value.length) return
+  function openLightbox(index: number, customImages?: string[]) {
+    const list = customImages || screenshots.value
+    if (index < 0 || index >= list.length) return
+    lightboxImages.value = list
     lightboxIndex.value = index
     lightboxVisible.value = true
   }
@@ -40,10 +43,10 @@ export const useTerminalStore = defineStore('terminal', () => {
   }
 
   function navigateLightbox(direction: number) {
-    if (screenshots.value.length <= 1) return
+    if (lightboxImages.value.length <= 1) return
     let next = lightboxIndex.value + direction
-    if (next < 0) next = screenshots.value.length - 1
-    else if (next >= screenshots.value.length) next = 0
+    if (next < 0) next = lightboxImages.value.length - 1
+    else if (next >= lightboxImages.value.length) next = 0
     lightboxIndex.value = next
   }
 
@@ -55,6 +58,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     activeTab,
     terminalHeight,
     screenshots,
+    lightboxImages,
     lightboxIndex,
     lightboxVisible,
     activeHistoryRunId,

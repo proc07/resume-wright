@@ -16,7 +16,7 @@
     "dashboard": "resumewright dashboard"
   },
   "dependencies": {
-    "resumewright": "file:../"
+    "resumewright": "link:../"
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",

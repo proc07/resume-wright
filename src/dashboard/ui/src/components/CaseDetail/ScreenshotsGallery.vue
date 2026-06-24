@@ -10,16 +10,15 @@ const terminalStore = useTerminalStore()
 
 const stepScreenshots = computed(() => {
   const allScreenshots = terminalStore.screenshots
-  return allScreenshots.map((src, index) => ({ src, originalIndex: index }))
-    .filter(({ src }) => {
-      const parts = src.split('/')
-      const filename = decodeURIComponent(parts[parts.length - 1] || '')
-      return (
-        filename.startsWith(props.stepId + '-') ||
-        filename.includes('-' + props.stepId + '-') ||
-        filename.endsWith('-' + props.stepId + '.png')
-      )
-    })
+  return allScreenshots.filter((src) => {
+    const parts = src.split('/')
+    const filename = decodeURIComponent(parts[parts.length - 1] || '')
+    return (
+      filename.startsWith(props.stepId + '-') ||
+      filename.includes('-' + props.stepId + '-') ||
+      filename.endsWith('-' + props.stepId + '.png')
+    )
+  })
 })
 
 function getFileName(src: string) {
@@ -27,8 +26,8 @@ function getFileName(src: string) {
   return decodeURIComponent(parts[parts.length - 1] || '')
 }
 
-function openLightbox(originalIndex: number) {
-  terminalStore.openLightbox(originalIndex)
+function openLightbox(localIndex: number) {
+  terminalStore.openLightbox(localIndex, stepScreenshots.value)
 }
 </script>
 
@@ -39,18 +38,18 @@ function openLightbox(originalIndex: number) {
     </div>
     <div class="screenshots-gallery">
       <div
-        v-for="ss in stepScreenshots"
-        :key="ss.src"
+        v-for="(src, index) in stepScreenshots"
+        :key="src"
         class="screenshot-card-wrapper"
-        :data-tooltip="getFileName(ss.src)"
+        :data-tooltip="getFileName(src)"
       >
         <div
           class="screenshot-card"
-          @click="openLightbox(ss.originalIndex)"
+          @click="openLightbox(index)"
         >
-          <img :src="ss.src" alt="Snapshot" loading="lazy">
+          <img :src="src" alt="Snapshot" loading="lazy">
           <div class="screenshot-name">
-            {{ getFileName(ss.src) }}
+            {{ getFileName(src) }}
           </div>
         </div>
       </div>

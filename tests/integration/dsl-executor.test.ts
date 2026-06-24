@@ -785,7 +785,7 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
-  describe('persistent_variables — 声明式长效持久化变量', () => {
+  describe('persist_vars — 声明式长效持久化变量', () => {
     const tempCaseDir = path.join(process.cwd(), 'cases', 'temp-persist-test');
     const tempYamlPath = path.join(tempCaseDir, 'persist_test_case.yaml');
     const persistentJsonPath = path.join(process.cwd(), 'config', 'persistent', 'temp-persist-test', 'persist_test_case.json');
@@ -814,13 +814,13 @@ describe('DSL 执行器集成测试', () => {
       } catch (err) { /* ignore */ }
     });
 
-    it('执行包含 persistent_variables 的用例应该自动将其写盘，并在二次执行时恢复', async () => {
+    it('执行包含 persist_vars 的用例应该自动将其写盘，并在二次执行时恢复', async () => {
       const { WorkflowRunner } = await import('../../src/engine/workflow-runner.js');
       
       // 1. 创建并执行写盘的用例
       const writeDef = {
         name: 'persist_test_case',
-        persistent_variables: ['my_persist_token'],
+        persist_vars: ['$my_persist_token'],
         roles: { requester: { username: 'req', password: 'req' } },
         steps: [
           {
@@ -845,7 +845,7 @@ describe('DSL 执行器集成测试', () => {
       // 2. 创建并执行读盘校验的用例
       const readDef = {
         name: 'persist_test_case',
-        persistent_variables: ['my_persist_token'],
+        persist_vars: ['$my_persist_token'],
         roles: { requester: { username: 'req', password: 'req' } },
         steps: [
           {
