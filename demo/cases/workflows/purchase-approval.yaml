@@ -18,13 +18,8 @@ steps:
       retry_delay: 3000
     script: |
       open "/purchase/new"
-      input "Q3 办公设备采购" to "label:申请标题"
-      input "50000"           to "label:申请金额"
-      inspect "label:申请原因"
-      input "Team expansion"  to "label:申请原因"
-      check "加急申请"
       upload "./fixtures/budget.xlsx"
-      tap "role:button[提交申请]"
+      macro submit_purchase_js "Q3 办公设备采购" "50000" "Team expansion" "true"
 
       assert_exists "采购申请详情" 10s
       $workflow_url = current_url

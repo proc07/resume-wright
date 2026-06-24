@@ -208,15 +208,7 @@ async function executeAssign(
     }
 
     case 'execute_script': {
-      const jsCode = inst.block ?? '';
-      const scriptArgs = inst.args.map((a) => ctx.getPath(stripDollar(a)) ?? stripQuotes(a));
-      value = await page.evaluate(
-        ({ code, args }: { code: string; args: unknown[] }) => {
-          const fn = new Function(...args.map((_, i) => `arg${i}`), code);
-          return fn(...args);
-        },
-        { code: jsCode, args: scriptArgs }
-      );
+      value = await runExecuteScript(page, inst, ctx);
       break;
     }
 
@@ -434,24 +426,8 @@ async function executeCommand(
       break;
     }
 
-    // ── 执行 JS ──────────────────────────────────────────────
     case 'execute_script': {
-      const jsCode = inst.block ?? '';
-      const scriptArgs = inst.args.map((a) => {
-        const interp = interpolate(a, ctx);
-        // 尝试解析为变量值
-        if (interp.startsWith('$')) {
-          return ctx.getPath(interp.slice(1));
-        }
-        return stripQuotes(interp);
-      });
-      await page.evaluate(
-        ({ code, args }: { code: string; args: unknown[] }) => {
-          const fn = new Function(...args.map((_, i) => `arg${i}`), code);
-          return fn(...args);
-        },
-        { code: jsCode, args: scriptArgs }
-      );
+      await runExecuteScript(page, inst, ctx);
       break;
     }
 
@@ -988,6 +964,53 @@ function matchUrl(currentUrl: string, pattern: string): boolean {
 
 function stripDollar(s: string): string {
   return s.startsWith('$') ? s.slice(1) : s;
+}
+
+async function runExecuteScript(page: Page, inst: DslInstruction, ctx: ContextStore): Promise<unknown> {
+  const jsCode = inst.block ?? '';
+  const positionalArgs: unknown[] = [];
+  const namedArgs: Record<string, unknown> = {};
+
+  for (const rawArg of inst.args) {
+    const interp = interpolate(rawArg, ctx);
+    const stripped = stripQuotes(interp);
+
+    const namedMatch = stripped.match(/^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$/s);
+    if (namedMatch) {
+      const key = namedMatch[1]!;
+      const valStr = namedMatch[2]!;
+      if (valStr.startsWith('$')) {
+        namedArgs[key] = ctx.getPath(valStr.slice(1));
+      } else {
+        namedArgs[key] = stripQuotes(valStr);
+      }
+    } else {
+      if (stripped.startsWith('$')) {
+        positionalArgs.push(ctx.getPath(stripped.slice(1)));
+      } else {
+        positionalArgs.push(stripped);
+      }
+    }
+  }
+
+  return await page.evaluate(
+    ({ code, positional, named }: { code: string; positional: unknown[]; named: Record<string, unknown> }) => {
+      const paramNames = positional.map((_, i) => `arg${i}`);
+      let header = '';
+      const hasNamed = Object.keys(named).length > 0;
+      if (hasNamed) {
+        paramNames.push('_named_args_');
+        header = `const { ${Object.keys(named).join(', ')} } = _named_args_;\n`;
+      }
+      const fn = new Function(...paramNames, header + code);
+      const evalArgs = [...positional];
+      if (hasNamed) {
+        evalArgs.push(named);
+      }
+      return fn(...evalArgs);
+    },
+    { code: jsCode, positional: positionalArgs, named: namedArgs }
+  );
 }
 
 /**

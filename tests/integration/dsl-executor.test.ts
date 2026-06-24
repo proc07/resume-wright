@@ -922,4 +922,24 @@ describe('DSL 执行器集成测试', () => {
       await rolePage.context().close();
     });
   });
+
+  describe('execute_script 命名参数与混合参数', () => {
+    it('能够成功解析命名参数并在 JS 中作为局部变量直接访问', async () => {
+      const ctx = makeCtx();
+      ctx.set('my_amount', '9999');
+      
+      await executeScript(`
+        open "$base_url"
+        $js_result = execute_script "foo" "title=default_val" "amount=$my_amount"
+        """
+        if (arg0 === 'foo' && title === 'default_val' && amount === '9999') {
+          return 'ok';
+        }
+        return 'failed: ' + arg0 + ', ' + title + ', ' + amount;
+        """
+      `, page, ctx);
+      
+      expect(ctx.get('js_result')).toBe('ok');
+    });
+  });
 });

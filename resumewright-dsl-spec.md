@@ -242,11 +242,18 @@ $count = execute_script
          return document.querySelectorAll('.task-row').length;
          """
 
-# 带参数
+# 带命名参数（推荐，易于阅读和解构）
+$pos = execute_script "wf=$workflow_id" "user=$user_id"
+       """
+       // 在 JS 代码中可以直接通过变量名直接访问（引擎自动完成解构）
+       return { workflowId: wf, userId: user };
+       """
+
+# 带传统位置参数（向后兼容）
 $pos = execute_script "$workflow_id" "$user_id"
        """
-       const workflowId = arguments[0];
-       const userId = arguments[1];
+       const workflowId = arguments[0]; // 或使用 arg0
+       const userId = arguments[1];     // 或使用 arg1
        return { workflowId, userId };
        """
 
