@@ -45,6 +45,18 @@ export const useRunnerStore = defineStore('runner', () => {
       if (currentSafe === data.case) {
         onAppend(cleanedText)
       }
+
+      // 实时检测步骤状态变化并刷新
+      const isCompletedStep = cleanedText.includes('[runner] 🎯 Completed step:')
+      const isSkippedStep = cleanedText.includes('[runner] ⏭  Skipping completed step:')
+      if (isCompletedStep || isSkippedStep) {
+        const target = casesStore.casesData.find(
+          c => getSafeCaseName(c.name, c.filePath) === data.case
+        )
+        if (target) {
+          casesStore.loadCases()
+        }
+      }
     } else {
       const runningCases = casesStore.casesData.filter(c => c.status === 'running')
       if (runningCases.length > 0) {
@@ -67,6 +79,14 @@ export const useRunnerStore = defineStore('runner', () => {
     if (isRunning.value) return
     if (eventSource) { eventSource.close(); eventSource = null }
     isRunning.value = true
+
+    const casesStore = useCasesStore()
+    caseFiles.forEach(file => {
+      const target = casesStore.casesData.find(c => c.filePath === file)
+      if (target) {
+        casesStore.resetCaseUiState(target.name)
+      }
+    })
 
     eventSource = createRunStream({
       cases: caseFiles,

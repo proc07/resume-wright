@@ -173,6 +173,22 @@ export const useCasesStore = defineStore('cases', () => {
     }
   }
 
+  function resetCaseUiState(caseName: string) {
+    const c = casesData.value.find(item => item.name === caseName)
+    if (c) {
+      c.status = 'running'
+      c.completedCount = 0
+      c.steps.forEach(s => {
+        s.completed = false
+      })
+      c.subStepsDetail = {}
+      c.error = undefined
+      if (currentCase.value?.name === caseName) {
+        currentCase.value = { ...c }
+      }
+    }
+  }
+
   function getFolderSelectedState(folderPath: string): 'all' | 'none' | 'partial' {
     const prefix = folderPath + '/'
     const descendants = casesData.value.filter(c => c.filePath.startsWith(prefix))
@@ -202,6 +218,7 @@ export const useCasesStore = defineStore('cases', () => {
     toggleFolderCollapse,
     setStatusFilter,
     updateCaseStatus,
+    resetCaseUiState,
     getFolderSelectedState,
   }
 })

@@ -114,7 +114,7 @@ function handlePopoverMouseLeave() {
 
 <template>
   <div class="card card-substeps">
-    <h3>子步骤 (SubStep) 与 API 缓存</h3>
+    <h3>{{ step ? step.id : '子步骤 (SubStep) 与 API 缓存' }}</h3>
     <div id="substeps-panel" class="substeps-panel">
       <div v-if="!selectedStepId" class="empty-msg">
         请选择上面的步骤，或在有子步骤的步骤运行后在此处查看缓存与快照状态。

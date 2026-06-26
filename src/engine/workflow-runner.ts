@@ -236,6 +236,7 @@ export class WorkflowRunner {
 
           await stepExecutor.execute(step);
           completedSteps++;
+          console.log(`[runner] 🎯 Completed step: ${step.id}`);
 
           // 保存长效持久化变量
           const persistentKeys = this.definition.persist_vars || [];
