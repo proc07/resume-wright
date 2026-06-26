@@ -43,8 +43,8 @@ export interface DslInstruction {
   /** 是否非阻塞（? 前缀） */
   optional: boolean;
 
-  /** 命令名称（null 表示这是变量赋值语句） */
-  command: DslCommandName | null;
+  /** 命令名称（null 表示这是变量赋值语句，'boundary' 表示空行分界符） */
+  command: DslCommandName | 'boundary' | null;
 
   /** 变量名（仅当 command === null 时有值） */
   assignTarget?: string;

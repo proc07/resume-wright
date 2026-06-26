@@ -101,6 +101,11 @@ export async function executeInstructions(
   let skipConsecutiveOptionals = false;
 
   for (const inst of instructions) {
+    if (inst.command === 'boundary') {
+      skipConsecutiveOptionals = false;
+      continue;
+    }
+
     if (!inst.optional) {
       // 一旦遇到非可选指令，重置连续可选块跳过标记
       skipConsecutiveOptionals = false;

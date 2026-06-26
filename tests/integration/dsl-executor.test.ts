@@ -757,6 +757,29 @@ describe('DSL 执行器集成测试', () => {
       // 如果最后一个 ? tap "关闭按钮" 成功执行，则 modal 应该被关闭（不可见）
       expect(await page.locator('#test-modal').isVisible()).toBe(false);
     });
+
+    it('空行分界符能够将 ? 可选指令块分割为不连续的块，重新允许执行后续 ? 指令', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        ? tap "non_existent_btn_abc"
+
+        ? tap "打开Modal"
+      `, page, ctx, {});
+      expect(await page.locator('#test-modal').isVisible()).toBe(true);
+      await page.locator('#close-modal-btn').click();
+    });
+
+    it('注释行不会将 ? 可选指令块分割，后续的 ? 指令仍然会被作为连续块跳过', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        ? tap "non_existent_btn_abc"
+        # 仅仅是注释行，没有空行
+        ? tap "打开Modal"
+      `, page, ctx, {});
+      expect(await page.locator('#test-modal').isVisible()).toBe(false);
+    });
   });
 
   describe('assertTimeout — 全局/定制超时覆盖规则', () => {

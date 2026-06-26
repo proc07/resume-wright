@@ -227,9 +227,14 @@ describe('DSL Parser', () => {
       expect(result[0]!.command).toBe('tap');
     });
 
-    it('忽略空行', () => {
+    it('将空行解析为 boundary 指令并保留以作隔离边界', () => {
       const result = parseScript('\n\ntap "按钮"\n\n');
-      expect(result).toHaveLength(1);
+      expect(result).toHaveLength(5);
+      expect(result[0]!.command).toBe('boundary');
+      expect(result[1]!.command).toBe('boundary');
+      expect(result[2]!.command).toBe('tap');
+      expect(result[3]!.command).toBe('boundary');
+      expect(result[4]!.command).toBe('boundary');
     });
 
     it('解析多行脚本', () => {

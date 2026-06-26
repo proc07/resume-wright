@@ -38,7 +38,17 @@ export function parseScript(script: string): DslScript {
     i++;
 
     // 空行 / 注释
-    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (!trimmed) {
+      instructions.push({
+        optional: false,
+        command: 'boundary',
+        args: [],
+        raw: '',
+        lineNumber,
+      });
+      continue;
+    }
+    if (trimmed.startsWith('#')) continue;
 
     // 检测非阻塞前缀 ?
     let optional = false;
