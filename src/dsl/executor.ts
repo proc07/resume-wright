@@ -606,6 +606,15 @@ async function executeCommand(
           locator = await findNearestReachable(page, locStr, inspectNearOpts, defaultAssertTimeout);
         } else {
           locator = resolveLocatorFromString(page, locStr);
+          const count = await locator.count();
+          const isPlain = !SPECIAL_LOCATOR_REGEX.test(stripQuotes(locStr));
+          if (count === 0 && isPlain) {
+            const inputLoc = resolveInputLocator(page, locStr);
+            const inputCount = await inputLoc.count();
+            if (inputCount > 0) {
+              locator = inputLoc;
+            }
+          }
         }
         const count = await locator.count();
 

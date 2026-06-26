@@ -715,6 +715,17 @@ describe('DSL 执行器集成测试', () => {
         inspect "删除" near "张三"
       `, page, ctx, {})).resolves.not.toThrow();
     });
+
+    it('能够成功审查无前缀的 plain text 占位符定位器并触发 fallback 机制', async () => {
+      const ctx = makeCtx();
+      // 在 test-app.html 中，"请输入申请标题" 是输入框的 placeholder 属性，没有标签以此为文本内容。
+      // 标准定位无法匹配，需要通过 fallback resolveInputLocator 匹配到输入框。
+      // 我们测试在该情况下，inspect "请输入申请标题" 能够正常查找到该元素并不抛出异常。
+      await expect(executeScript(`
+        open "$base_url"
+        inspect "请输入申请标题"
+      `, page, ctx, {})).resolves.not.toThrow();
+    });
   });
 
   describe('可选指令的执行控制流（? 语法连续性控制）', () => {
