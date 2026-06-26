@@ -1065,4 +1065,26 @@ describe('DSL 执行器集成测试', () => {
       expect(res.status).toBe('passed');
     });
   });
+
+  describe('重复元素定位警告（Multiple Matches Warning）', () => {
+    it('当定位器匹配到多个元素时，应该在控制台和页面控制台输出警告信息', async () => {
+      const ctx = makeCtx();
+      const consoleMsgs: string[] = [];
+      page.on('console', msg => {
+        consoleMsgs.push(msg.text());
+      });
+
+      try {
+        await executeScript(`
+          open "$base_url"
+          input "重复输入测试" to "html:input"
+        `, page, ctx, {});
+      } catch (err) {
+        // 忽略 strict mode error
+      }
+
+      const warningMsg = consoleMsgs.find(m => m.includes('Locator Warning') || m.includes('matched 2 elements'));
+      expect(warningMsg).toBeDefined();
+    });
+  });
 });

@@ -302,6 +302,7 @@ async function executeCommand(
         await el.click();
       } else {
         const locator = resolveLocatorFromString(page, locStr);
+        await checkMultipleMatches(locator, locStr, page);
         await locator.click();
       }
       break;
@@ -332,6 +333,7 @@ async function executeCommand(
             locStr = `${locStr} ${remainingArgs[0]}`;
           }
           const locator = resolveInputLocator(page, locStr);
+          await checkMultipleMatches(locator, locStr, page);
           if (content === '') {
             await locator.clear();
           } else {
@@ -366,6 +368,7 @@ async function executeCommand(
         await el.hover();
       } else {
         const locator = resolveLocatorFromString(page, args[0]!);
+        await checkMultipleMatches(locator, args[0]!, page);
         await locator.hover();
       }
       break;
@@ -379,6 +382,7 @@ async function executeCommand(
         await el.scrollIntoViewIfNeeded();
       } else {
         const locator = resolveLocatorFromString(page, args[0]!);
+        await checkMultipleMatches(locator, args[0]!, page);
         await locator.scrollIntoViewIfNeeded();
       }
       break;
@@ -405,6 +409,7 @@ async function executeCommand(
     case 'check': {
       const label = stripQuotes(args[0]!);
       const locator = page.getByLabel(label);
+      await checkMultipleMatches(locator, label, page);
       await locator.check();
       break;
     }
@@ -824,6 +829,34 @@ async function assertCount(
     throw new Error(
       `assert_exists count check failed: found ${count} elements, expected ${op}${n}`
     );
+  }
+}
+async function checkMultipleMatches(
+  locator: import('@playwright/test').Locator,
+  locStr: string,
+  page: Page
+): Promise<void> {
+  try {
+    const count = await locator.count();
+    if (count > 1) {
+      const YELLOW = '\x1b[33m';
+      const RESET = '\x1b[0m';
+      const BOLD = '\x1b[1m';
+      console.warn(
+        `\n${YELLOW}${BOLD}⚠  Warning: Locator "${locStr}" matched ${count} elements!${RESET}` +
+        `\n${YELLOW}   Playwright will fail with a strict mode violation error unless an index modifier like /0 or /1 is used.${RESET}\n`
+      );
+
+      await locator.evaluateAll((elements, { locStr }) => {
+        console.group(`%c⚠ [ResumeWright] Locator Warning: "${locStr}"`, 'color: #f59e0b; font-weight: bold; font-size: 13px;');
+        console.warn(`Matched ${elements.length} elements on the page. Playwright actions will fail with a strict mode violation error unless index modifier (e.g. /0) is specified.`);
+        console.log('%cMatched elements in DOM:', 'color: #3b82f6; font-weight: bold;', elements);
+        console.log(`%cTo resolve this, append /0 or /1 to your locator: "${locStr}"/0`, 'color: #10b981;');
+        console.groupEnd();
+      }, { locStr });
+    }
+  } catch (_) {
+    // 忽略异常，不影响正常执行
   }
 }
 
