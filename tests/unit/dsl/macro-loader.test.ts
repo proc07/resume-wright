@@ -82,8 +82,58 @@ input "$password" to "label:密码"
     `.trim());
 
     const script = loadMacro('param_decl_test', ['mapped_user', 'mapped_password'], tmpDir);
-    expect(script).toHaveLength(3);
-    expect(script[1]!.args[0]).toBe('"mapped_user"');
-    expect(script[2]!.args[0]).toBe('"mapped_password"');
+    expect(script).toHaveLength(5);
+    expect(script[3]!.args[0]).toBe('"mapped_user"');
+    expect(script[4]!.args[0]).toBe('"mapped_password"');
+  });
+
+  it('能够替换无引号的布尔和数字字面量，并在重新解析后保持原生类型 (boolean/number)', () => {
+    writeMacro('types_test', `
+# params: visible, index, name
+$vis = $visible
+$idx = $index
+$nm = $name
+    `.trim());
+
+    const script = loadMacro('types_test', ['true', '0', '"33"'], tmpDir);
+    expect(script).toHaveLength(6);
+    expect(script[3]!.assignSource).toBe('boolean');
+    expect(script[3]!.args[0]).toBe('true');
+    expect(script[4]!.assignSource).toBe('number');
+    expect(script[4]!.args[0]).toBe('0');
+    expect(script[5]!.assignSource).toBe('literal');
+    expect(script[5]!.args[0]).toBe('33');
+  });
+
+  it('防嵌套引号冲突：如果宏内部占位符带有引号，替换带引号参数时应智能剥离引号', () => {
+    writeMacro('quotes_test', `
+# params: name
+$nm = "$name"
+    `.trim());
+
+    const script = loadMacro('quotes_test', ['"hello"'], tmpDir);
+    expect(script).toHaveLength(2);
+    expect(script[1]!.assignSource).toBe('literal');
+    expect(script[1]!.args[0]).toBe('hello');
+  });
+
+  it('能够自动在宏展开头部合成并插入对应的形参前导赋值语句', () => {
+    writeMacro('auto_bind_test', `
+# params: visible, count, name
+execute_script "visible" "count=100" "name"
+    `.trim());
+
+    const script = loadMacro('auto_bind_test', ['true', '50'], tmpDir);
+    expect(script).toHaveLength(4);
+    expect(script[0]!.assignTarget).toBe('visible');
+    expect(script[0]!.args[0]).toBe('true');
+    expect(script[0]!.assignSource).toBe('boolean');
+    expect(script[1]!.assignTarget).toBe('count');
+    expect(script[1]!.args[0]).toBe('50');
+    expect(script[1]!.assignSource).toBe('number');
+    expect(script[2]!.assignTarget).toBe('name');
+    expect(script[2]!.args[0]).toBe('null');
+    expect(script[2]!.assignSource).toBe('boolean');
+    expect(script[3]!.command).toBe('execute_script');
   });
 });

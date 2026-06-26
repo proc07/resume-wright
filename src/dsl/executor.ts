@@ -195,6 +195,22 @@ async function executeAssign(
       break;
     }
 
+    case 'boolean': {
+      const interp = interpolate(inst.args[0]!, ctx);
+      if (interp === 'null') {
+        value = null;
+      } else {
+        value = interp === 'true';
+      }
+      break;
+    }
+
+    case 'number': {
+      const interp = interpolate(inst.args[0]!, ctx);
+      value = Number(interp);
+      break;
+    }
+
     case 'var_ref': {
       // $other.field 引用
       const path = inst.args[0]!;
@@ -583,7 +599,7 @@ async function executeCommand(
     // ── 宏 ───────────────────────────────────────────────────
     case 'macro': {
       const macroName = stripQuotes(args[0]!);
-      const macroArgs = args.slice(1).map((a) => stripQuotes(a));
+      const macroArgs = args.slice(1);
       const macroInstructions = loadMacro(macroName, macroArgs, opts.macrosDir);
       await executeInstructions(macroInstructions, page, ctx, opts);
       break;
@@ -1013,29 +1029,72 @@ function stripDollar(s: string): string {
   return s.startsWith('$') ? s.slice(1) : s;
 }
 
+function parsePrimitive(valStr: string): unknown {
+  const s = valStr.trim();
+  // 1. 如果具有外层单/双引号包裹，说明是明确的字符串字面量
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    return stripQuotes(s);
+  }
+  // 2. 无引号字面量类型还原
+  if (s === 'true') return true;
+  if (s === 'false') return false;
+  if (s === 'null') return null;
+  if (/^-?\d+(\.\d+)?$/.test(s)) {
+    return Number(s);
+  }
+  // 3. 回退为一般字符串
+  return stripQuotes(s);
+}
+
 async function runExecuteScript(page: Page, inst: DslInstruction, ctx: ContextStore): Promise<unknown> {
   const jsCode = inst.block ?? '';
   const positionalArgs: unknown[] = [];
   const namedArgs: Record<string, unknown> = {};
 
   for (const rawArg of inst.args) {
-    const interp = interpolate(rawArg, ctx);
-    const stripped = stripQuotes(interp);
+    const strippedRaw = stripQuotes(rawArg);
+    const namedMatchRaw = strippedRaw.match(/^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$/s);
 
-    const namedMatch = stripped.match(/^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$/s);
-    if (namedMatch) {
-      const key = namedMatch[1]!;
-      const valStr = namedMatch[2]!;
-      if (valStr.startsWith('$')) {
-        namedArgs[key] = ctx.getPath(valStr.slice(1));
+    if (namedMatchRaw) {
+      const key = namedMatchRaw[1]!;
+      const valStrRaw = namedMatchRaw[2]!;
+      
+      if (valStrRaw.startsWith('$')) {
+        namedArgs[key] = ctx.getPath(valStrRaw.slice(1));
       } else {
-        namedArgs[key] = stripQuotes(valStr);
+        const ctxVal = ctx.getPath(key);
+        // 如果外部调用已经为该变量赋值（且不是占位 null），则优先使用外部传入的值
+        if (ctxVal !== undefined && ctxVal !== null) {
+          namedArgs[key] = ctxVal;
+        } else {
+          // 否则采用该默认值
+          const interpVal = interpolate(valStrRaw, ctx);
+          namedArgs[key] = parsePrimitive(interpVal);
+        }
       }
     } else {
-      if (stripped.startsWith('$')) {
-        positionalArgs.push(ctx.getPath(stripped.slice(1)));
+      // 无等号的情况
+      const isIdentifier = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(strippedRaw);
+      const ctxVal = isIdentifier ? ctx.getPath(strippedRaw) : undefined;
+      
+      // 如果是非关键字，并且在 ctx 中已经被声明/赋值
+      const isKeyword = strippedRaw === 'true' || strippedRaw === 'false' || strippedRaw === 'null';
+      if (isIdentifier && !isKeyword && ctxVal !== undefined) {
+        namedArgs[strippedRaw] = ctxVal;
       } else {
-        positionalArgs.push(stripped);
+        // 否则依然作为位置参数处理
+        if (strippedRaw.startsWith('$')) {
+          positionalArgs.push(ctx.getPath(strippedRaw.slice(1)));
+        } else {
+          const interpVal = interpolate(rawArg, ctx);
+          const strippedInterp = stripQuotes(interpVal);
+          const hasQuotes = (interpVal.startsWith('"') && interpVal.endsWith('"')) || (interpVal.startsWith("'") && interpVal.endsWith("'"));
+          if (hasQuotes) {
+            positionalArgs.push(strippedInterp);
+          } else {
+            positionalArgs.push(parsePrimitive(interpVal));
+          }
+        }
       }
     }
   }

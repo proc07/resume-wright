@@ -179,11 +179,38 @@ describe('DSL Parser', () => {
       expect(result[0]!.args[0]).toBe('res.data.currentTask.id');
     });
 
-    it('解析 execute_script 多行', () => {
-      const script = '$count = execute_script\n"""\nreturn document.querySelectorAll(\'.row\').length;\n"""';
-      const result = parseScript(script);
-      expect(result[0]!.assignSource).toBe('execute_script');
-      expect(result[0]!.block).toContain('querySelectorAll');
+    it('解析原生布尔及空值字面量赋值 (boolean)', () => {
+      const result = parseScript('$vis = true');
+      expect(result[0]!.assignSource).toBe('boolean');
+      expect(result[0]!.args[0]).toBe('true');
+
+      const resultFalse = parseScript('$vis_f = false');
+      expect(resultFalse[0]!.assignSource).toBe('boolean');
+      expect(resultFalse[0]!.args[0]).toBe('false');
+
+      const resultNull = parseScript('$vis_n = null');
+      expect(resultNull[0]!.assignSource).toBe('boolean');
+      expect(resultNull[0]!.args[0]).toBe('null');
+    });
+
+    it('解析原生数字字面量赋值 (number)', () => {
+      const resultInt = parseScript('$idx = 0');
+      expect(resultInt[0]!.assignSource).toBe('number');
+      expect(resultInt[0]!.args[0]).toBe('0');
+
+      const resultFloat = parseScript('$val = -12.5');
+      expect(resultFloat[0]!.assignSource).toBe('number');
+      expect(resultFloat[0]!.args[0]).toBe('-12.5');
+    });
+
+    it('带引号的布尔和数字字符串依然被解析为字符串字面量 (literal)', () => {
+      const resultStrBool = parseScript('$vis_str = "true"');
+      expect(resultStrBool[0]!.assignSource).toBe('literal');
+      expect(resultStrBool[0]!.args[0]).toBe('true');
+
+      const resultStrNum = parseScript('$idx_str = "0"');
+      expect(resultStrNum[0]!.assignSource).toBe('literal');
+      expect(resultStrNum[0]!.args[0]).toBe('0');
     });
   });
 

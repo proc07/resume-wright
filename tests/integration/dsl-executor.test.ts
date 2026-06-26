@@ -975,6 +975,66 @@ describe('DSL 执行器集成测试', () => {
       
       expect(ctx.get('js_result')).toBe('ok');
     });
+
+    it('能够成功识别原生布尔与数字类型以及带引号的字符串类型，并在 JS 中直接使用其真实类型', async () => {
+      const ctx = makeCtx();
+      ctx.set('my_num', 42);
+      ctx.set('my_bool', false);
+      
+      await executeScript(`
+        open "$base_url"
+        $js_result = execute_script true 0 "true" "0" "val=$my_num" "vis=$my_bool" "flag=true" "count=100" "str_flag='true'"
+        """
+        const ok = (
+          arg0 === true && typeof arg0 === 'boolean' &&
+          arg1 === 0 && typeof arg1 === 'number' &&
+          arg2 === 'true' && typeof arg2 === 'string' &&
+          arg3 === '0' && typeof arg3 === 'string' &&
+          val === 42 && typeof val === 'number' &&
+          vis === false && typeof vis === 'boolean' &&
+          flag === true && typeof flag === 'boolean' &&
+          count === 100 && typeof count === 'number' &&
+          str_flag === 'true' && typeof str_flag === 'string'
+        );
+        if (ok) return 'ok';
+        return JSON.stringify({
+          arg0: [arg0, typeof arg0],
+          arg1: [arg1, typeof arg1],
+          arg2: [arg2, typeof arg2],
+          arg3: [arg3, typeof arg3],
+          val: [val, typeof val],
+          vis: [vis, typeof vis],
+          flag: [flag, typeof flag],
+          count: [count, typeof count],
+          str_flag: [str_flag, typeof str_flag]
+        });
+        """
+      `, page, ctx);
+      
+      expect(ctx.get('js_result')).toBe('ok');
+    });
+
+    it('在 execute_script 中支持无等号同名变量直接引用，以及等号默认值被传入值覆盖的完整逻辑', async () => {
+      const ctx = makeCtx();
+      ctx.set('title', '传入的采购标题');
+      ctx.set('amount', 5000);
+      
+      await executeScript(`
+        open "$base_url"
+        $js_result = execute_script "title" "amount=100" "reason='无理由'"
+        """
+        const ok = (
+          title === '传入的采购标题' &&
+          amount === 5000 &&
+          reason === '无理由'
+        );
+        if (ok) return 'ok';
+        return JSON.stringify({ title, amount, reason });
+        """
+      `, page, ctx);
+      
+      expect(ctx.get('js_result')).toBe('ok');
+    });
   });
 
   describe('local use_step 复用主步骤与子步骤', () => {

@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseScript } from './parser.js';
+import { stripQuotes } from '../utils.js';
 import type { DslScript } from '../types/dsl.types.js';
 
 /** 内置宏名称（rw: 前缀） */
@@ -61,6 +62,32 @@ export function loadMacro(
     substituted = substitutePositionalArgs(substituted, Object.values(args));
   }
 
+  // ── 自动进行形参的前导赋值绑定 ──
+  let paramNames: string[] = [];
+  const paramMatch = raw.match(/^\s*#\s*(?:params|param):\s*([^\r\n]+)/im);
+  if (paramMatch) {
+    paramNames = paramMatch[1].split(',').map((s) => s.trim());
+  }
+
+  if (paramNames.length > 0) {
+    let assignmentDsl = '';
+    if (Array.isArray(args)) {
+      for (let i = 0; i < paramNames.length; i++) {
+        const name = paramNames[i];
+        if (name) {
+          const val = args[i] !== undefined ? args[i]! : 'null';
+          assignmentDsl += `$${name} = ${val}\n`;
+        }
+      }
+    } else {
+      for (const name of paramNames) {
+        const val = args[name] !== undefined ? args[name]! : 'null';
+        assignmentDsl += `$${name} = ${val}\n`;
+      }
+    }
+    substituted = assignmentDsl + substituted;
+  }
+
   return parseScript(substituted);
 }
 
@@ -104,8 +131,18 @@ function substituteNamedArgs(source: string, args: Record<string, string>): stri
   for (const key of sortedKeys) {
     const val = args[key] ?? '';
     const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    const regex = new RegExp(`\\$${escapedKey}(?![a-zA-Z0-9_])`, 'g');
-    result = result.replace(regex, val);
+    
+    // 支持 "$param" 或 '$param' 独立被引号包裹时剥除 val 外层引号，防止嵌套冲突
+    const doubleQuoteRegex = new RegExp(`"\\$${escapedKey}"`, 'g');
+    const singleQuoteRegex = new RegExp(`'\\$${escapedKey}'`, 'g');
+    const plainRegex = new RegExp(`\\$${escapedKey}(?![a-zA-Z0-9_])`, 'g');
+
+    const hasQuotes = (val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"));
+    const strippedVal = hasQuotes ? stripQuotes(val) : val;
+
+    result = result.replace(doubleQuoteRegex, `"${strippedVal}"`);
+    result = result.replace(singleQuoteRegex, `'${strippedVal}'`);
+    result = result.replace(plainRegex, val);
   }
   return result;
 }
@@ -113,8 +150,17 @@ function substituteNamedArgs(source: string, args: Record<string, string>): stri
 function substitutePositionalArgs(source: string, args: string[]): string {
   let result = source;
   for (let i = args.length; i >= 1; i--) {
-    // 从大到小替换，防止 $1 替换破坏 $10 $11 等
-    result = result.replaceAll(`$${i}`, args[i - 1] ?? '');
+    const val = args[i - 1] ?? '';
+    const doubleQuoteRegex = new RegExp(`"\\$${i}"`, 'g');
+    const singleQuoteRegex = new RegExp(`'\\$${i}'`, 'g');
+    const plainStr = `$${i}`;
+
+    const hasQuotes = (val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"));
+    const strippedVal = hasQuotes ? stripQuotes(val) : val;
+
+    result = result.replace(doubleQuoteRegex, `"${strippedVal}"`);
+    result = result.replace(singleQuoteRegex, `'${strippedVal}'`);
+    result = result.replaceAll(plainStr, val);
   }
   return result;
 }

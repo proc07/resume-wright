@@ -238,6 +238,30 @@ function parseAssignment(
     }
   }
 
+  // 空值与布尔字面量直接赋值
+  if (rhs === 'null' || rhs === 'true' || rhs === 'false') {
+    return {
+      optional: false,
+      command: null,
+      assignTarget: target,
+      assignSource: 'boolean',
+      args: [rhs],
+      raw: workLine,
+    };
+  }
+
+  // 数字字面量直接赋值
+  if (/^-?\d+(\.\d+)?$/.test(rhs)) {
+    return {
+      optional: false,
+      command: null,
+      assignTarget: target,
+      assignSource: 'number',
+      args: [rhs],
+      raw: workLine,
+    };
+  }
+
   // "locator" 从页面元素提取文字
   return {
     optional: false,

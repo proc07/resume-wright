@@ -36,6 +36,8 @@ export type AssignSource =
   | 'var_ref'         // $var = $other.field — 变量引用
   | 'http'            // $var = do_get/post/put/delete "url"
   | 'execute_script'  // $var = execute_script """..."""
+  | 'boolean'         // $var = true/false (布尔字面量)
+  | 'number'          // $var = 0/123 (数字字面量)
   | 'literal';        // $var = "value" — 直接赋值字面量
 
 /** 解析后的 DSL 语句 */
