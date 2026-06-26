@@ -1,0 +1,37 @@
+# demo/cases/workflows/use-step-open-reset-demo.yaml
+# 验证复用步骤首条命令为 open 时的强制页面重置与网络等待机制（复杂表单业务版）
+
+description: "验证复用步骤首条 open 指令自动重置页面为 about:blank，剥离 fast 执行完整等待并填表提交的端到端逻辑"
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  # ── 1. 基础步骤：只执行表单填写，不进行提交 ──
+  - id: step1_base
+    role: requester
+    sub_steps:
+      - id: fill_form_base
+        script: |
+          open "/login" fast
+          input "requester" to "testid:login-username"
+          input "req_pass" to "testid:login-password"
+          tap "role:button[登录]"
+          assert_exists "已登录工作台" 5s
+          open "/purchase/new" fast
+          input "自动测试采购单 (use_step 重置)" to "label:申请标题"
+          input "88888" to "label:申请金额"
+          input "该申请被多次复用执行以验证页面清空与重置机制" to "label:申请原因"
+          check "加急申请"
+
+  # ── 2. 复用步骤：完全复用 step1_base 进行填表。在开始时会自动强制重置页面，防残留干扰 ──
+  - id: step2_reuse_fill
+    use_step: step1_base
+
+  # ── 3. 提交步骤：在复用填表后，执行提交申请 ──
+  - id: step3_submit
+    role: requester
+    script: |
+      tap "role:button[提交申请]"
+      assert_exists "采购申请详情" 5s
+      $workflow_id = url_match "/purchase/([A-Za-z0-9-]+)"

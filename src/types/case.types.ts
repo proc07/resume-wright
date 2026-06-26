@@ -20,6 +20,7 @@ export interface SubStep {
   snapshot_before_submit?: boolean;
   on_failure?: OnFailureConfig;
   use_step?: string;  // 引用共享子步骤，格式：'file.sub_step_id'
+  is_use_step?: boolean; // 标识是否为复用出来的子步骤
 }
 
 export interface Step {
@@ -29,6 +30,7 @@ export interface Step {
   on_failure?: OnFailureConfig;
   sub_steps?: SubStep[];
   use_step?: string;      // 引用共享步骤，格式：'file.step_id'
+  is_use_step?: boolean; // 标识是否为复用出来的步骤
 }
 
 export interface CaseDefinition {

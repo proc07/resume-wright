@@ -63,12 +63,15 @@ function formatDuration(ms: number | undefined): string {
 }
 
 const elapsedMs = ref(0)
+// 保留 isRunning 结束时的最后计时值，用于在 store 刷新 duration 前的过渡展示
+const lastElapsedMs = ref(0)
 let timerId: any = null
 
 function startTimer() {
   stopTimer()
   const start = Date.now()
   elapsedMs.value = 0
+  lastElapsedMs.value = 0
   timerId = setInterval(() => {
     elapsedMs.value = Date.now() - start
   }, 100)
@@ -78,6 +81,8 @@ function stopTimer() {
   if (timerId) {
     clearInterval(timerId)
     timerId = null
+    // 保留最后的实时计时值，作为 store duration 刷新前的 fallback
+    lastElapsedMs.value = elapsedMs.value
   }
 }
 
@@ -102,7 +107,16 @@ const displayDuration = computed(() => {
   if (props.isRunning) {
     return formatDuration(elapsedMs.value)
   }
-  if (props.step.duration) {
+  // 优先展示从 store 刷新来的持久化 duration
+  if (props.step.duration !== undefined && props.step.duration !== null && props.step.duration > 0) {
+    return formatDuration(props.step.duration)
+  }
+  // 步骤已完成但 store 的 duration 尚未刷新到，用 lastElapsedMs 过渡展示
+  if ((props.step.completed || props.isFailed) && lastElapsedMs.value > 0) {
+    return formatDuration(lastElapsedMs.value)
+  }
+  // duration === 0 且 completed，显示 0.0s
+  if (props.step.completed && props.step.duration !== undefined && props.step.duration !== null) {
     return formatDuration(props.step.duration)
   }
   return null

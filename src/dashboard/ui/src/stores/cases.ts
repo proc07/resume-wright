@@ -98,9 +98,11 @@ export const useCasesStore = defineStore('cases', () => {
         if (details.stepDurations) {
           target.steps = target.steps.map(s => ({
             ...s,
-            duration: details.stepDurations?.[s.id] || s.duration || 0
+            // 取 details 和 list 中较大的，避免旧服务返回 0 覆盖正确就
+            duration: Math.max(details.stepDurations?.[s.id] ?? 0, s.duration ?? 0)
           }))
         }
+        // details 无 stepDurations 时保留 list 里已有的 duration（不做任何处理）
         currentCase.value = { ...target }
       }
       useTerminalStore().setScreenshots(details.screenshots)
@@ -125,9 +127,11 @@ export const useCasesStore = defineStore('cases', () => {
         if (details.stepDurations) {
           target.steps = target.steps.map(s => ({
             ...s,
-            duration: details.stepDurations?.[s.id] || s.duration || 0
+            // 取 details 和 list 中较大的，避免旧服务返回 0 覆盖正确就
+            duration: Math.max(details.stepDurations?.[s.id] ?? 0, s.duration ?? 0)
           }))
         }
+        // details 无 stepDurations 时保留 list 里已有的 duration（不做任何处理）
         if (currentCase.value?.name === caseName) {
           currentCase.value = { ...target }
         }
@@ -196,6 +200,7 @@ export const useCasesStore = defineStore('cases', () => {
       c.completedCount = 0
       c.steps.forEach(s => {
         s.completed = false
+        s.duration = 0
       })
       c.subStepsDetail = {}
       c.error = undefined

@@ -1205,4 +1205,69 @@ describe('DSL 执行器集成测试', () => {
       });
     });
   });
+
+  describe('use_step 复用步骤的首条 open 命令重置机制', () => {
+    it('当执行 use_step 复用出来的步骤且其第一条指令是 open 时，应能自动强制重置页面并等待完整加载', async () => {
+      const fs = await import('node:fs');
+      const tempYamlPath = path.join(process.cwd(), 'tests', 'integration', 'temp-use-step-reset.yaml');
+      
+      const def = {
+        name: 'temp-use-step-reset-case',
+        roles: {
+          admin: { username: 'admin' }
+        },
+        steps: [
+          {
+            id: 'step1_base',
+            role: 'admin',
+            script: `
+              open "$base_url" fast
+            `
+          },
+          {
+            id: 'step2_copied',
+            role: 'admin',
+            use_step: 'step1_base'
+          }
+        ]
+      };
+
+      fs.writeFileSync(tempYamlPath, JSON.stringify(def), 'utf-8');
+
+      try {
+        // 1. 验证 yaml-loader 在合并 use_step 时是否正确标记了 is_use_step = true
+        const { loadCase } = await import('../../src/adapters/yaml-loader.js');
+        const loaded = loadCase(tempYamlPath);
+        expect(loaded.steps[1]?.is_use_step).toBe(true);
+
+        // 2. 在当前活跃的 page 上，利用 executeScript 并传入 isUseStep 选项模拟复用步骤执行
+        const ctx = makeCtx();
+        const navUrls: string[] = [];
+        
+        const onNavigate = (frame: any) => {
+          if (frame === page.mainFrame()) {
+            navUrls.push(frame.url());
+          }
+        };
+        page.on('framenavigated', onNavigate);
+
+        try {
+          await executeScript(`
+            $url_val = "$base_url"
+            open "$url_val" fast
+          `, page, ctx, { isUseStep: true });
+        } finally {
+          page.off('framenavigated', onNavigate);
+        }
+
+        // 3. 验证页面跳转历史依次包含 about:blank 和 127.0.0.1 (base_url)
+        expect(navUrls).toContain('about:blank');
+        expect(navUrls[navUrls.length - 1]).toContain('127.0.0.1');
+      } finally {
+        if (fs.existsSync(tempYamlPath)) {
+          fs.unlinkSync(tempYamlPath);
+        }
+      }
+    });
+  });
 });

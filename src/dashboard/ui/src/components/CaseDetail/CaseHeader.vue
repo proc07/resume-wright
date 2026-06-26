@@ -163,12 +163,15 @@ function formatDuration(ms: number | undefined): string {
 }
 
 const liveDuration = ref(0)
+// 保留计时器停止时的最后值，用于 store 刷新前的过渡展示
+const lastLiveDuration = ref(0)
 let headerTimerId: any = null
 
 function startHeaderTimer(startTimeStr: string) {
   stopHeaderTimer()
   const start = new Date(startTimeStr).getTime()
   liveDuration.value = Date.now() - start
+  lastLiveDuration.value = 0
   headerTimerId = setInterval(() => {
     liveDuration.value = Date.now() - start
   }, 100)
@@ -178,6 +181,8 @@ function stopHeaderTimer() {
   if (headerTimerId) {
     clearInterval(headerTimerId)
     headerTimerId = null
+    // 保留最后计时值作为 store duration 刷新前的 fallback
+    lastLiveDuration.value = liveDuration.value
   }
 }
 
@@ -204,6 +209,15 @@ watch(
   }
 )
 
+watch(
+  () => currentCase.value?.name,
+  () => {
+    // 切换 case 时清空过渡值
+    lastLiveDuration.value = 0
+    liveDuration.value = 0
+  }
+)
+
 onUnmounted(() => {
   stopHeaderTimer()
 })
@@ -212,10 +226,29 @@ const displayTotalDuration = computed(() => {
   if (currentCase.value?.status === 'running' && liveDuration.value > 0) {
     return formatDuration(liveDuration.value)
   }
-  if (currentCase.value?.duration) {
+  // 优先展示 store 中持久化的总耗时
+  if (currentCase.value?.duration !== undefined && currentCase.value?.duration !== null && currentCase.value.duration > 0) {
     return formatDuration(currentCase.value.duration)
   }
+  // 如果已完成/失败且 duration 为 0，展示 0.0s
+  if ((currentCase.value?.status === 'passed' || currentCase.value?.status === 'failed') &&
+      currentCase.value?.duration !== undefined && currentCase.value?.duration !== null) {
+    return formatDuration(currentCase.value.duration)
+  }
+  // store 还未刷新时用 lastLiveDuration 过渡
+  if (lastLiveDuration.value > 0) {
+    return formatDuration(lastLiveDuration.value)
+  }
   return null
+})
+
+// 总耗时 badge 样式：running 时橙色脉冲，passed 绿色，failed 红色
+const durationBadgeClass = computed(() => {
+  const status = currentCase.value?.status
+  if (status === 'running') return 'duration-badge running'
+  if (status === 'passed') return 'duration-badge passed'
+  if (status === 'failed') return 'duration-badge failed'
+  return 'duration-badge'
 })
 </script>
 
@@ -224,13 +257,16 @@ const displayTotalDuration = computed(() => {
     <div class="case-title-row">
       <span class="badge" :class="currentCase.status">{{ statusLabel }}</span>
       <h2>{{ currentCase.name }}</h2>
+      <span v-if="displayTotalDuration" :class="durationBadgeClass">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex-shrink:0">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        {{ displayTotalDuration }}
+      </span>
     </div>
     <p class="case-desc">{{ currentCase.description || '无用例描述' }}</p>
     <p class="case-meta">
       文件路径: <code>{{ currentCase.filePath }}</code>
-      <span v-if="displayTotalDuration" style="margin-left: 16px;">
-        | &nbsp;总耗时: <strong style="color: var(--color-brand); font-family: monospace;">{{ displayTotalDuration }}</strong>
-      </span>
     </p>
     
     <div class="case-actions mt-4">
@@ -295,5 +331,46 @@ const displayTotalDuration = computed(() => {
 <style scoped>
 .gap-2 {
   gap: 8px;
+}
+
+/* 总耗时 pill 标签 */
+.duration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-family: monospace;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.duration-badge.running {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  animation: pulse-badge 1.5s ease-in-out infinite;
+}
+
+.duration-badge.passed {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.duration-badge.failed {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
 }
 </style>

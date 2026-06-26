@@ -23,6 +23,7 @@ const SubStepSchema = z.object({
   snapshot_before_submit: z.boolean().optional(),
   on_failure: OnFailureSchema.optional(),
   use_step: z.string().optional(),
+  is_use_step: z.boolean().optional(),
 });
 
 const StepSchema = z.object({
@@ -32,6 +33,7 @@ const StepSchema = z.object({
   on_failure: OnFailureSchema.optional(),
   sub_steps: z.array(SubStepSchema).optional(),
   use_step: z.string().optional(),
+  is_use_step: z.boolean().optional(),
 });
 
 const RoleSchema = z.record(z.string(), z.any());
@@ -212,6 +214,7 @@ function expandStep(
     ...rawStep,
   };
   delete merged['use_step'];
+  merged['is_use_step'] = true;
 
   // id 若未在引用处提供，则继承 template.id
   if (!merged['id']) {
@@ -245,6 +248,7 @@ function expandSubStep(
     ...rawSubStep,
   };
   delete merged['use_step'];
+  merged['is_use_step'] = true;
 
   if (!merged['id']) {
     merged['id'] = template.id;
@@ -282,6 +286,7 @@ function expandSubSteps(
         ...rawSubStep,
       };
       delete subStep['use_step'];
+      subStep['is_use_step'] = true;
       if (!subStep['id']) {
         subStep['id'] = template.id;
       }
@@ -328,6 +333,7 @@ function expandSteps(
         ...rawStep,
       };
       delete step['use_step'];
+      step['is_use_step'] = true;
       if (!step['id']) {
         step['id'] = template.id;
       }

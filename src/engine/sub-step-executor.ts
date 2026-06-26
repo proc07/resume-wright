@@ -21,6 +21,7 @@ export interface SubStepExecutorOptions {
   apiCache?: boolean;
   cacheGet?: boolean;
   readCache?: boolean;
+  isUseStep?: boolean;
 }
 
 /**
@@ -120,6 +121,7 @@ export class SubStepExecutor {
             stepId: id,
             screenshotOnAssert: this.opts.screenshotOnAssert,
             assertTimeout: this.opts.assertTimeout,
+            isUseStep: subStep.is_use_step || this.opts.isUseStep,
           });
         }
 

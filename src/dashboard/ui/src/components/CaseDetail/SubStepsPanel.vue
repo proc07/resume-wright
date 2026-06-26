@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import type { CaseData } from '@/api/cases'
 import ScreenshotsGallery from './ScreenshotsGallery.vue'
 
@@ -33,6 +33,88 @@ const isStepFailed = computed(() => {
 const isStepRunning = computed(() => {
   if (!step.value || stepIndex.value === -1) return false
   return props.caseData.status === 'running' && props.caseData.completedCount === stepIndex.value
+})
+
+const elapsedMs = ref(0)
+// 保留 isRunning 结束时的最后计时值，用于在 store 刷新 duration 前的过渡展示
+const lastElapsedMs = ref(0)
+let timerId: any = null
+
+function startTimer() {
+  stopTimer()
+  const start = Date.now()
+  elapsedMs.value = 0
+  lastElapsedMs.value = 0
+  timerId = setInterval(() => {
+    elapsedMs.value = Date.now() - start
+  }, 100)
+}
+
+function stopTimer() {
+  if (timerId) {
+    clearInterval(timerId)
+    timerId = null
+    // 保留最后的实时计时值，作为 store duration 刷新前的 fallback
+    lastElapsedMs.value = elapsedMs.value
+  }
+}
+
+watch(
+  () => isStepRunning.value,
+  (running) => {
+    if (running) {
+      startTimer()
+    } else {
+      stopTimer()
+      elapsedMs.value = 0
+    }
+  },
+  { immediate: true }
+)
+
+// 切换选中步骤时重置计时状态，避免旧步骤时间残留
+watch(
+  () => props.selectedStepId,
+  () => {
+    stopTimer()
+    elapsedMs.value = 0
+    lastElapsedMs.value = 0
+  }
+)
+
+onUnmounted(() => {
+  stopTimer()
+})
+
+function formatDuration(ms: number | undefined): string {
+  if (ms === undefined || ms === null || ms <= 0) return '0.0s'
+  if (ms < 1000) return `${ms}ms`
+  const secs = (ms / 1000).toFixed(1)
+  const secsInt = Math.floor(ms / 1000)
+  const mins = Math.floor(secsInt / 60)
+  const remainSecs = secsInt % 60
+  if (mins === 0) return `${secs}s`
+  return `${mins}分 ${remainSecs}秒`
+}
+
+const displayDuration = computed(() => {
+  if (!step.value) return null
+  if (isStepRunning.value) {
+    return formatDuration(elapsedMs.value)
+  }
+  // 优先展示从 store 刷新来的持久化 duration
+  if (step.value.duration !== undefined && step.value.duration !== null && step.value.duration > 0) {
+    return formatDuration(step.value.duration)
+  }
+  // 步骤已完成但 store 的 duration 尚未刷新到，用 lastElapsedMs 过渡展示
+  if ((step.value.completed || isStepFailed.value) && lastElapsedMs.value > 0) {
+    return formatDuration(lastElapsedMs.value)
+  }
+  // duration === 0 且 completed，显示 0.0s
+  if (step.value.completed && step.value.duration !== undefined && step.value.duration !== null) {
+    return formatDuration(step.value.duration)
+  }
+  return null
 })
 
 function statusLabel(s: string) {
@@ -114,7 +196,13 @@ function handlePopoverMouseLeave() {
 
 <template>
   <div class="card card-substeps">
-    <h3>{{ step ? step.id : '子步骤 (SubStep) 与 API 缓存' }}</h3>
+    <div class="card-header-row">
+      <h3>{{ step ? step.id : '子步骤 (SubStep) 与 API 缓存' }}</h3>
+      <div v-if="step && displayDuration" class="step-header-duration">
+        <span class="duration-label">耗时:</span>
+        <span class="duration-value">{{ displayDuration }}</span>
+      </div>
+    </div>
     <div id="substeps-panel" class="substeps-panel">
       <div v-if="!selectedStepId" class="empty-msg">
         请选择上面的步骤，或在有子步骤的步骤运行后在此处查看缓存与快照状态。

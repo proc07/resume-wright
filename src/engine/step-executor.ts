@@ -176,6 +176,7 @@ export class StepExecutor {
               apiCache: this.execCtx.apiCache,
               cacheGet: this.execCtx.cacheGet,
               readCache: this.execCtx.readCache,
+              isUseStep: step.is_use_step,
             }
           );
           await subExec.executeAll(step.sub_steps);
@@ -195,6 +196,7 @@ export class StepExecutor {
                 stepId: step.id,
                 screenshotOnAssert,
                 assertTimeout,
+                isUseStep: step.is_use_step,
               });
             } finally {
               await interceptor.detach();
@@ -206,6 +208,7 @@ export class StepExecutor {
               stepId: step.id,
               screenshotOnAssert,
               assertTimeout,
+              isUseStep: step.is_use_step,
             });
           }
         } else {

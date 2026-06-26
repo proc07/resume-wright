@@ -1,0 +1,35 @@
+# demo/cases/workflows/wait-api-demo.yaml
+# 演示用例：展示 wait_api 指令在 XHR/Fetch 异步接口交互下的等待机制
+
+description: "演示 wait_api 指令在采购流提交表单时的异步接口等待（包含通配符模糊匹配）"
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  - id: create_purchase_wait
+    role: requester
+    script: |
+      # 1. 打开登录页面并完成登录
+      open "/login"
+      input "requester" to "testid:login-username"
+      input "req_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      # 2. 快速打开新建采购申请页面，填写表单
+      open "/purchase/new" fast
+      input "采购测试服务器" to "label:申请标题"
+      input "20000" to "label:申请金额"
+      input "用于 wait_api 自动化测试用例验证" to "label:申请原因"
+      
+      # 3. 点击提交，触发 POST /api/purchases 异步接口
+      tap "role:button[提交申请]"
+      
+      # 4. 使用 wait_api 显式等待提交接口完成（使用通配符匹配）
+      wait_api "*/api/purchases" 5s 100ms
+      
+      # 5. 接口完成后，断言已成功跳转进入详情页
+      assert_exists "采购申请详情" 5s
+      
+      screenshot

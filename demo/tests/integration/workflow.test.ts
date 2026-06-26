@@ -408,6 +408,76 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
     expect(def.steps[5]!.role).toBe('requester');
   });
 
+  it('use-step-open-reset-demo.yaml 结构展开与 is_use_step 正确标记且执行成功', async () => {
+    const casePath = path.join(DIR, 'workflows/use-step-open-reset-demo.yaml');
+    const def = loadCase(casePath);
+    expect(def.name).toBe('use-step-open-reset-demo');
+    expect(def.steps).toHaveLength(3);
+    
+    // step1_base 断言
+    expect(def.steps[0]!.id).toBe('step1_base');
+    expect(def.steps[0]!.is_use_step).toBeUndefined();
+    expect(def.steps[0]!.sub_steps).toHaveLength(1);
+    expect(def.steps[0]!.sub_steps![0]!.id).toBe('fill_form_base');
+    expect(def.steps[0]!.sub_steps![0]!.is_use_step).toBeUndefined();
+
+    // step2_reuse_fill 断言
+    expect(def.steps[1]!.id).toBe('step2_reuse_fill');
+    expect(def.steps[1]!.is_use_step).toBe(true);
+    expect(def.steps[1]!.sub_steps).toHaveLength(1);
+    expect(def.steps[1]!.sub_steps![0]!.id).toBe('fill_form_base');
+    expect(def.steps[1]!.sub_steps![0]!.is_use_step).toBeUndefined();
+
+    // step3_submit 断言
+    expect(def.steps[2]!.id).toBe('step3_submit');
+    expect(def.steps[2]!.is_use_step).toBeUndefined();
+    expect(def.steps[2]!.script).toContain('提交申请');
+
+    // 在运行前通过 getSafeCaseName 计算精确的路径并清理之前残留的 checkpoint 缓存，防止秒过而无法实际运行和捕获变量
+    const { getSafeCaseName } = await import('../../../src/engine/checkpoint.js');
+    const safeCaseName = getSafeCaseName(def.name, casePath);
+    const cpDir = path.join(process.cwd(), '.resumewright', safeCaseName);
+    if (fs.existsSync(cpDir)) {
+      fs.rmSync(cpDir, { recursive: true, force: true });
+    }
+
+    const { WorkflowRunner, Checkpoint, ContextStore } = await import('resumewright');
+    const runner = new WorkflowRunner(def, casePath, {
+      headless: true,
+      baseUrl: baseUrl,
+    });
+    const res = await runner.run();
+    expect(res.status).toBe('passed');
+
+    // 通过 Checkpoint 恢复机制读取捕获的 workflow_id 变量，验证其持久化和正确性
+    const cp = new Checkpoint(def.name, cpDir);
+    cp.load();
+    const ctxStore = new ContextStore();
+    cp.restoreContext(ctxStore);
+    expect(ctxStore.get('workflow_id')).toMatch(/^PO-/);
+  });
+
+  it('wait-api-demo.yaml 结构正确且运行成功', async () => {
+    const casePath = path.join(DIR, 'workflows/wait-api-demo.yaml');
+    const def = loadCase(casePath);
+    expect(def.name).toBe('wait-api-demo');
+    expect(def.steps).toHaveLength(1);
+
+    const { getSafeCaseName } = await import('../../../src/engine/checkpoint.js');
+    const safeCaseName = getSafeCaseName(def.name, casePath);
+    const cpDir = path.join(process.cwd(), '.resumewright', safeCaseName);
+    if (fs.existsSync(cpDir)) {
+      fs.rmSync(cpDir, { recursive: true, force: true });
+    }
+
+    const { WorkflowRunner } = await import('resumewright');
+    const runner = new WorkflowRunner(def, casePath, {
+      headless: true,
+      baseUrl: baseUrl,
+    });
+    const res = await runner.run();
+    expect(res.status).toBe('passed');
+  });
 
   it('不存在的文件抛出有意义错误', () => {
     expect(() => loadCase('/nonexistent/path.yaml')).toThrow(/not found/i);

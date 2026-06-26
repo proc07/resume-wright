@@ -25,7 +25,8 @@ export type DslCommandName =
   | 'do_put'
   | 'do_delete'
   | 'macro'
-  | 'inspect';
+  | 'inspect'
+  | 'wait_api';
 
 /** 变量赋值来源 */
 export type AssignSource =

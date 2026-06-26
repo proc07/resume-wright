@@ -29,6 +29,7 @@ export interface ExecutorOptions {
   screenshotOnAssert?: boolean;
   assertTimeout?: string | number;
   screenshotCounter?: { count: number };
+  isUseStep?: boolean;
 }
 
 function getScreenshotPath(
@@ -51,7 +52,149 @@ function getScreenshotPath(
   return path.join(dir, filename);
 }
 
+interface InFlightRequest {
+  url: string;
+  promise: Promise<void>;
+  resolve: () => void;
+}
 
+export function normalizeUrlForMatch(urlStr: string): string {
+  try {
+    const url = new URL(urlStr);
+    let pathname = url.pathname;
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1);
+    }
+    return url.origin + pathname + url.search + url.hash;
+  } catch {
+    let clean = urlStr.trim();
+    clean = clean.replace(/\/(\?|#|$)/, '$1');
+    return clean;
+  }
+}
+
+export function normalizePattern(pattern: string): string {
+  let clean = pattern.trim();
+  if (clean.length > 1 && clean.endsWith('/')) {
+    clean = clean.slice(0, -1);
+  }
+  return clean;
+}
+
+export function urlMatchesPattern(requestUrl: string, pattern: string): boolean {
+  const cleanUrl = normalizeUrlForMatch(requestUrl);
+  const cleanPattern = normalizePattern(pattern);
+
+  if (cleanPattern.includes('*')) {
+    const escaped = cleanPattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    const regexStr = escaped.replace(/\*/g, '.*');
+    const regex = new RegExp(regexStr);
+    return regex.test(cleanUrl);
+  }
+
+  return cleanUrl.includes(cleanPattern);
+}
+
+export class RequestTracker {
+  public completedRequests = new Set<string>();
+  public inFlight = new Set<InFlightRequest>();
+
+  constructor(private page: Page) {
+    this.setupListeners();
+  }
+
+  private setupListeners() {
+    this.page.on('request', this.onRequest);
+    this.page.on('requestfinished', this.onRequestFinished);
+    this.page.on('requestfailed', this.onRequestFailed);
+    this.page.on('close', this.onClose);
+  }
+
+  private onClose = () => {
+    this.cleanup();
+  };
+
+  public cleanup() {
+    this.page.off('request', this.onRequest);
+    this.page.off('requestfinished', this.onRequestFinished);
+    this.page.off('requestfailed', this.onRequestFailed);
+    this.page.off('close', this.onClose);
+
+    for (const req of this.inFlight) {
+      req.resolve();
+    }
+    this.inFlight.clear();
+    activeRequestTrackers.delete(this.page);
+  }
+
+  private onRequest = (request: Request) => {
+    const type = request.resourceType();
+    if (type !== 'xhr' && type !== 'fetch') return;
+
+    const url = request.url();
+    let resolveFn!: () => void;
+    const promise = new Promise<void>((resolve) => {
+      resolveFn = resolve;
+    });
+
+    const inFlightReq: InFlightRequest = {
+      url,
+      promise,
+      resolve: resolveFn,
+    };
+    this.inFlight.add(inFlightReq);
+  };
+
+  private onRequestFinished = (request: Request) => {
+    const url = request.url();
+    this.markCompleted(url);
+  };
+
+  private onRequestFailed = (request: Request) => {
+    const url = request.url();
+    this.markCompleted(url);
+  };
+
+  private markCompleted(url: string) {
+    for (const req of this.inFlight) {
+      if (req.url === url) {
+        req.resolve();
+        this.inFlight.delete(req);
+      }
+    }
+    this.completedRequests.add(url);
+  }
+
+  public async waitForNext(pattern: string, timeoutMs: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Timeout waiting for API request: ${pattern}`));
+      }, timeoutMs);
+
+      const onFinishedOrFailed = (request: Request) => {
+        const type = request.resourceType();
+        if (type !== 'xhr' && type !== 'fetch') return;
+
+        if (urlMatchesPattern(request.url(), pattern)) {
+          cleanup();
+          resolve();
+        }
+      };
+
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        this.page.off('requestfinished', onFinishedOrFailed);
+        this.page.off('requestfailed', onFinishedOrFailed);
+      };
+
+      this.page.on('requestfinished', onFinishedOrFailed);
+      this.page.on('requestfailed', onFinishedOrFailed);
+    });
+  }
+}
+
+export const activeRequestTrackers = new WeakMap<Page, RequestTracker>();
 export const activeContexts = new WeakMap<Page, ContextStore>();
 
 // ── 主执行函数 ────────────────────────────────────────────────
@@ -89,6 +232,10 @@ export async function executeInstructions(
 ): Promise<void> {
   activeContexts.set(page, ctx);
   
+  if (!activeRequestTrackers.has(page)) {
+    activeRequestTrackers.set(page, new RequestTracker(page));
+  }
+  
   if (!opts.screenshotCounter) {
     opts.screenshotCounter = { count: 0 };
   }
@@ -99,6 +246,7 @@ export async function executeInstructions(
   page.setDefaultTimeout(actionTimeout);
   
   let skipConsecutiveOptionals = false;
+  let hasCheckedFirstCommand = false;
 
   for (const inst of instructions) {
     if (inst.command === 'boundary') {
@@ -114,6 +262,20 @@ export async function executeInstructions(
     if (inst.optional && skipConsecutiveOptionals) {
       console.log(`[dsl] ⏭  Skipping consecutive optional instruction: ${inst.raw.trim()}`);
       continue;
+    }
+
+    // ── 拦截复用步骤的第一条有效 open 命令并页面重置 ──
+    if (!hasCheckedFirstCommand && inst.command !== null) {
+      hasCheckedFirstCommand = true;
+      if (inst.command === 'open' && opts.isUseStep) {
+        console.log(`[dsl] 🔄 use_step first command 'open' detected. Performing forced page reset (about:blank)...`);
+        await page.goto('about:blank');
+        
+        // 抹除 fast 参数，从而强迫执行完整的页面 Load 与网络空闲等待
+        if (inst.args[1] && inst.args[1].trim().toLowerCase() === 'fast') {
+          inst.args.splice(1, 1);
+        }
+      }
     }
 
     try {
@@ -406,7 +568,7 @@ async function executeCommand(
 
     // ── 截图 ─────────────────────────────────────────────────
     case 'screenshot': {
-      const dir = opts.screenshotDir ?? '.resumewright/screenshots';
+      const dir = opts.screenshotDir || '.resumewright/screenshots';
       fs.mkdirSync(dir, { recursive: true });
       const screenshotPath = getScreenshotPath(dir, opts, inst, 'manual');
       await page.screenshot({ path: screenshotPath, fullPage: false });
@@ -418,6 +580,44 @@ async function executeCommand(
     case 'wait': {
       const ms = parseDuration(args[0]!);
       await page.waitForTimeout(ms);
+      break;
+    }
+
+    case 'wait_api': {
+      const pattern = stripQuotes(args[0]!);
+      const timeoutMs = args[1] ? parseDuration(args[1]) : 30000;
+      const renderWaitMs = args[2] ? parseDuration(args[2]) : 300;
+
+      const tracker = activeRequestTrackers.get(page);
+      if (!tracker) {
+        throw new Error(`[dsl] wait_api: RequestTracker not initialized on this page.`);
+      }
+
+      // 1. 已完成判定
+      const alreadyCompleted = [...tracker.completedRequests].some(url =>
+        urlMatchesPattern(url, pattern)
+      );
+      if (alreadyCompleted) {
+        console.log(`[dsl]   wait_api: API matching "${pattern}" has already completed in this session.`);
+        await page.waitForTimeout(renderWaitMs);
+        break;
+      }
+
+      // 2. 多重在途请求等待
+      const matchingInFlights = [...tracker.inFlight].filter(req =>
+        urlMatchesPattern(req.url, pattern)
+      );
+      if (matchingInFlights.length > 0) {
+        console.log(`[dsl]   wait_api: Found ${matchingInFlights.length} in-flight API requests matching "${pattern}". Waiting for all to complete...`);
+        await Promise.all(matchingInFlights.map(req => req.promise));
+        await page.waitForTimeout(renderWaitMs);
+        break;
+      }
+
+      // 3. 未来请求等待
+      console.log(`[dsl]   wait_api: Waiting for next API request matching "${pattern}" to complete (timeout: ${timeoutMs}ms)...`);
+      await tracker.waitForNext(pattern, timeoutMs);
+      await page.waitForTimeout(renderWaitMs);
       break;
     }
 
@@ -471,7 +671,7 @@ async function executeCommand(
         }
         await findNearestReachable(page, locStr, assertNearOpts, timeoutMs);
         if (opts.screenshotOnAssert) {
-          const dir = opts.screenshotDir ?? '.resumewright/screenshots';
+          const dir = opts.screenshotDir || '.resumewright/screenshots';
           fs.mkdirSync(dir, { recursive: true });
           const screenshotPath = getScreenshotPath(dir, opts, inst, locStr);
           await page.screenshot({ path: screenshotPath, fullPage: false });
@@ -495,7 +695,7 @@ async function executeCommand(
       }
 
       if (opts.screenshotOnAssert) {
-        const dir = opts.screenshotDir ?? '.resumewright/screenshots';
+        const dir = opts.screenshotDir || '.resumewright/screenshots';
         fs.mkdirSync(dir, { recursive: true });
         const screenshotPath = getScreenshotPath(dir, opts, inst, locStr);
         await page.screenshot({ path: screenshotPath, fullPage: false });
@@ -574,7 +774,7 @@ async function executeCommand(
       }
 
       if (opts.screenshotOnAssert) {
-        const dir = opts.screenshotDir ?? '.resumewright/screenshots';
+        const dir = opts.screenshotDir || '.resumewright/screenshots';
         fs.mkdirSync(dir, { recursive: true });
         const screenshotPath = getScreenshotPath(dir, opts, inst, pattern);
         await page.screenshot({ path: screenshotPath, fullPage: false });

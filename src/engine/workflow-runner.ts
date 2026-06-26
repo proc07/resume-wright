@@ -226,17 +226,40 @@ export class WorkflowRunner {
       const totalSteps = this.definition.steps.length;
       let lastError: string | undefined;
 
+      const stepDurations: Record<string, number> = {};
+      let currentStepId: string | undefined;
+      let currentStepStartTime = 0;
+
+      const printStepDurations = () => {
+        console.log(`\n[runner] 📋 Step Execution Durations:`);
+        for (const step of this.definition.steps) {
+          const dur = stepDurations[step.id];
+          const isSkipped = checkpoint.isCompleted(step.id) && dur !== undefined;
+          const statusSuffix = isSkipped ? ' (skipped)' : '';
+          const durStr = dur !== undefined ? formatDuration(dur) : 'pending';
+          console.log(`  - ${step.id}: ${durStr}${statusSuffix}`);
+        }
+      };
+
       try {
         for (const step of this.definition.steps) {
           // 已完成步骤直接跳过
           if (checkpoint.isCompleted(step.id)) {
             console.log(`[runner] ⏭  Skipping completed step: ${step.id}`);
+            const savedDurations = checkpoint.getStepDurations();
+            if (savedDurations[step.id] !== undefined) {
+              stepDurations[step.id] = savedDurations[step.id];
+            }
             continue;
           }
 
-          const stepStartTime = Date.now();
+          currentStepId = step.id;
+          currentStepStartTime = Date.now();
           await stepExecutor.execute(step);
-          const stepDuration = Date.now() - stepStartTime;
+          const stepDuration = Date.now() - currentStepStartTime;
+          stepDurations[step.id] = stepDuration;
+          currentStepId = undefined;
+
           completedSteps++;
           console.log(`[runner] 🎯 Completed step: ${step.id} (${formatDuration(stepDuration)})`);
 
@@ -262,6 +285,7 @@ export class WorkflowRunner {
           }
         }
 
+        printStepDurations();
         const duration = Date.now() - startTime;
         console.log(`\n[runner] ✅ Case PASSED: ${caseName} (${formatDuration(duration)})`);
 
@@ -287,6 +311,11 @@ export class WorkflowRunner {
         lastError = String(err);
         const duration = Date.now() - startTime;
 
+        if (currentStepId && currentStepStartTime > 0) {
+          stepDurations[currentStepId] = Date.now() - currentStepStartTime;
+        }
+
+        printStepDurations();
         console.error(`\n[runner] ❌ Case FAILED: ${caseName}`);
         console.error(`  Error: ${lastError}`);
 
