@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onUnmounted, watch } from 'vue'
 import { playTrace } from '@/api/run'
 
 const props = defineProps<{
@@ -8,6 +8,7 @@ const props = defineProps<{
     id: string
     role: string
     completed: boolean
+    duration?: number
     subStepsCount: number
   }
   index: number
@@ -47,6 +48,65 @@ async function handlePlayTrace(event: Event) {
     alert('请求出错，请确保后端服务正常运行。')
   }
 }
+
+// ── 耗时统计与实时计时器 ──────────────────────────────────────────
+
+function formatDuration(ms: number | undefined): string {
+  if (ms === undefined || ms === null || ms <= 0) return '0.0s'
+  if (ms < 1000) return `${ms}ms`
+  const secs = (ms / 1000).toFixed(1)
+  const secsInt = Math.floor(ms / 1000)
+  const mins = Math.floor(secsInt / 60)
+  const remainSecs = secsInt % 60
+  if (mins === 0) return `${secs}s`
+  return `${mins}分 ${remainSecs}秒`
+}
+
+const elapsedMs = ref(0)
+let timerId: any = null
+
+function startTimer() {
+  stopTimer()
+  const start = Date.now()
+  elapsedMs.value = 0
+  timerId = setInterval(() => {
+    elapsedMs.value = Date.now() - start
+  }, 100)
+}
+
+function stopTimer() {
+  if (timerId) {
+    clearInterval(timerId)
+    timerId = null
+  }
+}
+
+watch(
+  () => props.isRunning,
+  (running) => {
+    if (running) {
+      startTimer()
+    } else {
+      stopTimer()
+      elapsedMs.value = 0
+    }
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  stopTimer()
+})
+
+const displayDuration = computed(() => {
+  if (props.isRunning) {
+    return formatDuration(elapsedMs.value)
+  }
+  if (props.step.duration) {
+    return formatDuration(props.step.duration)
+  }
+  return null
+})
 </script>
 
 <template>
@@ -75,7 +135,10 @@ async function handlePlayTrace(event: Event) {
           </svg>
         </button>
       </div>
-      <div class="step-role">角色: {{ step.role }}</div>
+      <div class="step-meta-row">
+        <span class="step-role">角色: {{ step.role }}</span>
+        <span v-if="displayDuration" class="step-duration">{{ displayDuration }}</span>
+      </div>
     </div>
   </div>
 </template>

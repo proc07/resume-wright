@@ -93,6 +93,14 @@ export const useCasesStore = defineStore('cases', () => {
         target.traces = details.traces
         target.error = details.error
         target.variables = details.variables
+        target.duration = details.duration || target.duration
+        target.startTime = details.startTime || target.startTime
+        if (details.stepDurations) {
+          target.steps = target.steps.map(s => ({
+            ...s,
+            duration: details.stepDurations?.[s.id] || s.duration || 0
+          }))
+        }
         currentCase.value = { ...target }
       }
       useTerminalStore().setScreenshots(details.screenshots)
@@ -112,6 +120,14 @@ export const useCasesStore = defineStore('cases', () => {
         target.traces = details.traces
         target.error = details.error
         target.variables = details.variables
+        target.duration = details.duration || target.duration
+        target.startTime = details.startTime || target.startTime
+        if (details.stepDurations) {
+          target.steps = target.steps.map(s => ({
+            ...s,
+            duration: details.stepDurations?.[s.id] || s.duration || 0
+          }))
+        }
         if (currentCase.value?.name === caseName) {
           currentCase.value = { ...target }
         }

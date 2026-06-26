@@ -863,6 +863,25 @@ code, pre {
   letter-spacing: 0.5px;
 }
 
+.step-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.step-duration {
+  font-size: 10.5px;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 500;
+}
+
+.step-node.active-step .step-duration {
+  color: #cbd5e1;
+}
+
 .step-badge {
   font-size: 10px;
   font-weight: 600;

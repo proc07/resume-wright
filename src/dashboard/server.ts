@@ -217,6 +217,8 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
           const cp = new Checkpoint(definition.name, path.join('.resumewright', safeCaseName));
           cp.load();
 
+          const durations = cp.getStepDurations();
+
           // 结合内存中最后运行的状态
           const completed = cp.completedCount();
           const total = definition.steps.length;
@@ -248,6 +250,25 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             }
           }
 
+          let caseDuration = 0;
+          let startTime: string | undefined;
+          try {
+            const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
+            if (fs.existsSync(historyFile)) {
+              const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+              if (history && history.length > 0) {
+                if (history[0].status === 'running') {
+                  startTime = history[0].timestamp;
+                }
+                caseDuration = history[0].duration || 0;
+              }
+            }
+          } catch { /* ignore */ }
+
+          if (!caseDuration) {
+            caseDuration = Object.values(durations).reduce((sum, d) => sum + d, 0);
+          }
+
           return {
             name: definition.name,
             description: definition.description || '',
@@ -257,11 +278,14 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
               id: s.id,
               role: s.role,
               completed: cp.isCompleted(s.id),
+              duration: durations[s.id] || 0,
               subStepsCount: s.sub_steps?.length || 0,
             })),
             status,
             completedCount: cp.completedCount(),
             totalSteps: definition.steps.length,
+            duration: caseDuration,
+            startTime,
           };
         } catch (err) {
           const safeCaseName = getSafeCaseName(path.basename(file), filePath);
@@ -405,13 +429,34 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         }
       } catch { /* ignore */ }
 
-      // 读取 checkpoint 中的本地变量 (context)
+      // 读取 checkpoint 中的本地变量 (context) 与耗时
       let variables: Record<string, any> = {};
+      let stepDurations: Record<string, number> = {};
+      let caseDuration = 0;
+      let startTime: string | undefined;
       try {
         const cp = new Checkpoint(caseName, caseDir);
         cp.load();
         variables = cp.getContext();
+        stepDurations = cp.getStepDurations();
       } catch { /* ignore */ }
+
+      try {
+        const historyFile = path.join(caseDir, 'history', 'history.json');
+        if (fs.existsSync(historyFile)) {
+          const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+          if (history && history.length > 0) {
+            if (history[0].status === 'running') {
+              startTime = history[0].timestamp;
+            }
+            caseDuration = history[0].duration || 0;
+          }
+        }
+      } catch { /* ignore */ }
+
+      if (!caseDuration) {
+        caseDuration = Object.values(stepDurations).reduce((sum, d) => sum + d, 0);
+      }
 
       try {
         const persistentPath = path.join('config', 'persistent', `${safeCaseName}.json`);
@@ -428,6 +473,9 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         traces,
         error: latestError,
         variables,
+        stepDurations,
+        duration: caseDuration,
+        startTime,
       });
     } catch (err: any) {
       return jsonRes(res, 500, { error: err.message });

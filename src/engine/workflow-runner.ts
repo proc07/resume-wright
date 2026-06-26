@@ -234,9 +234,11 @@ export class WorkflowRunner {
             continue;
           }
 
+          const stepStartTime = Date.now();
           await stepExecutor.execute(step);
+          const stepDuration = Date.now() - stepStartTime;
           completedSteps++;
-          console.log(`[runner] 🎯 Completed step: ${step.id}`);
+          console.log(`[runner] 🎯 Completed step: ${step.id} (${formatDuration(stepDuration)})`);
 
           // 保存长效持久化变量
           const persistentKeys = this.definition.persist_vars || [];

@@ -4,6 +4,7 @@ export interface CaseStep {
   id: string
   role: string
   completed: boolean
+  duration?: number
   subStepsCount: number
 }
 
@@ -20,6 +21,8 @@ export interface CaseData {
   error?: string
   variables?: Record<string, any>
   safeCaseName?: string
+  duration?: number
+  startTime?: string
 }
 
 export interface SubStepState {
@@ -44,6 +47,9 @@ export interface CaseDetails {
   traces: string[]
   error?: string
   variables?: Record<string, any>
+  stepDurations?: Record<string, number>
+  duration?: number
+  startTime?: string
 }
 
 export async function fetchCases(): Promise<CaseData[]> {

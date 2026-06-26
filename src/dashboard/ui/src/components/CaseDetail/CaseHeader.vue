@@ -147,6 +147,76 @@ function confirmClear() {
     onConfirm: () => resetCase(false),
   })
 }
+
+// ── 耗时统计与实时计时器 ──────────────────────────────────────────
+import { onUnmounted, watch } from 'vue'
+
+function formatDuration(ms: number | undefined): string {
+  if (ms === undefined || ms === null || ms <= 0) return '0.0s'
+  if (ms < 1000) return `${ms}ms`
+  const secs = (ms / 1000).toFixed(1)
+  const secsInt = Math.floor(ms / 1000)
+  const mins = Math.floor(secsInt / 60)
+  const remainSecs = secsInt % 60
+  if (mins === 0) return `${secs}s`
+  return `${mins}分 ${remainSecs}秒`
+}
+
+const liveDuration = ref(0)
+let headerTimerId: any = null
+
+function startHeaderTimer(startTimeStr: string) {
+  stopHeaderTimer()
+  const start = new Date(startTimeStr).getTime()
+  liveDuration.value = Date.now() - start
+  headerTimerId = setInterval(() => {
+    liveDuration.value = Date.now() - start
+  }, 100)
+}
+
+function stopHeaderTimer() {
+  if (headerTimerId) {
+    clearInterval(headerTimerId)
+    headerTimerId = null
+  }
+}
+
+watch(
+  () => currentCase.value?.startTime,
+  (newStartTime) => {
+    if (newStartTime && currentCase.value?.status === 'running') {
+      startHeaderTimer(newStartTime)
+    } else {
+      stopHeaderTimer()
+      liveDuration.value = 0
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => currentCase.value?.status,
+  (status) => {
+    if (status !== 'running') {
+      stopHeaderTimer()
+      liveDuration.value = 0
+    }
+  }
+)
+
+onUnmounted(() => {
+  stopHeaderTimer()
+})
+
+const displayTotalDuration = computed(() => {
+  if (currentCase.value?.status === 'running' && liveDuration.value > 0) {
+    return formatDuration(liveDuration.value)
+  }
+  if (currentCase.value?.duration) {
+    return formatDuration(currentCase.value.duration)
+  }
+  return null
+})
 </script>
 
 <template>
@@ -156,7 +226,12 @@ function confirmClear() {
       <h2>{{ currentCase.name }}</h2>
     </div>
     <p class="case-desc">{{ currentCase.description || '无用例描述' }}</p>
-    <p class="case-meta">文件路径: <code>{{ currentCase.filePath }}</code></p>
+    <p class="case-meta">
+      文件路径: <code>{{ currentCase.filePath }}</code>
+      <span v-if="displayTotalDuration" style="margin-left: 16px;">
+        | &nbsp;总耗时: <strong style="color: var(--color-brand); font-family: monospace;">{{ displayTotalDuration }}</strong>
+      </span>
+    </p>
     
     <div class="case-actions mt-4">
       <button

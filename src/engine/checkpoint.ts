@@ -54,6 +54,7 @@ export class Checkpoint {
     this.data = {
       caseName,
       completedSteps: [],
+      stepDurations: {},
       context: {},
       lastUpdated: new Date().toISOString(),
     };
@@ -114,6 +115,13 @@ export class Checkpoint {
   }
 
   /**
+   * 获取当前保存的各步骤耗时
+   */
+  getStepDurations(): Record<string, number> {
+    return this.data.stepDurations || {};
+  }
+
+  /**
    * 恢复 ContextStore（重启后还原变量）
    */
   restoreContext(ctx: ContextStore): void {
@@ -131,9 +139,15 @@ export class Checkpoint {
    * 标记某个 Step 为已完成，并同步持久化 ContextStore 快照
    * 使用原子写防止数据损坏
    */
-  markCompleted(stepId: string, ctx: ContextStore): void {
+  markCompleted(stepId: string, ctx: ContextStore, duration?: number): void {
     if (!this.data.completedSteps.includes(stepId)) {
       this.data.completedSteps.push(stepId);
+    }
+    if (!this.data.stepDurations) {
+      this.data.stepDurations = {};
+    }
+    if (duration !== undefined) {
+      this.data.stepDurations[stepId] = duration;
     }
     this.data.context = ctx.toJSON();
     this.data.lastUpdated = new Date().toISOString();
@@ -160,6 +174,7 @@ export class Checkpoint {
       console.log(`[checkpoint] Reset: ${this.filePath}`);
     }
     this.data.completedSteps = [];
+    this.data.stepDurations = {};
     this.data.context = {};
   }
 

@@ -40,10 +40,13 @@ export class StepExecutor {
     const strategy = stepOnFailure?.strategy ?? 'retry';
     let attempt = 0;
 
+    const startTime = Date.now();
+
     while (true) {
       try {
         await this.runStep(step);
-        checkpoint.markCompleted(step.id, contextStore);
+        const duration = Date.now() - startTime;
+        checkpoint.markCompleted(step.id, contextStore, duration);
         console.log(`[step] ✓ Step completed: ${step.id}`);
         return;
       } catch (err) {
@@ -67,7 +70,8 @@ export class StepExecutor {
               }
             } catch { /* ignore */ }
           }
-          checkpoint.markCompleted(step.id, contextStore);
+          const duration = Date.now() - startTime;
+          checkpoint.markCompleted(step.id, contextStore, duration);
           return;
         }
 
