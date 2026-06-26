@@ -340,7 +340,7 @@ async function executeCommand(
           if (content === '') {
             await el.clear();
           } else {
-            await el.fill(content);
+            await fillDslInput(el, content, rawLocStr);
           }
         } else {
           // 如果有索引修饰符（/0, /-1 等），合并到 locator 字符串
@@ -353,7 +353,7 @@ async function executeCommand(
           if (content === '') {
             await locator.clear();
           } else {
-            await locator.fill(content);
+            await fillDslInput(locator, content, locStr);
           }
         }
       } else {
@@ -1470,3 +1470,76 @@ export async function findNearestReachable(
     }
   }
 }
+
+/**
+ * 兼容性输入 Helper，在常规 fill 失败（例如 React 等框架下的受控组件值回退）时自动 fallback 到原生 setter 写入
+ */
+async function fillDslInput(
+  locator: import('@playwright/test').Locator,
+  content: string,
+  locName: string
+): Promise<void> {
+  // 1. 先按现在逻辑执行 Playwright 原生 locator.fill(content)
+  await locator.fill(content);
+
+  // 2. 立刻读取目标元素的真实 DOM value
+  let value = '';
+  try {
+    value = await locator.inputValue();
+  } catch {
+    try {
+      value = await locator.evaluate((domEl: any) => domEl.value || '');
+    } catch { /* ignore */ }
+  }
+
+  // 3. 如果 value === content，说明成功，结束
+  if (value === content) {
+    return;
+  }
+
+  // 4. 如果 fill() 没报错但 value 不等于 content，说明遇到值丢失/受控未更新的问题，尝试 fallback 写入
+  console.warn(
+    `[dsl] locator.fill() completed but value "${value}" does not match expected "${content}". ` +
+    `Attempting fallback input logic...`
+  );
+
+  // 5. 自动 fallback 到原生 prototype setter 兼容写入
+  // 5.1 focus()
+  await locator.focus();
+
+  // 5.2 用原生 prototype setter 设置 value 并触发 input, change 事件
+  await locator.evaluate((domEl: any, val: string) => {
+    const prototype = Object.getPrototypeOf(domEl);
+    const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+    if (setter) {
+      setter.call(domEl, val);
+    } else {
+      domEl.value = val;
+    }
+    // dispatch input 事件
+    domEl.dispatchEvent(new Event('input', { bubbles: true }));
+    // dispatch change 事件
+    domEl.dispatchEvent(new Event('change', { bubbles: true }));
+  }, content);
+
+  // 6. 再次校验 value
+  let secondValue = '';
+  try {
+    secondValue = await locator.inputValue();
+  } catch {
+    try {
+      secondValue = await locator.evaluate((domEl: any) => domEl.value || '');
+    } catch { /* ignore */ }
+  }
+
+  // 7. 如果还是不对，再报错，错误里打印实际 value、目标 locator
+  if (secondValue !== content) {
+    throw new Error(
+      `fillDslInput failed: value after fallback is "${secondValue}", ` +
+      `expected "${content}". Target Locator: "${locName}"`
+    );
+  }
+
+  console.log(`[dsl] Fallback input successful for locator: "${locName}"`);
+}
+

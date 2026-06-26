@@ -1147,4 +1147,62 @@ describe('DSL 执行器集成测试', () => {
       expect(warningMsg).toBeDefined();
     });
   });
+
+  describe('Input 兼容性 Fallback 写入机制', () => {
+    it('当原生 fill() 后目标元素值被清空或回退时，应能自动触发 fallback 机制通过 setter 成功输入', async () => {
+      const ctx = makeCtx();
+      
+      // 1. 在页面中注入一个特殊的受控输入框
+      // 该输入框拦截常规 value 属性设值：当非 fallback 触发时，值强制为空，诱发 fallback 分支运行
+      await page.evaluate(() => {
+        const container = document.createElement('div');
+        container.id = 'controlled-input-test-container';
+        container.innerHTML = `
+          <div class="form-group">
+            <label for="controlled-field">受控输入框</label>
+            <input id="controlled-field" type="text" placeholder="受控测试">
+          </div>
+        `;
+        document.body.appendChild(container);
+
+        const inputEl = document.getElementById('controlled-field') as HTMLInputElement;
+        
+        let isFallbackWriting = false;
+        
+        const originalValDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        Object.defineProperty(inputEl, 'value', {
+          get() {
+            return originalValDescriptor?.get?.call(this);
+          },
+          set(val) {
+            if (!isFallbackWriting) {
+              originalValDescriptor?.set?.call(this, '');
+            } else {
+              originalValDescriptor?.set?.call(this, val);
+            }
+          },
+          configurable: true
+        });
+
+        // 监听 input 事件以模拟允许 fallback 的写入
+        inputEl.addEventListener('input', () => {
+          isFallbackWriting = true;
+        });
+      });
+
+      // 2. 执行 input 命令，此时第一个 fill() 写入会被劫持清空，随后自动触发 fallback 流程
+      await executeScript(`
+        input "ControlledValue" to "placeholder:受控测试"
+      `, page, ctx, {});
+
+      // 3. 验证值成功通过 fallback 写入
+      const val = await page.locator('#controlled-field').inputValue();
+      expect(val).toBe('ControlledValue');
+
+      // 清理 DOM
+      await page.evaluate(() => {
+        document.getElementById('controlled-input-test-container')?.remove();
+      });
+    });
+  });
 });
