@@ -325,33 +325,33 @@ describe('DSL 执行器集成测试', () => {
     });
   });
 
-  describe('表单标签/Role 自动识别 (不带 css: 或 role: 前缀)', () => {
-    it('应该能够直接通过 tag/role 定位并操作 checkbox, textarea, input 等', async () => {
+  describe('HTML 标签定位与 Role 定位 (html: 标签名 及 role: 角色)', () => {
+    it('应该能够通过 html: 或 role: 定位并操作 checkbox, textarea, input 等', async () => {
       const ctx = makeCtx();
 
-      // 1. 测试不带前缀的 checkbox
+      // 1. 测试 role:checkbox
       await executeScript(`
         open "$base_url"
-        tap checkbox
+        tap "role:checkbox"
       `, page, ctx, {});
       let checked = await page.getByTestId('urgent-checkbox').isChecked();
       expect(checked).toBe(true);
 
-      // 2. 测试不带前缀的 textarea (input 命令)
+      // 2. 测试 html:textarea
       await executeScript(`
         open "$base_url"
-        input "测试不带前缀的输入框" to textarea
+        input "测试 html: 前缀的输入框" to "html:textarea"
       `, page, ctx, {});
       let val = await page.locator('textarea').inputValue();
-      expect(val).toBe('测试不带前缀的输入框');
+      expect(val).toBe('测试 html: 前缀的输入框');
 
-      // 3. 测试不带前缀的 input (input 命令)
+      // 3. 测试 html:input 与索引修饰符
       await executeScript(`
         open "$base_url"
-        input "测试标题输入框" to input/0
+        input "测试 html:input 标题输入框" to "html:input"/0
       `, page, ctx, {});
       let titleVal = await page.locator('input').first().inputValue();
-      expect(titleVal).toBe('测试标题输入框');
+      expect(titleVal).toBe('测试 html:input 标题输入框');
     });
   });
 
@@ -631,20 +631,20 @@ describe('DSL 执行器集成测试', () => {
       expect(await page.locator('#test-modal').isVisible()).toBe(false);
     });
 
-    it('应该能够正确通过 css:input 和 css:textarea 定位输入框并填充内容', async () => {
+    it('应该能够正确通过 html:input 和 html:textarea 定位输入框并填充内容', async () => {
       const ctx = makeCtx();
       await executeScript(`
         open "$base_url"
-        input "测试标题内容" to "css:input#title-input"
-        input "测试原因内容" to "css:textarea#reason-input"
+        input "测试标题内容" to "html:input#title-input"
+        input "测试原因内容" to "html:textarea#reason-input"
       `, page, ctx, {});
       expect(await page.locator('#title-input').inputValue()).toBe('测试标题内容');
       expect(await page.locator('#reason-input').inputValue()).toBe('测试原因内容');
 
       // 清空并使用 index 索引修饰符进行测试
       await executeScript(`
-        input "索引输入标题" to "css:input"/0
-        input "索引输入原因" to "css:textarea"/0
+        input "索引输入标题" to "html:input"/0
+        input "索引输入原因" to "html:textarea"/0
       `, page, ctx, {});
       expect(await page.locator('#title-input').inputValue()).toBe('索引输入标题');
       expect(await page.locator('#reason-input').inputValue()).toBe('索引输入原因');
@@ -655,7 +655,7 @@ describe('DSL 执行器集成测试', () => {
       // 1. 使用 placeholder: 前缀包含斜杠作为近邻锚点
       await executeScript(`
         open "$base_url"
-        input "测试输入斜杠内容" to "css:input" near "placeholder:please user by name/id"
+        input "测试输入斜杠内容" to "html:input" near "placeholder:please user by name/id"
       `, page, ctx, {});
       expect(await page.locator('#slash-input-1').inputValue()).toBe('测试输入斜杠内容');
 

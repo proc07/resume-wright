@@ -7,7 +7,7 @@ import type { ParsedLocator, LocatorModifier } from '../types/dsl.types.js';
 import { getDefaultRegistry } from '../adapters/elements-csv.js';
 import { stripQuotes, escapeRegex } from '../utils.js';
 
-export const SPECIAL_LOCATOR_REGEX = /^(label:|placeholder:|testid:|title:|alt:|role:|css:|xpath:|\.|#|\/\/|@|\*.*\*|.*\|)/;
+export const SPECIAL_LOCATOR_REGEX = /^(label:|placeholder:|testid:|title:|alt:|role:|css:|html:|xpath:|\.|#|\/\/|@|\*.*\*|.*\|)/;
 
 // ── 解析原始定位字符串 ──────────────────────────────────────
 
@@ -50,15 +50,6 @@ function extractModifier(str: string): { base: string; modifier?: LocatorModifie
   return { base: basePart.trim(), modifier };
 }
 
-const AUTO_TAG_LOCATORS = new Map<string, Omit<ParsedLocator, 'raw'>>([
-  ['checkbox', { type: 'role', value: 'checkbox' }],
-  ['radio', { type: 'role', value: 'radio' }],
-  ['input', { type: 'css', value: 'input' }],
-  ['textarea', { type: 'css', value: 'textarea' }],
-  ['select', { type: 'css', value: 'select' }],
-  ['button', { type: 'role', value: 'button' }],
-]);
-
 /**
  * 解析原始定位字符串为结构化的 ParsedLocator
  * 支持文本修饰符：/0  /-1  /tagName
@@ -69,17 +60,6 @@ export function parseLocator(raw: string): ParsedLocator {
   // ── 提取尾部修饰符并剥离引号 ──
   const { base, modifier } = extractModifier(str);
   str = stripQuotes(base);
-
-  // ── 自动识别表单标签/Role (不带前缀的 checkbox, input, textarea 等) ──
-  const lowerStr = str.toLowerCase();
-  const autoParsed = AUTO_TAG_LOCATORS.get(lowerStr);
-  if (autoParsed) {
-    return {
-      ...autoParsed,
-      modifier,
-      raw,
-    } as ParsedLocator;
-  }
 
   // ── alias: @别名 ──
   if (str.startsWith('@')) {
@@ -100,6 +80,11 @@ export function parseLocator(raw: string): ParsedLocator {
   }
   if (str.startsWith('css:')) {
     return { type: 'css', value: stripQuotes(str.slice(4)), modifier, raw };
+  }
+
+  // ── html: 前缀 ──
+  if (str.startsWith('html:')) {
+    return { type: 'html', value: stripQuotes(str.slice(5)), modifier, raw };
   }
 
   // ── label: 前缀 ──
@@ -239,6 +224,10 @@ export function resolveLocator(page: Page, parsed: ParsedLocator): Locator {
       break;
 
     case 'css':
+      locator = page.locator(parsed.value);
+      break;
+
+    case 'html':
       locator = page.locator(parsed.value);
       break;
 

@@ -249,38 +249,29 @@ describe('resolveInputLocator — 索引修饰符', () => {
   });
 });
 
-  describe('表单标签自动识别', () => {
-    it('不带前缀的 checkbox', () => {
-      const p = parseLocator('checkbox');
-      expect(p.type).toBe('role');
-      expect(p.value).toBe('checkbox');
+  describe('HTML 标签定位 (html: 标签名)', () => {
+    it('带有 html: 前缀的标签', () => {
+      const p1 = parseLocator('html:input');
+      expect(p1.type).toBe('html');
+      expect(p1.value).toBe('input');
+
+      const p2 = parseLocator('html:textarea');
+      expect(p2.type).toBe('html');
+      expect(p2.value).toBe('textarea');
+
+      const p3 = parseLocator('html:select');
+      expect(p3.type).toBe('html');
+      expect(p3.value).toBe('select');
     });
 
-    it('不带前缀的 input/textarea/select', () => {
-      expect(parseLocator('input').type).toBe('css');
-      expect(parseLocator('input').value).toBe('input');
-
-      expect(parseLocator('textarea').type).toBe('css');
-      expect(parseLocator('textarea').value).toBe('textarea');
-
-      expect(parseLocator('select').type).toBe('css');
-      expect(parseLocator('select').value).toBe('select');
-    });
-
-    it('不带前缀的 button', () => {
-      const p = parseLocator('button');
-      expect(p.type).toBe('role');
-      expect(p.value).toBe('button');
-    });
-
-    it('带修饰符的自动识别标签', () => {
-      const p = parseLocator('checkbox/0');
-      expect(p.type).toBe('role');
-      expect(p.value).toBe('checkbox');
+    it('带修饰符的 html 标签定位', () => {
+      const p = parseLocator('html:input/0');
+      expect(p.type).toBe('html');
+      expect(p.value).toBe('input');
       expect(p.modifier?.index).toBe(0);
 
-      const p2 = parseLocator('textarea /1');
-      expect(p2.type).toBe('css');
+      const p2 = parseLocator('html:textarea /1');
+      expect(p2.type).toBe('html');
       expect(p2.value).toBe('textarea');
       expect(p2.modifier?.index).toBe(1);
     });

@@ -92,6 +92,7 @@ export interface ParsedLocator {
     | 'alt'            // alt: 前缀
     | 'xpath'          // // 开头
     | 'css'            // . 或 # 开头
+    | 'html'           // html: 前缀
     | 'alias';         // @ 开头（elements.csv 别名）
 
   value: string;       // 提取的核心值
