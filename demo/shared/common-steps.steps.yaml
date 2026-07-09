@@ -35,8 +35,8 @@ sub_steps:
     script: |
       tap "role:button[提交申请]"
       assert_exists "采购申请详情" 10s
-      $workflow_url = current_url
-      $workflow_id  = url_match "/purchase/([\w-]+)"
+      $workflow_url = CURRENT_URL
+      $workflow_id  = URL_MATCH "/purchase/([\w-]+)"
       screenshot
 
   # ── 可复用 SubStep：返回 Dashboard ──

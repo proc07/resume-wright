@@ -144,8 +144,8 @@ function parseAssignment(
   rhs: string,
   workLine: string
 ): DslInstruction {
-  // current_url
-  if (rhs === 'current_url') {
+  // CURRENT_URL
+  if (rhs === 'CURRENT_URL') {
     return {
       optional: false,
       command: null,
@@ -156,8 +156,8 @@ function parseAssignment(
     };
   }
 
-  // url_match "pattern"
-  const urlMatchM = rhs.match(/^url_match\s+(.+)$/);
+  // URL_MATCH "pattern"
+  const urlMatchM = rhs.match(/^URL_MATCH\s+(.+)$/);
   if (urlMatchM) {
     return {
       optional: false,
@@ -169,8 +169,8 @@ function parseAssignment(
     };
   }
 
-  // url_param "key"
-  const urlParamM = rhs.match(/^url_param\s+(.+)$/);
+  // URL_PARAM "key"
+  const urlParamM = rhs.match(/^URL_PARAM\s+(.+)$/);
   if (urlParamM) {
     return {
       optional: false,

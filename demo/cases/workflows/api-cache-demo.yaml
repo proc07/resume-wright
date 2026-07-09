@@ -29,7 +29,7 @@ steps:
         script: |
           tap "role:button[提交申请]"
           assert_exists "采购申请详情" 10s
-          $purchase_id_1 = url_match "purchase/([\w-]+)"
+          $purchase_id_1 = URL_MATCH "purchase/([\w-]+)"
           screenshot
 
       # ── 子步骤2：返回列表，提交第二个采购 ──
@@ -52,7 +52,7 @@ steps:
         script: |
           tap "role:button[提交申请]"
           assert_exists "采购申请详情" 10s
-          $purchase_id_2 = url_match "purchase/([\w-]+)"
+          $purchase_id_2 = URL_MATCH "purchase/([\w-]+)"
           screenshot
 
   # ══════════════════════════════════════════════════════

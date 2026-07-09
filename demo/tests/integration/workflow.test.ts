@@ -196,11 +196,11 @@ describe('DSL 基础命令（插件用法验证）', () => {
     expect(await requesterPage.getByTestId('purchase-urgent').isChecked()).toBe(true);
   });
 
-  it('$var = current_url：捕获 URL', async () => {
+  it('$var = CURRENT_URL：捕获 URL', async () => {
     const ctx = makeCtx();
     await executeScript(`
       open "$base_url/dashboard"
-      $current = current_url
+      $current = CURRENT_URL
     `, requesterPage, ctx, {});
     expect(ctx.get('current')).toContain('dashboard');
   });
@@ -259,7 +259,7 @@ describe('完整工作流：申请人 → 主管 → 财务', () => {
 
       assert_exists "采购申请详情" 5s
 
-      $workflow_id  = url_match "/purchase/([A-Za-z0-9-]+)"
+      $workflow_id  = URL_MATCH "/purchase/([A-Za-z0-9-]+)"
       $workflow_url = execute_script
       """
       return window.location.origin + window.location.pathname;

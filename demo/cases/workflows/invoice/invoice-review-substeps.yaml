@@ -31,8 +31,8 @@ steps:
         script: |
           tap "role:button[提交审核]"
           assert_exists "提交成功" 10s
-          $invoice_url = current_url
-          $invoice_id  = url_match "/invoice/([\w-]+)"
+          $invoice_url = CURRENT_URL
+          $invoice_id  = URL_MATCH "/invoice/([\w-]+)"
 
   - id: step2_review
     role: reviewer

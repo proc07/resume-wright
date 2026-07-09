@@ -44,7 +44,7 @@ steps:
     script: |
       open "https://app.example.com/new"
       tap "role:button[提交]"
-      $url = current_url
+      $url = CURRENT_URL
 
   - id: step2_approve
     role: manager
@@ -421,8 +421,8 @@ steps:
 sub_steps:
   - id: capture_id
     script: |
-      $workflow_url = current_url
-      $workflow_id = url_match "/purchase/(\\w+)"
+      $workflow_url = CURRENT_URL
+      $workflow_id = URL_MATCH "/purchase/(\\w+)"
       screenshot
 `, 'utf-8');
     });

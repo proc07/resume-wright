@@ -34,4 +34,4 @@ steps:
     script: |
       tap "role:button[提交申请]"
       assert_exists "采购申请详情" 5s
-      $workflow_id = url_match "/purchase/([A-Za-z0-9-]+)"
+      $workflow_id = URL_MATCH "/purchase/([A-Za-z0-9-]+)"

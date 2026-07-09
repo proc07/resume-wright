@@ -158,28 +158,28 @@ describe('DSL 执行器集成测试', () => {
   });
 
   describe('变量捕获', () => {
-    it('$var = current_url 捕获当前 URL', async () => {
+    it('$var = CURRENT_URL 捕获当前 URL', async () => {
       const ctx = makeCtx();
       await executeScript(`
         open "$base_url"
         input "URL 捕获测试" to "label:申请标题"
         input "100" to "testid:amount-input"
         tap "role:button[提交申请]"
-        $workflow_url = current_url
+        $workflow_url = CURRENT_URL
       `, page, ctx, {});
 
       const capturedUrl = ctx.get('workflow_url') as string;
       expect(capturedUrl).toContain('workflow');
     });
 
-    it('$var = url_match 提取 URL 路径段', async () => {
+    it('$var = URL_MATCH 提取 URL 路径段', async () => {
       const ctx = makeCtx();
       await executeScript(`
         open "$base_url"
         input "URL Match 测试" to "label:申请标题"
         input "200" to "testid:amount-input"
         tap "role:button[提交申请]"
-        $workflow_id = url_match "/workflow/([\\w-]+)"
+        $workflow_id = URL_MATCH "/workflow/([\\w-]+)"
       `, page, ctx, {});
 
       const wfId = ctx.get('workflow_id') as string;
@@ -907,8 +907,8 @@ describe('DSL 执行器集成测试', () => {
         check "加急申请"
         tap "role:button[提交申请]"
 
-        $workflow_url = current_url
-        $workflow_id  = url_match "/workflow/([\\w-]+)"
+        $workflow_url = CURRENT_URL
+        $workflow_id  = URL_MATCH "/workflow/([\\w-]+)"
 
         assert_exists "申请已提交" 5s
 

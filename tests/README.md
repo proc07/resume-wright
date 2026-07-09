@@ -87,7 +87,7 @@ npx vitest run --config vitest.integration.config.ts
    - `open` 导航
    - `input` 填写表单
    - `tap` 点击按钮
-   - `$var = current_url` / `url_match` 变量捕获
+   - `$var = CURRENT_URL` / `URL_MATCH` 变量捕获
    - `assert_exists` 断言
    - `check` 复选框
    - `?` 非阻塞模式
@@ -132,7 +132,7 @@ test('my workflow', async ({ page }) => {
   await executeScript(`
     open "https://your-app.com"
     tap "role:button[开始]"
-    $url = current_url
+    $url = CURRENT_URL
     assert_exists "成功" 10s
   `, page, ctx);
 });

@@ -79,8 +79,8 @@ async function runDslInExistingTest() {
     input "50000"           to "label:申请金额"
     tap "role:button[提交申请]"
 
-    $workflow_url = current_url
-    $workflow_id  = url_match "/purchase/([\\w-]+)"
+    $workflow_url = CURRENT_URL
+    $workflow_id  = URL_MATCH "/purchase/([\\w-]+)"
 
     assert_exists "申请已提交" 10s
     screenshot
@@ -134,7 +134,7 @@ async function customResumeLogic(caseName: string) {
  *     open "https://app.example.com/purchase/new"
  *     input "测试采购申请" to "label:申请标题"
  *     tap "role:button[提交申请]"
- *     $workflow_url = current_url
+ *     $workflow_url = CURRENT_URL
  *     assert_exists "申请已提交" 10s
  *   `, page, ctx);
  *

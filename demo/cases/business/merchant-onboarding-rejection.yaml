@@ -21,8 +21,8 @@ steps:
       tap "提交入驻申请"
 
       assert_exists "入驻申请已提交" 10s
-      $merchant_id = url_match "/merchant/([\w-]+)"
-      $merchant_url = current_url
+      $merchant_id = URL_MATCH "/merchant/([\w-]+)"
+      $merchant_url = CURRENT_URL
 
   # ── 步骤 2: 合规专员机审核对并退回驳回 ──
   - id: step2_compliance_reject

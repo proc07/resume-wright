@@ -180,7 +180,7 @@
           "name": "support.class.http.resumewright"
         },
         {
-          "match": "\\b(current_url|url_match|url_param)\\b",
+          "match": "\\b(CURRENT_URL|URL_MATCH|URL_PARAM)\\b",
           "name": "support.function.builtin.resumewright"
         }
       ]

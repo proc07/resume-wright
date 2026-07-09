@@ -81,14 +81,25 @@ async function doResetAll() {
           <p>可恢复工作流自动化</p>
         </div>
       </div>
-      <button
-        id="btn-settings"
-        class="btn-settings-icon"
-        title="执行设置"
-        @click="emit('open-settings')"
-      >
-        ⚙
-      </button>
+      <div class="brand-actions" style="display: flex; gap: 4px; align-items: center;">
+        <a
+          href="/tools/theme-designer/"
+          target="_blank"
+          class="btn-settings-icon"
+          title="DSL 语法着色设计器"
+          style="text-decoration: none;"
+        >
+          🎨
+        </a>
+        <button
+          id="btn-settings"
+          class="btn-settings-icon"
+          title="执行设置"
+          @click="emit('open-settings')"
+        >
+          ⚙
+        </button>
+      </div>
     </div>
     
     <!-- 全局快速操作 -->

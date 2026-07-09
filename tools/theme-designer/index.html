@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResumeWright DSL Theme Designer - 语法着色设计器</title>
+  <!-- 引入 Google 字体 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- 引入样式表 -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- 头部栏 -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="brand-gradient"></div>
+        <h1>ResumeWright DSL Theme Designer</h1>
+        <span class="badge">v0.8.0 Theme Editor</span>
+      </div>
+      <div class="header-actions">
+        <button id="btn-theme-toggle" class="btn btn-icon" title="切换深浅主题">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+        <span class="status-indicator">● 已连接本地引擎</span>
+      </div>
+    </header>
+
+    <!-- 主体布局 -->
+    <main class="app-layout">
+      <!-- 左栏：主题及样式配置 -->
+      <section class="config-pane pane card">
+        <div class="pane-header">
+          <h2>主题与样式配置</h2>
+          <p class="pane-desc">定制词法分类的前景色、背景色、文字特效，支持添加自定义语法匹配</p>
+        </div>
+
+        <!-- 主题预设选项 -->
+        <div class="section-box">
+          <h3 class="section-title">主题预设 (Theme Presets)</h3>
+          <div class="presets-grid" id="presets-container">
+            <!-- JS 动态载入预设主题按钮 -->
+          </div>
+        </div>
+
+        <!-- 语法类别编辑器 -->
+        <div class="section-box flex-grow">
+          <div class="section-title-row">
+            <h3 class="section-title">词法着色规则 (Categories)</h3>
+            <button id="btn-add-category" class="btn btn-sm btn-outline-primary">+ 新建分类</button>
+          </div>
+          <div class="categories-list" id="categories-container">
+            <!-- JS 动态渲染类别配置卡片 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 右栏：代码编辑、实时预览与导出 -->
+      <section class="preview-pane pane">
+        <!-- 实时预览卡片 -->
+        <div class="card preview-card flex-grow">
+          <div class="pane-header preview-header">
+            <h2>YAML / DSL 实时预览</h2>
+            <div class="preview-actions">
+              <button id="btn-reset-preview" class="btn btn-sm btn-outline">恢复样本代码</button>
+            </div>
+          </div>
+          
+          <div class="editor-preview-split">
+            <!-- 源码输入 -->
+            <div class="editor-wrapper">
+              <div class="editor-label">DSL 脚本源码 (YAML 节点内容)</div>
+              <div class="editor-container">
+                <div class="line-numbers" id="line-numbers-pre"></div>
+                <textarea id="dsl-input" spellcheck="false" autocomplete="off" placeholder="在此输入或粘贴 ResumeWright DSL 脚本..."></textarea>
+              </div>
+            </div>
+
+            <!-- 着色渲染 -->
+            <div class="preview-wrapper">
+              <div class="editor-label">着色渲染效果 (Preview)</div>
+              <div class="preview-container" id="dsl-preview-box">
+                <pre class="highlight-output"><code id="dsl-preview-code"></code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 导入导出卡片 -->
+        <div class="card export-card">
+          <div class="pane-header">
+            <h2>配置导出与应用</h2>
+            <p class="pane-desc">将设计好的语法配色导出，应用于网页端或复制给 VS Code 插件使用</p>
+          </div>
+
+          <div class="tabs-control">
+            <button class="tab-btn active" data-tab="tab-json">JSON 方案</button>
+            <button class="tab-btn" data-tab="tab-css">CSS 变量</button>
+            <button class="tab-btn" data-tab="tab-vscode">VS Code 扩展主题</button>
+          </div>
+
+          <div class="tabs-content">
+            <!-- Tab: JSON -->
+            <div class="tab-panel active" id="tab-json">
+              <p class="tab-desc">导出为着色器的 JSON 配置文件，或导入外部主题方案：</p>
+              <div class="export-actions">
+                <button id="btn-export-json" class="btn btn-primary">导出 JSON 配置</button>
+                <button id="btn-trigger-import" class="btn btn-outline">导入 JSON 主题</button>
+                <input type="file" id="file-import-json" accept=".json" style="display: none;">
+              </div>
+            </div>
+
+            <!-- Tab: CSS -->
+            <div class="tab-panel" id="tab-css">
+              <p class="tab-desc">生成的 CSS 变量样式，可直接粘贴到您的 Web 看板全局 CSS 文件中：</p>
+              <div class="code-export-box">
+                <textarea id="css-export-output" readonly></textarea>
+                <button class="btn btn-sm btn-copy" data-target="css-export-output">复制 CSS</button>
+              </div>
+            </div>
+
+            <!-- Tab: VSCode -->
+            <div class="tab-panel" id="tab-vscode">
+              <p class="tab-desc">您可以在 VS Code 的 <code>settings.json</code> 中粘贴以下配置来定制插件的高亮：</p>
+              <div class="code-export-box">
+                <textarea id="vscode-export-output" readonly></textarea>
+                <button class="btn btn-sm btn-copy" data-target="vscode-export-output">复制 VS Code 配置</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 新建分类模态窗 -->
+  <div class="modal-overlay" id="add-category-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>新建词法着色分类</h3>
+        <button class="btn-close" id="modal-btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="new-cat-id">分类标识符 (唯一 ID，英文字母/下划线)</label>
+          <input type="text" id="new-cat-id" placeholder="例如: custom_keywords">
+        </div>
+        <div class="form-group">
+          <label for="new-cat-name">显示名称 (说明性文字)</label>
+          <input type="text" id="new-cat-name" placeholder="例如: 自定义关键字">
+        </div>
+        <div class="form-group">
+          <label for="new-cat-scope">VS Code TextMate Scope 映射 (选填)</label>
+          <input type="text" id="new-cat-scope" placeholder="例如: keyword.operator.custom.resumewright">
+        </div>
+        <div class="form-group">
+          <label>匹配规则类型</label>
+          <div class="radio-group">
+            <label><input type="radio" name="new-cat-rule-type" value="keywords" checked> 关键字列表 (以逗号分隔)</label>
+            <label><input type="radio" name="new-cat-rule-type" value="regex"> 正则表达式</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="new-cat-rule-val">匹配规则内容</label>
+          <textarea id="new-cat-rule-val" placeholder="关键字如: select, click, fill&#10;正则如: \\b(myRegexValue)\\b"></textarea>
+        </div>
+        <div class="form-group color-row">
+          <div>
+            <label for="new-cat-color">前景色 (Color)</label>
+            <input type="color" id="new-cat-color" value="#38bdf8">
+          </div>
+          <div>
+            <label for="new-cat-bg">背景色 (Bg, 选填)</label>
+            <input type="color" id="new-cat-bg" value="#000000">
+            <label class="bg-check-label"><input type="checkbox" id="new-cat-bg-enable"> 启用</label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-btn-cancel" class="btn btn-outline">取消</button>
+        <button id="modal-btn-save" class="btn btn-primary">保存分类</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 引入逻辑脚本 -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -861,6 +861,38 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     return;
   }
 
+  // ── 静态资源托管: 语法着色设计器 (Theme Designer) ──
+  if (pathname.startsWith('/tools/theme-designer') && req.method === 'GET') {
+    if (pathname === '/tools/theme-designer') {
+      res.writeHead(301, { 'Location': '/tools/theme-designer/' });
+      res.end();
+      return;
+    }
+    const fileRelativePath = pathname.replace('/tools/theme-designer/', '');
+    const safeRelPath = fileRelativePath || 'index.html';
+    let filePath = path.join(__dirname, '../../tools/theme-designer', safeRelPath);
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(__dirname, '../../../tools/theme-designer', safeRelPath);
+    }
+
+    if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
+      const ext = path.extname(filePath);
+      let contentType = 'text/plain';
+      if (ext === '.html') contentType = 'text/html; charset=utf-8';
+      else if (ext === '.css') contentType = 'text/css';
+      else if (ext === '.js') contentType = 'application/javascript';
+      
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
+      fs.createReadStream(filePath).pipe(res);
+      return;
+    }
+  }
+
   // ── 静态资源托管: UI Dashboard 前端网页 ──
   let fileRelativePath = pathname;
   if (pathname === '/' || pathname === '/index.html') {

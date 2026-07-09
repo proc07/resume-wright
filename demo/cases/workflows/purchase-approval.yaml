@@ -25,8 +25,8 @@ steps:
       macro submit_purchase_js "Q3 办公设备采购" "50000" "Team expansion" "true"
 
       assert_exists "采购申请详情" 10s
-      $workflow_url = current_url
-      $workflow_id  = url_match "/purchase/([\w-]+)"
+      $workflow_url = CURRENT_URL
+      $workflow_id  = URL_MATCH "/purchase/([\w-]+)"
 
       screenshot
 

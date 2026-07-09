@@ -136,23 +136,30 @@ describe('DSL Parser', () => {
   });
 
   describe('变量赋值', () => {
-    it('解析 current_url', () => {
-      const result = parseScript('$workflow_url = current_url');
-      expect(result[0]!.command).toBe(null);
-      expect(result[0]!.assignTarget).toBe('workflow_url');
+    it('解析 CURRENT_URL', () => {
+      const result = parseScript('$workflow_url = CURRENT_URL');
       expect(result[0]!.assignSource).toBe('current_url');
+      
+      const resultLower = parseScript('$workflow_url = current_url');
+      expect(resultLower[0]!.assignSource).toBe('locator');
     });
 
-    it('解析 url_match', () => {
-      const result = parseScript('$id = url_match "/workflow/([\\w-]+)"');
+    it('解析 URL_MATCH', () => {
+      const result = parseScript('$id = URL_MATCH "/workflow/([\\w-]+)"');
       expect(result[0]!.assignSource).toBe('url_match');
       expect(result[0]!.args[0]).toContain('workflow');
+      
+      const resultLower = parseScript('$id = url_match "/workflow/([\\w-]+)"');
+      expect(resultLower[0]!.assignSource).toBe('locator');
     });
 
-    it('解析 url_param', () => {
-      const result = parseScript('$id = url_param "workflowId"');
+    it('解析 URL_PARAM', () => {
+      const result = parseScript('$id = URL_PARAM "workflowId"');
       expect(result[0]!.assignSource).toBe('url_param');
       expect(result[0]!.args[0]).toBe('workflowId');
+      
+      const resultLower = parseScript('$id = url_param "workflowId"');
+      expect(resultLower[0]!.assignSource).toBe('locator');
     });
 
     it('解析定位器提取 (locator)', () => {
@@ -268,7 +275,7 @@ describe('DSL Parser', () => {
       const script = `
 open "https://app.example.com"
 tap "role:button[提交]"
-$url = current_url
+$url = CURRENT_URL
 assert_exists "成功" 10s
       `.trim();
       const result = parseScript(script);

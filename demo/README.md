@@ -105,7 +105,7 @@ const ctx = new ContextStore();
 await executeScript(`
   open "https://your-app.com"
   tap "role:button[提交]"
-  $url = current_url
+  $url = CURRENT_URL
 `, page, ctx);
 
 // 2. 批量运行所有 Cases
