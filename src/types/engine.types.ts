@@ -32,6 +32,7 @@ export interface WorkflowRunnerOptions {
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
   cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
   readCache?: boolean;        // 是否从缓存读取数据，默认 true
+  baseUrl?: string;           // 覆盖用例的 base_url (常用于测试)
 }
 
 /** Step 执行上下文 */

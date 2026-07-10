@@ -152,8 +152,9 @@ export class WorkflowRunner {
       checkpoint.load();
       checkpoint.restoreContext(contextStore);
       contextStore.set('roles', this.definition.roles);
-      if (this.definition.base_url) {
-        contextStore.set('base_url', this.definition.base_url);
+      const effectiveBaseUrl = this.opts.baseUrl ?? this.definition.base_url;
+      if (effectiveBaseUrl) {
+        contextStore.set('base_url', effectiveBaseUrl);
       }
       
       let projectRoot = process.cwd();
@@ -198,7 +199,7 @@ export class WorkflowRunner {
           enableTrace: this.opts.enableTrace,
           traceDir: this.opts.traceDir ?? path.join(caseDir, 'traces'),
           loginMacroPath: this.definition.login_macro_path ?? this.opts.loginMacroPath,
-          baseUrl: this.definition.base_url,
+          baseUrl: this.opts.baseUrl ?? this.definition.base_url,
         },
         path.join(caseDir, 'states')
       );

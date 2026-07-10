@@ -1,0 +1,58 @@
+# demo/cases/workflows/skip-blocks-demo.yaml
+# 演示用例：展示 use_step 中 skip_blocks 选择性跳过块的高级/复杂应用
+
+description: "高级演示用例，在一个复杂的采购表单提交流程中，选择性跳过多个不同的步骤块"
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  # ── 1. 定义完整采购流程的基础主步骤，包含 3 个不同作用的可选块 ──
+  - id: purchase_flow_base
+    role: requester
+    script: |
+      # 打开登录页面并完成登录
+      open "/login"
+      input "requester" to "testid:login-username"
+      input "req_pass" to "testid:login-password"
+      tap "role:button[登录]"
+      assert_exists "已登录工作台" 5s
+      
+      # 打开新建采购申请表单
+      open "/purchase/new"
+      
+      # ── 可选块 1：表单默认值校验 ──
+      # @skip_block pre_fill_check
+      assert_exists "label:申请标题" 2s
+      assert_exists "label:申请金额" 2s
+      # @skip_block pre_fill_check
+      
+      # 填写核心的采购申请表单信息
+      input "高级跳过块服务器采购" to "label:申请标题"
+      input "85000" to "label:申请金额"
+      input "项目扩容升级，购买高性能计算服务器" to "label:申请原因"
+      
+      # ── 可选块 2：勾选“加急”属性 ──
+      # @skip_block apply_urgent_flag
+      check "加急申请"
+      # @skip_block apply_urgent_flag
+      
+      # 提交采购申请
+      tap "role:button[提交申请]"
+      
+      # ── 可选块 3：提交后的异步接口等待与快照审计 ──
+      # @skip_block post_submit_audit
+      wait_api "*/api/purchases" 5s 100ms
+      assert_exists "采购申请详情" 5s
+      screenshot
+      # @skip_block post_submit_audit
+
+  # ── 2. 复杂复用 1：仅跳过“加急勾选”块，保留默认值校验和提交后的接口/快照审计 ──
+  - id: purchase_standard_flow
+    use_step: purchase_flow_base
+    skip_blocks: [apply_urgent_flag]
+
+  # ── 3. 复杂复用 2：跳过全部可选块 (包括默认值校验、加急勾选、以及提交后的审计，仅执行最简核心表单提交) ──
+  - id: purchase_minimal_flow
+    use_step: purchase_flow_base
+    skip_blocks: true

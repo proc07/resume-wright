@@ -408,6 +408,50 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
     expect(def.steps[5]!.role).toBe('requester');
   });
 
+  it('skip-blocks-demo.yaml 结构展开与选择性跳过块正确过滤并执行成功', async () => {
+    const casePath = path.join(DIR, 'workflows/skip-blocks-demo.yaml');
+    const def = loadCase(casePath);
+    expect(def.name).toBe('skip-blocks-demo');
+    expect(def.steps).toHaveLength(3);
+
+    const baseStep = def.steps.find(s => s.id === 'purchase_flow_base')!;
+    const standardStep = def.steps.find(s => s.id === 'purchase_standard_flow')!;
+    const minimalStep = def.steps.find(s => s.id === 'purchase_minimal_flow')!;
+
+    expect(baseStep).toBeDefined();
+    expect(baseStep.script).toContain('assert_exists "label:申请标题"');
+    expect(baseStep.script).toContain('check "加急申请"');
+    expect(baseStep.script).toContain('wait_api "*/api/purchases"');
+
+    expect(standardStep).toBeDefined();
+    expect(standardStep.is_use_step).toBe(true);
+    expect(standardStep.script).toContain('assert_exists "label:申请标题"'); // 保留 pre_fill_check
+    expect(standardStep.script).not.toContain('check "加急申请"'); // 跳过 apply_urgent_flag
+    expect(standardStep.script).toContain('wait_api "*/api/purchases"'); // 保留 post_submit_audit
+
+    expect(minimalStep).toBeDefined();
+    expect(minimalStep.is_use_step).toBe(true);
+    expect(minimalStep.script).not.toContain('assert_exists "label:申请标题"'); // 跳过 pre_fill_check
+    expect(minimalStep.script).not.toContain('check "加急申请"'); // 跳过 apply_urgent_flag
+    expect(minimalStep.script).not.toContain('wait_api "*/api/purchases"'); // 跳过 post_submit_audit
+
+    // 清理 checkpoint 缓存并运行测试
+    const { getSafeCaseName } = await import('../../../src/engine/checkpoint.js');
+    const safeCaseName = getSafeCaseName(def.name, casePath);
+    const cpDir = path.join(process.cwd(), '.resumewright', safeCaseName);
+    if (fs.existsSync(cpDir)) {
+      fs.rmSync(cpDir, { recursive: true, force: true });
+    }
+
+    const { WorkflowRunner } = await import('resumewright');
+    const runner = new WorkflowRunner(def, casePath, {
+      headless: true,
+      baseUrl: baseUrl,
+    });
+    const res = await runner.run();
+    expect(res.status).toBe('passed');
+  });
+
   it('use-step-open-reset-demo.yaml 结构展开与 is_use_step 正确标记且执行成功', async () => {
     const casePath = path.join(DIR, 'workflows/use-step-open-reset-demo.yaml');
     const def = loadCase(casePath);

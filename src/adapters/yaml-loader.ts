@@ -24,6 +24,7 @@ const SubStepSchema = z.object({
   on_failure: OnFailureSchema.optional(),
   use_step: z.string().optional(),
   is_use_step: z.boolean().optional(),
+  skip_blocks: z.union([z.boolean(), z.array(z.string())]).optional(),
 });
 
 const StepSchema = z.object({
@@ -34,6 +35,7 @@ const StepSchema = z.object({
   sub_steps: z.array(SubStepSchema).optional(),
   use_step: z.string().optional(),
   is_use_step: z.boolean().optional(),
+  skip_blocks: z.union([z.boolean(), z.array(z.string())]).optional(),
 });
 
 const RoleSchema = z.record(z.string(), z.any());
@@ -187,6 +189,95 @@ export function resolveSharedSteps(caseFilePath: string): SharedStepsRegistry {
   return registry;
 }
 
+/**
+ * 根据 skip_blocks 配置过滤脚本中的被标记块，并检验未闭合标记。
+ */
+export function filterSkipBlocks(script: string, skipBlocksVal: unknown): string {
+  const lines = script.split('\n');
+  const resultLines: string[] = [];
+  
+  let inBlock = false;
+  let currentBlockName: string | null = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trim();
+    
+    // 匹配 # @skip_block 极其后的可选块名称
+    const match = trimmed.match(/^#\s*@skip_block(?:\s+(\S+))?$/);
+    
+    if (match) {
+      if (!inBlock) {
+        inBlock = true;
+        currentBlockName = match[1] || null;
+      } else {
+        inBlock = false;
+        currentBlockName = null;
+      }
+      continue; // 跳过标记行本身
+    }
+    
+    if (inBlock) {
+      let shouldSkip = false;
+      if (skipBlocksVal === true) {
+        shouldSkip = true;
+      } else if (Array.isArray(skipBlocksVal)) {
+        if (currentBlockName && skipBlocksVal.includes(currentBlockName)) {
+          shouldSkip = true;
+        }
+      }
+      
+      if (!shouldSkip) {
+        resultLines.push(line);
+      }
+    } else {
+      resultLines.push(line);
+    }
+  }
+  
+  if (inBlock) {
+    const blockDesc = currentBlockName ? `"${currentBlockName}"` : 'unnamed';
+    throw new Error(`[yaml-loader] Block parsing error: "# @skip_block" block ${blockDesc} has a start marker but no end marker.`);
+  }
+  
+  return resultLines.join('\n');
+}
+
+/**
+ * 校验脚本中所有的 # @skip_block 标记是否正确闭合。
+ */
+export function validateSkipBlocks(script: string, caseFilePath: string): void {
+  const lines = script.split('\n');
+  let inBlock = false;
+  let currentBlockName: string | null = null;
+  let startLineNum = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trim();
+    const match = trimmed.match(/^#\s*@skip_block(?:\s+(\S+))?$/);
+
+    if (match) {
+      if (!inBlock) {
+        inBlock = true;
+        currentBlockName = match[1] || null;
+        startLineNum = i + 1;
+      } else {
+        inBlock = false;
+        currentBlockName = null;
+        startLineNum = -1;
+      }
+    }
+  }
+
+  if (inBlock) {
+    const blockDesc = currentBlockName ? `"${currentBlockName}"` : 'unnamed';
+    throw new Error(
+      `[yaml-loader] Error in "${caseFilePath}": "# @skip_block" block ${blockDesc} starting at line ${startLineNum} has no matching end marker.`
+    );
+  }
+}
+
 // ── 引用展开 ──────────────────────────────────────────────────
 
 /**
@@ -221,6 +312,11 @@ function expandStep(
     merged['id'] = template.id;
   }
 
+  // 如果定义了 skip_blocks，则过滤模板的 script
+  if (merged['skip_blocks'] !== undefined && typeof template['script'] === 'string') {
+    merged['script'] = filterSkipBlocks(template['script'] as string, merged['skip_blocks']);
+  }
+
   return merged;
 }
 
@@ -252,6 +348,11 @@ function expandSubStep(
 
   if (!merged['id']) {
     merged['id'] = template.id;
+  }
+
+  // 如果定义了 skip_blocks，则过滤模板的 script
+  if (merged['skip_blocks'] !== undefined && typeof template['script'] === 'string') {
+    merged['script'] = filterSkipBlocks(template['script'] as string, merged['skip_blocks']);
   }
 
   return merged;
@@ -289,6 +390,11 @@ function expandSubSteps(
       subStep['is_use_step'] = true;
       if (!subStep['id']) {
         subStep['id'] = template.id;
+      }
+
+      // 如果定义了 skip_blocks，则过滤模板的 script
+      if (subStep['skip_blocks'] !== undefined && typeof template['script'] === 'string') {
+        subStep['script'] = filterSkipBlocks(template['script'] as string, subStep['skip_blocks']);
       }
     } else {
       // 2. 外部子步骤引用或无引用
@@ -336,6 +442,11 @@ function expandSteps(
       step['is_use_step'] = true;
       if (!step['id']) {
         step['id'] = template.id;
+      }
+
+      // 如果定义了 skip_blocks，则过滤模板的 script
+      if (step['skip_blocks'] !== undefined && typeof template['script'] === 'string') {
+        step['script'] = filterSkipBlocks(template['script'] as string, step['skip_blocks']);
       }
 
       // 展开内部子步骤
@@ -481,6 +592,20 @@ export function loadCase(filePath: string): CaseDefinition {
       .map((i) => `  • ${i.path.join('.')}: ${i.message}`)
       .join('\n');
     throw new Error(`Case schema validation failed for ${absPath}:\n${issues}`);
+  }
+
+  // 校验所有脚本中的 # @skip_block 标记是否闭合
+  for (const step of result.data.steps) {
+    if (step.script) {
+      validateSkipBlocks(step.script, absPath);
+    }
+    if (step.sub_steps) {
+      for (const subStep of step.sub_steps) {
+        if (subStep.script) {
+          validateSkipBlocks(subStep.script, absPath);
+        }
+      }
+    }
   }
 
   // 校验 step.role 都存在于 roles 定义中
