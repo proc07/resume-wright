@@ -52,13 +52,27 @@ export class RolePool {
   /**
    * 获取指定角色的 Page（自动登录 / 复用缓存）
    */
-  async getPage(roleName: string): Promise<Page> {
+  async getPage(roleName: string, options: { skipLogin?: boolean } = {}): Promise<Page> {
     // 校验角色是否定义
     const creds = this.roles[roleName];
     if (!creds) {
       throw new Error(
         `Role "${roleName}" not defined. Available roles: ${Object.keys(this.roles).join(', ')}`
       );
+    }
+
+    // 如果指示跳过登录（即当前访问的外网 Origin 与配置的 base_url 不符），
+    // 则为该角色新建一个完全干净的浏览器上下文，不加载历史 cookie 缓存，也不执行自动登录宏，防止向外网泄露本站敏感数据或触发无效宏指令。
+    if (options.skipLogin) {
+      console.log(`[role-pool] Target site has a different base URL origin. Creating a clean session and skipping auto-login for "${roleName}".`);
+      const context = await this.browser.newContext({
+        ignoreHTTPSErrors: true,
+      });
+      await this.injectDebuggerToContext(context);
+      const page = await context.newPage();
+      this.contexts.set(roleName, context);
+      this.pages.set(roleName, page);
+      return page;
     }
 
     // 已有活跃上下文
@@ -101,8 +115,8 @@ export class RolePool {
   /**
    * 获取角色的完整 RoleContext（context + page）
    */
-  async getRoleContext(roleName: string): Promise<RoleContext> {
-    const page = await this.getPage(roleName);
+  async getRoleContext(roleName: string, options: { skipLogin?: boolean } = {}): Promise<RoleContext> {
+    const page = await this.getPage(roleName, options);
     const context = this.contexts.get(roleName)!;
     return { context, page };
   }

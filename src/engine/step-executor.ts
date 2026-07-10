@@ -109,8 +109,39 @@ export class StepExecutor {
   private async runStep(step: Step): Promise<void> {
     const { rolePool, contextStore, caseName, screenshotDir, screenshotOnAssert, assertTimeout } = this.execCtx;
 
+    // ── 源匹配自动登录保护逻辑 ──
+    // 静态提取当前步骤（或子步骤）中首条 open 目标地址。如果目标是一个绝对路径 URL，
+    // 且其 Origin 协议域名与全局的 base_url 不符（例如去访问 bilibili 等外部站点），
+    // 则判定需要跨域，触发 skipLogin 保护，使得角色池管理器跳过自动登录与 Session 缓存。
+    let skipLogin = false;
+    const baseUrl = contextStore.get('base_url') as string | undefined;
+    let firstOpenUrl: string | null = null;
+    if (step.script) {
+      firstOpenUrl = this.getFirstOpenUrl(step.script);
+    } else if (step.sub_steps) {
+      for (const subStep of step.sub_steps) {
+        if (subStep.script) {
+          firstOpenUrl = this.getFirstOpenUrl(subStep.script);
+          if (firstOpenUrl) break;
+        }
+      }
+    }
+
+    if (firstOpenUrl && baseUrl) {
+      const isAbsolute = firstOpenUrl.startsWith('http://') || firstOpenUrl.startsWith('https://');
+      if (isAbsolute) {
+        try {
+          const firstOpenOrigin = new URL(firstOpenUrl).origin;
+          const baseOrigin = new URL(baseUrl).origin;
+          if (firstOpenOrigin !== baseOrigin) {
+            skipLogin = true;
+          }
+        } catch { /* ignore invalid URL */ }
+      }
+    }
+
     // 获取角色的 Page 和 BrowserContext
-    const { page, context } = await rolePool.getRoleContext(step.role);
+    const { page, context } = await rolePool.getRoleContext(step.role, { skipLogin });
 
     // 动态注入当前角色的属性及凭证信息，便于 DSL 脚本和宏直接读取，无需显式传参
     const creds = rolePool.getCredentials(step.role);
@@ -237,5 +268,18 @@ export class StepExecutor {
         }
       }
     }
+  }
+
+  private getFirstOpenUrl(script: string): string | null {
+    const lines = script.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('#')) continue;
+      const match = trimmed.match(/^open\s+(".*?"|'.*?'|\S+)/);
+      if (match) {
+        return match[1]!.replace(/^['"]|['"]$/g, '');
+      }
+    }
+    return null;
   }
 }

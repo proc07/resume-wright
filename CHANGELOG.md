@@ -9,12 +9,12 @@
 
 ## [0.8.2] - 2026-07-10
 
-### 新增 (Added)
-- **`use_step` 选择性跳过块 (Selective Skip Blocks)**：
+- **`use_step` 选择性跳过块 (Selective Skip Blocks) 与源匹配自动登录保护**：
   - 支持在 DSL 脚本中通过成对的注释 `# @skip_block [name]` 声明可选跳过的指令块。直接执行原步骤时，这些块内的指令依旧正常执行。
   - 在 Zod Schema 与 case 类型中为 Step/SubStep 新增 `skip_blocks` 选项，支持 `skip_blocks: true`（跳过所有标记块）或 `skip_blocks: [name1, name2]`（跳过指定名称的块）。
   - 在 YAML 引用展开合并期，按需自动过滤被复用的 `script` 脚本行，实现完全静态、零运行开销的代码块过滤。
   - 在用例加载期新增对所有步骤/子步骤脚本的静态分析。如检测到有头无尾的未闭合 `# @skip_block` 标记，将立即抛出带有文件名及 1-based 行号的清晰解析错误。
+  - **源匹配自动登录保护 (Origin-based Auto-Login Skip)**：在步骤执行前，静态探测其脚本（或子步骤脚本）中的首条 `open` 目标 URL。如果该 URL 为绝对地址且其 Origin（协议/域名/端口）与 `config.yaml` 或用例配置的 `base_url` 不同，则该步骤对该角色的执行将自动跳过自动登录（Login Macro）和历史 Session 磁盘缓存载入，创建一个全新的、干净的浏览器上下文，防止向无关域（如 bilibili、百度等）携带本系统登录凭证或执行无效登录脚本。
 
 ## [0.8.1] - 2026-07-09
 
