@@ -10,6 +10,7 @@ const props = defineProps<{
     completed: boolean
     duration?: number
     subStepsCount: number
+    isUseStep?: boolean
   }
   index: number
   isFailed: boolean
@@ -130,6 +131,7 @@ const displayDuration = computed(() => {
     :id="`step-node-${step.id}`"
     @click="emit('select', step.id)"
   >
+    <span v-if="step.isUseStep" class="step-tag-repeat">repeat</span>
     <div class="step-indicator">
       {{ indicatorText }}
     </div>

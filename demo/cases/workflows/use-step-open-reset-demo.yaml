@@ -25,8 +25,7 @@ steps:
           check "加急申请"
 
   # ── 2. 复用步骤：完全复用 step1_base 进行填表。在开始时会自动强制重置页面，防残留干扰 ──
-  - id: step2_reuse_fill
-    use_step: step1_base
+  - use_step: step1_base
 
   # ── 3. 提交步骤：在复用填表后，执行提交申请 ──
   - id: step3_submit

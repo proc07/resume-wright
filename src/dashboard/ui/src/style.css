@@ -754,6 +754,24 @@ code, pre {
   border: 1px solid var(--border-color);
   cursor: pointer;
   transition: var(--transition);
+  position: relative;
+}
+
+.step-tag-repeat {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fbbf24;
+  background-color: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  padding: 0.5px 3.5px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .step-node:hover {

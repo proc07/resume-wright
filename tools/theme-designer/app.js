@@ -991,72 +991,52 @@ function setupEventListeners() {
     showToast(`新语法分类 "${name}" 创建并匹配成功`);
   });
 
-  // JSON 配置导出
-  document.getElementById("btn-export-json").addEventListener("click", () => {
-    const exportData = {
-      presetId: currentPresetId,
-      categories: categories
-    };
-    const jsonStr = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `resumewright-theme-${currentPresetId || 'custom'}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("JSON 方案下载已启动");
-  });
+  // 同步配置到 VS Code settings.json
+  document.getElementById("btn-sync-vscode").addEventListener("click", () => {
+    const statusDiv = document.getElementById("sync-status");
+    statusDiv.textContent = "⏳ 正在同步中...";
+    statusDiv.style.color = "#94a3b8";
 
-  // JSON 配置导入
-  const triggerImport = document.getElementById("btn-trigger-import");
-  const fileImportJson = document.getElementById("file-import-json");
-
-  triggerImport.addEventListener("click", () => {
-    fileImportJson.click();
-  });
-
-  fileImportJson.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const imported = JSON.parse(event.target.result);
-        if (!imported.categories || !Array.isArray(imported.categories)) {
-          throw new Error("不是合法的 ResumeWright 主题配置文件（缺少 categories 节点）");
+    const vsCodeRules = [];
+    categories.forEach(cat => {
+      if (cat.scope) {
+        const settings = {
+          foreground: cat.color
+        };
+        const styles = [];
+        if (cat.bold) styles.push("bold");
+        if (cat.italic) styles.push("italic");
+        if (cat.underline) styles.push("underline");
+        if (styles.length > 0) {
+          settings.fontStyle = styles.join(" ");
         }
-        
-        categories = imported.categories;
-        renderCategories();
-        
-        if (imported.presetId) {
-          // 如果包含 Preset 信息则重新应用 Preset 样式
-          currentPresetId = imported.presetId;
-          const matchedPreset = PRESETS.find(p => p.id === currentPresetId);
-          if (matchedPreset) {
-            applyPreset(currentPresetId);
-          } else {
-            updateHighlighting();
-            updateExports();
-          }
-        } else {
-          updateHighlighting();
-          updateExports();
-        }
-        
-        showToast("已成功导入外部主题方案！");
-      } catch (err) {
-        alert("导入失败: " + err.message);
+        vsCodeRules.push({
+          scope: cat.scope,
+          settings: settings
+        });
       }
-    };
-    reader.readAsText(file);
-    // 重置 input 以允许重复上传同名文件
-    fileImportJson.value = "";
+    });
+
+    fetch("/api/theme/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rules: vsCodeRules })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          statusDiv.textContent = "✓ 配色同步成功！工作区 settings.json 已更新";
+          statusDiv.style.color = "#10b981";
+          showToast("VS Code 配色已成功同步");
+        } else {
+          statusDiv.textContent = `✗ 同步失败: ${data.error}`;
+          statusDiv.style.color = "#ef4444";
+        }
+      })
+      .catch(err => {
+        statusDiv.textContent = `✗ 网络请求错误: ${err}`;
+        statusDiv.style.color = "#ef4444";
+      });
   });
 }
 

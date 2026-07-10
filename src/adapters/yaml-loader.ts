@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import type { CaseDefinition, Step, SubStep } from '../types/case.types.js';
 
@@ -359,6 +360,19 @@ function expandSubStep(
 }
 
 /**
+ * 计算步骤属性的哈希值（排除 id 和 is_use_step 等标识性字段），确保生成的 ID 的内容寻址稳定性。
+ */
+function getStepContentHash(step: Record<string, unknown>): string {
+  const keys = Object.keys(step).filter(k => k !== 'id' && k !== 'is_use_step').sort();
+  const obj: Record<string, unknown> = {};
+  for (const k of keys) {
+    obj[k] = step[k];
+  }
+  const str = JSON.stringify(obj);
+  return crypto.createHash('sha256').update(str).digest('hex').substring(0, 6);
+}
+
+/**
  * 对子步骤数组进行递归展开，支持本地 use_step 引用及外部 use_step 引用
  */
 function expandSubSteps(
@@ -368,6 +382,7 @@ function expandSubSteps(
 ): Record<string, unknown>[] {
   const expandedSubSteps: Record<string, unknown>[] = [];
   const localSubStepsMap = new Map<string, Record<string, unknown>>();
+  const seenIds = new Set<string>();
 
   for (const rawSubStep of rawSubSteps) {
     const ref = rawSubStep['use_step'];
@@ -401,6 +416,28 @@ function expandSubSteps(
       subStep = expandSubStep(rawSubStep, registry, caseFilePath);
     }
 
+    // 自动为未指定 id 的 use_step 生成内容寻址的稳定 ID
+    if (!rawSubStep['id'] && typeof ref === 'string') {
+      const templateId = ref.includes('.') ? ref.split('.').pop()! : ref;
+      const hash = getStepContentHash(rawSubStep);
+      let generatedId = templateId;
+      if (seenIds.has(templateId)) {
+        generatedId = `${templateId}_${hash}`;
+        if (seenIds.has(generatedId)) {
+          let suffix = 2;
+          while (seenIds.has(`${generatedId}_${suffix}`)) {
+            suffix++;
+          }
+          generatedId = `${generatedId}_${suffix}`;
+        }
+      }
+      subStep['id'] = generatedId;
+    }
+
+    if (typeof subStep['id'] === 'string') {
+      seenIds.add(subStep['id']);
+    }
+
     expandedSubSteps.push(subStep);
     if (typeof subStep['id'] === 'string') {
       localSubStepsMap.set(subStep['id'], subStep);
@@ -420,6 +457,7 @@ function expandSteps(
 ): Record<string, unknown>[] {
   const expandedSteps: Record<string, unknown>[] = [];
   const localStepsMap = new Map<string, Record<string, unknown>>();
+  const seenIds = new Set<string>();
 
   for (const rawStep of rawSteps) {
     const ref = rawStep['use_step'];
@@ -467,6 +505,28 @@ function expandSteps(
           caseFilePath
         );
       }
+    }
+
+    // 自动为未指定 id 的 use_step 生成内容寻址的稳定 ID
+    if (!rawStep['id'] && typeof ref === 'string') {
+      const templateId = ref.includes('.') ? ref.split('.').pop()! : ref;
+      const hash = getStepContentHash(rawStep);
+      let generatedId = templateId;
+      if (seenIds.has(templateId)) {
+        generatedId = `${templateId}_${hash}`;
+        if (seenIds.has(generatedId)) {
+          let suffix = 2;
+          while (seenIds.has(`${generatedId}_${suffix}`)) {
+            suffix++;
+          }
+          generatedId = `${generatedId}_${suffix}`;
+        }
+      }
+      step['id'] = generatedId;
+    }
+
+    if (typeof step['id'] === 'string') {
+      seenIds.add(step['id']);
     }
 
     expandedSteps.push(step);

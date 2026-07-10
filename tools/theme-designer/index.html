@@ -88,47 +88,22 @@
           </div>
         </div>
 
-        <!-- 导入导出卡片 -->
+        <!-- 同步到 VS Code 卡片 -->
         <div class="card export-card">
           <div class="pane-header">
-            <h2>配置导出与应用</h2>
-            <p class="pane-desc">将设计好的语法配色导出，应用于网页端或复制给 VS Code 插件使用</p>
+            <h2>同步配色到 VS Code</h2>
+            <p class="pane-desc">一键将设计好的语法配色直接同步并应用到当前工作区 的 VS Code 配置文件中，实现即时渲染效果</p>
           </div>
 
-          <div class="tabs-control">
-            <button class="tab-btn active" data-tab="tab-json">JSON 方案</button>
-            <button class="tab-btn" data-tab="tab-css">CSS 变量</button>
-            <button class="tab-btn" data-tab="tab-vscode">VS Code 扩展主题</button>
+          <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+            <button id="btn-sync-vscode" class="btn btn-primary" style="padding: 12px; font-weight: bold; font-size: 14px;">同步设置 (Sync to VS Code)</button>
+            <div id="sync-status" style="font-size: 13px; font-weight: 500; text-align: center; min-height: 18px; line-height: 1.5;"></div>
           </div>
 
-          <div class="tabs-content">
-            <!-- Tab: JSON -->
-            <div class="tab-panel active" id="tab-json">
-              <p class="tab-desc">导出为着色器的 JSON 配置文件，或导入外部主题方案：</p>
-              <div class="export-actions">
-                <button id="btn-export-json" class="btn btn-primary">导出 JSON 配置</button>
-                <button id="btn-trigger-import" class="btn btn-outline">导入 JSON 主题</button>
-                <input type="file" id="file-import-json" accept=".json" style="display: none;">
-              </div>
-            </div>
-
-            <!-- Tab: CSS -->
-            <div class="tab-panel" id="tab-css">
-              <p class="tab-desc">生成的 CSS 变量样式，可直接粘贴到您的 Web 看板全局 CSS 文件中：</p>
-              <div class="code-export-box">
-                <textarea id="css-export-output" readonly></textarea>
-                <button class="btn btn-sm btn-copy" data-target="css-export-output">复制 CSS</button>
-              </div>
-            </div>
-
-            <!-- Tab: VSCode -->
-            <div class="tab-panel" id="tab-vscode">
-              <p class="tab-desc">您可以在 VS Code 的 <code>settings.json</code> 中粘贴以下配置来定制插件的高亮：</p>
-              <div class="code-export-box">
-                <textarea id="vscode-export-output" readonly></textarea>
-                <button class="btn btn-sm btn-copy" data-target="vscode-export-output">复制 VS Code 配置</button>
-              </div>
-            </div>
+          <!-- 隐藏的文本框，避免 app.js 初始化时报错 -->
+          <div style="display: none;">
+            <textarea id="css-export-output"></textarea>
+            <textarea id="vscode-export-output"></textarea>
           </div>
         </div>
       </section>

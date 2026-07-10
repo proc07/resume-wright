@@ -388,23 +388,23 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
     const def = loadCase(path.join(DIR, 'workflows/use-step-test.yaml'));
     expect(def.name).toBe('use-step-test');
     expect(def.steps).toHaveLength(6);
-    // step 2 继承 step 1
-    expect(def.steps[1]!.id).toBe('step2_login_reuse');
+    // step 2 继承 step 1，由于是同名冲突，被赋予了哈希后缀
+    expect(def.steps[1]!.id).toContain('step1_login_base_');
     expect(def.steps[1]!.role).toBe('requester');
     // step 3 有 3 个子步骤：两个本地，一个外部
     expect(def.steps[2]!.sub_steps).toHaveLength(3);
     expect(def.steps[2]!.sub_steps![0]!.id).toBe('fill_title_base');
-    expect(def.steps[2]!.sub_steps![1]!.id).toBe('fill_title_reuse');
-    expect(def.steps[2]!.sub_steps![2]!.id).toBe('submit_external');
+    expect(def.steps[2]!.sub_steps![1]!.id).toContain('fill_title_base_');
+    expect(def.steps[2]!.sub_steps![2]!.id).toBe('submit_and_capture_id');
     expect(def.steps[2]!.sub_steps![2]!.script).toContain('提交申请');
     // step 4 继承 manager_approve
-    expect(def.steps[3]!.id).toBe('step4_manager_approve');
+    expect(def.steps[3]!.id).toBe('manager_approve');
     expect(def.steps[3]!.role).toBe('manager');
     // step 4b is finance approve
     expect(def.steps[4]!.id).toBe('step4b_finance_approve');
     expect(def.steps[4]!.role).toBe('finance');
     // step 5 继承 verify_purchase_completed 并覆盖 role 为 requester
-    expect(def.steps[5]!.id).toBe('step5_verify_completed');
+    expect(def.steps[5]!.id).toBe('verify_purchase_completed');
     expect(def.steps[5]!.role).toBe('requester');
   });
 
@@ -414,22 +414,26 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
     expect(def.name).toBe('skip-blocks-demo');
     expect(def.steps).toHaveLength(3);
 
-    const baseStep = def.steps.find(s => s.id === 'purchase_flow_base')!;
-    const standardStep = def.steps.find(s => s.id === 'purchase_standard_flow')!;
-    const minimalStep = def.steps.find(s => s.id === 'purchase_minimal_flow')!;
+    const baseStep = def.steps[0]!;
+    const standardStep = def.steps[1]!;
+    const minimalStep = def.steps[2]!;
 
     expect(baseStep).toBeDefined();
+    expect(baseStep.id).toBe('purchase_flow_base');
     expect(baseStep.script).toContain('assert_exists "label:申请标题"');
     expect(baseStep.script).toContain('check "加急申请"');
     expect(baseStep.script).toContain('wait_api "*/api/purchases"');
 
     expect(standardStep).toBeDefined();
+    expect(standardStep.id).toContain('purchase_flow_base_');
     expect(standardStep.is_use_step).toBe(true);
     expect(standardStep.script).toContain('assert_exists "label:申请标题"'); // 保留 pre_fill_check
     expect(standardStep.script).not.toContain('check "加急申请"'); // 跳过 apply_urgent_flag
     expect(standardStep.script).toContain('wait_api "*/api/purchases"'); // 保留 post_submit_audit
 
     expect(minimalStep).toBeDefined();
+    expect(minimalStep.id).toContain('purchase_flow_base_');
+    expect(minimalStep.id).not.toBe(standardStep.id); // 属性不同，哈希值不同
     expect(minimalStep.is_use_step).toBe(true);
     expect(minimalStep.script).not.toContain('assert_exists "label:申请标题"'); // 跳过 pre_fill_check
     expect(minimalStep.script).not.toContain('check "加急申请"'); // 跳过 apply_urgent_flag
@@ -465,8 +469,8 @@ describe('YAML Case 文件验证（插件 loadCase API）', () => {
     expect(def.steps[0]!.sub_steps![0]!.id).toBe('fill_form_base');
     expect(def.steps[0]!.sub_steps![0]!.is_use_step).toBeUndefined();
 
-    // step2_reuse_fill 断言
-    expect(def.steps[1]!.id).toBe('step2_reuse_fill');
+    // 冲突复用断言
+    expect(def.steps[1]!.id).toContain('step1_base_');
     expect(def.steps[1]!.is_use_step).toBe(true);
     expect(def.steps[1]!.sub_steps).toHaveLength(1);
     expect(def.steps[1]!.sub_steps![0]!.id).toBe('fill_form_base');

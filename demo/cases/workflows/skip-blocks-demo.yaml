@@ -48,11 +48,9 @@ steps:
       # @skip_block post_submit_audit
 
   # ── 2. 复杂复用 1：仅跳过“加急勾选”块，保留默认值校验和提交后的接口/快照审计 ──
-  - id: purchase_standard_flow
-    use_step: purchase_flow_base
+  - use_step: purchase_flow_base
     skip_blocks: [apply_urgent_flag]
 
   # ── 3. 复杂复用 2：跳过全部可选块 (包括默认值校验、加急勾选、以及提交后的审计，仅执行最简核心表单提交) ──
-  - id: purchase_minimal_flow
-    use_step: purchase_flow_base
+  - use_step: purchase_flow_base
     skip_blocks: true

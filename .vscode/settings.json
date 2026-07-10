@@ -2,37 +2,75 @@
   "editor.tokenColorCustomizations": {
     "textMateRules": [
       {
-        "scope": "keyword.control.flow.action.resumewright",
+        "scope": "comment.line.number-sign.resumewright",
         "settings": {
-          "foreground": "#ff007f",
-          "fontStyle": "bold"
-        }
-      },
-      {
-        "scope": "entity.name.function.assertion.resumewright",
-        "settings": {
-          "foreground": "#ffb86c",
+          "foreground": "#5c6370",
           "fontStyle": "italic"
-        }
-      },
-      {
-        "scope": "variable.other.readwrite.resumewright",
-        "settings": {
-          "foreground": "#8be9fd",
-          "fontStyle": "bold italic"
         }
       },
       {
         "scope": "string.quoted.double.resumewright",
         "settings": {
-          "foreground": "#50fa7b"
+          "foreground": "#98c379"
         }
       },
       {
-        "scope": "keyword.operator.locator.separator.resumewright",
+        "scope": "constant.character.escape.resumewright",
         "settings": {
-          "foreground": "#bd93f9",
+          "foreground": "#56b6c2",
           "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "variable.other.readwrite.resumewright",
+        "settings": {
+          "foreground": "#e06c75"
+        }
+      },
+      {
+        "scope": "keyword.operator.optional.resumewright",
+        "settings": {
+          "foreground": "#c678dd",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "keyword.control.flow.action.resumewright",
+        "settings": {
+          "foreground": "#61afef",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "support.function.builtin.resumewright",
+        "settings": {
+          "foreground": "#56b6c2",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "entity.name.tag.locator.prefix.resumewright",
+        "settings": {
+          "foreground": "#e5c07b",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "keyword.operator.word.resumewright",
+        "settings": {
+          "foreground": "#d19a66"
+        }
+      },
+      {
+        "scope": "keyword.operator.arithmetic.resumewright",
+        "settings": {
+          "foreground": "#56b6c2"
+        }
+      },
+      {
+        "scope": "constant.numeric.offset.resumewright",
+        "settings": {
+          "foreground": "#d19a66"
         }
       }
     ]

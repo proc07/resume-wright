@@ -111,5 +111,42 @@ steps:
       expect(stepReuse!.script).toContain('open "/page"');
       expect(stepReuse!.script).toContain('tap "Next"');
     });
+
+    it('should auto-generate stable content-addressable IDs when use_step misses id', () => {
+      const yamlContent = `
+name: auto-id-case
+roles:
+  guest: {}
+steps:
+  - id: step_base
+    role: guest
+    script: "open '/'"
+  - use_step: step_base
+    skip_blocks: true
+  - use_step: step_base
+    skip_blocks: [x]
+  - use_step: step_base
+    skip_blocks: true
+      `.trim();
+
+      fs.writeFileSync(tempCasePath, yamlContent, 'utf8');
+      const loaded = loadCase(tempCasePath);
+
+      expect(loaded.steps).toHaveLength(4);
+      
+      const step1 = loaded.steps[1]!;
+      const step2 = loaded.steps[2]!;
+      const step3 = loaded.steps[3]!;
+
+      expect(step1.id).toBeDefined();
+      expect(step2.id).toBeDefined();
+      expect(step3.id).toBeDefined();
+
+      // step1 和 step2 属性不同，它们的 ID 应基于不同哈希生成，不发生冲突位移
+      expect(step1.id).not.toBe(step2.id);
+      
+      // step3 属性和 step1 完全相同，属于同文件碰撞，应当分配 _2 序列后缀
+      expect(step3.id).toBe(`${step1.id}_2`);
+    });
   });
 });

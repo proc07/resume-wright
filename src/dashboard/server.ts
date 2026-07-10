@@ -280,6 +280,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
               completed: cp.isCompleted(s.id),
               duration: durations[s.id] || 0,
               subStepsCount: s.sub_steps?.length || 0,
+              isUseStep: s.is_use_step,
             })),
             status,
             completedCount: cp.completedCount(),
@@ -337,6 +338,61 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       };
       saveDashboardSettings(settings);
       return jsonRes(res, 200, { success: true, settings });
+    } catch (err: any) {
+      return jsonRes(res, 500, { error: err.message });
+    }
+  }
+
+  // ── REST API: POST /api/theme/sync — 同步配色到 VS Code settings.json ──
+  if (pathname === '/api/theme/sync' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const rules = body.rules;
+      if (!Array.isArray(rules)) {
+        return jsonRes(res, 400, { error: 'rules must be an array' });
+      }
+
+      const getWorkspaceRoot = (): string => {
+        let dir = process.cwd();
+        while (true) {
+          if (fs.existsSync(path.join(dir, '.git')) || fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) {
+            return dir;
+          }
+          const parent = path.dirname(dir);
+          if (parent === dir) break;
+          dir = parent;
+        }
+        return process.cwd();
+      };
+
+      const workspaceRoot = getWorkspaceRoot();
+      const settingsPath = path.resolve(workspaceRoot, '.vscode', 'settings.json');
+      const settingsDir = path.dirname(settingsPath);
+      if (!fs.existsSync(settingsDir)) {
+        fs.mkdirSync(settingsDir, { recursive: true });
+      }
+
+      let settingsObj: Record<string, any> = {};
+      if (fs.existsSync(settingsPath)) {
+        try {
+          const rawContent = fs.readFileSync(settingsPath, 'utf-8').trim();
+          if (rawContent) {
+            // 去除单行/多行注释以支持标准的 VS Code settings.json 语法解析
+            const cleanJson = rawContent.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+            settingsObj = JSON.parse(cleanJson);
+          }
+        } catch (err) {
+          console.warn(`[server] Warning: Failed to parse existing settings.json: ${err}`);
+        }
+      }
+
+      settingsObj['editor.tokenColorCustomizations'] = {
+        textMateRules: rules
+      };
+
+      fs.writeFileSync(settingsPath, JSON.stringify(settingsObj, null, 2), 'utf-8');
+      console.log(`[server] Successfully synchronized DSL theme colors to ${settingsPath}`);
+      return jsonRes(res, 200, { success: true });
     } catch (err: any) {
       return jsonRes(res, 500, { error: err.message });
     }

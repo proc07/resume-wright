@@ -6,6 +6,7 @@ export interface CaseStep {
   completed: boolean
   duration?: number
   subStepsCount: number
+  isUseStep?: boolean
 }
 
 export interface CaseData {
