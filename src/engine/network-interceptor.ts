@@ -667,7 +667,7 @@ export class NetworkInterceptor {
             captureRunId: this.captureRunId,
             matchKeyVersion: MATCH_KEY_VERSION,
             responseKind: 'http',
-            isActiveSnapshot: true,
+            isActiveSnapshot: this.mode === 'legacy',
           };
           this.cache.push(entry);
           this.persistCache();

@@ -283,4 +283,32 @@ assert_exists "成功" 10s
       expect(result.map(r => r.command)).toEqual(['open', 'tap', null, 'assert_exists']);
     });
   });
+
+  describe('assert_enabled / assert_disabled 命令', () => {
+    it('解析基础可用/禁用断言', () => {
+      const r1 = parseScript('assert_enabled "role:button[提交]"');
+      expect(r1[0]!.command).toBe('assert_enabled');
+      expect(r1[0]!.args[0]).toBe('"role:button[提交]"');
+
+      const r2 = parseScript('assert_disabled "role:button[提交]"');
+      expect(r2[0]!.command).toBe('assert_disabled');
+      expect(r2[0]!.args[0]).toBe('"role:button[提交]"');
+    });
+
+    it('解析带 near 和方向的可用/禁用断言', () => {
+      const r1 = parseScript('assert_enabled "role:button[确认]" near "表格" top');
+      expect(r1[0]!.command).toBe('assert_enabled');
+      expect(r1[0]!.args[0]).toBe('"role:button[确认]"');
+      expect(r1[0]!.args[1]).toBe('near');
+      expect(r1[0]!.args[2]).toBe('"表格"');
+      expect(r1[0]!.args[3]).toBe('top');
+    });
+
+    it('解析带 /all 过滤修饰符的可用/禁用断言', () => {
+      const r1 = parseScript('assert_enabled "role:button[提交]"/all');
+      expect(r1[0]!.command).toBe('assert_enabled');
+      expect(r1[0]!.args[0]).toBe('"role:button[提交]"');
+      expect(r1[0]!.args[1]).toBe('/all');
+    });
+  });
 });

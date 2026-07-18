@@ -10,7 +10,7 @@ import { expect } from '@playwright/test';
 import type { DslInstruction } from '../types/dsl.types.js';
 import { parseScript } from './parser.js';
 import { loadMacro } from './macro-loader.js';
-import { resolveLocatorFromString, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from './locator-resolver.js';
+import { resolveLocatorFromString, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX, parseLocator, resolveLocator } from './locator-resolver.js';
 import type { ContextStore } from '../engine/context-store.js';
 import { getFormattedDateTime } from '../engine/datetime-utils.js';
 import { escapeRegex } from '../utils.js';
@@ -208,6 +208,8 @@ const ASSERT_COMMANDS = new Set<string>([
   'assert_text_equal',
   'assert_title_exists',
   'assert_url',
+  'assert_enabled',
+  'assert_disabled',
 ]);
 
 /**
@@ -719,6 +721,114 @@ async function executeCommand(
       const timeoutMs = args[1] ? parseDuration(args[1]) : defaultAssertTimeout;
       const locator = resolveLocatorFromString(page, locStr);
       await expect(locator).not.toBeVisible({ timeout: timeoutMs });
+      break;
+    }
+
+    // ── 断言：元素可用 ────────────────────────────────────────
+    case 'assert_enabled': {
+      let locStr = args[0]!;
+      let remainingArgs = args.slice(1);
+
+      if (remainingArgs.length >= 1 && (/^\/-?\d+$/.test(remainingArgs[0]!) || remainingArgs[0] === '/all')) {
+        locStr = `${locStr}${remainingArgs[0]}`;
+        remainingArgs.shift();
+      }
+
+      locStr = stripQuotes(locStr);
+      const parsed = parseLocator(locStr);
+      const isAll = parsed.modifier?.all === true;
+
+      const assertNearOpts = parseNearOptions(remainingArgs);
+      let timeoutMs = defaultAssertTimeout;
+
+      let locator: import("@playwright/test").Locator;
+      if (assertNearOpts) {
+        const lastArg = remainingArgs[remainingArgs.length - 1];
+        if (lastArg && /^\d+(\.\d+)?(ms|s|m)$/.test(lastArg)) {
+          timeoutMs = parseDuration(lastArg);
+        }
+        locator = await findNearestReachable(page, locStr, assertNearOpts, timeoutMs);
+      } else {
+        const lastArg = remainingArgs[0];
+        if (lastArg && /^\d+(\.\d+)?(ms|s|m)$/.test(lastArg)) {
+          timeoutMs = parseDuration(lastArg);
+        }
+        locator = resolveLocator(page, parsed);
+      }
+
+      if (isAll) {
+        const count = await locator.count();
+        if (count === 0) {
+          throw new Error(`assert_enabled: no visible elements found matching "${locStr}"`);
+        }
+        for (let i = 0; i < count; i++) {
+          await expect(locator.nth(i)).toBeEnabled({ timeout: timeoutMs });
+        }
+      } else {
+        await expect(locator).toBeEnabled({ timeout: timeoutMs });
+      }
+
+      if (opts.screenshotOnAssert) {
+        const dir = opts.screenshotDir || '.resumewright/screenshots';
+        fs.mkdirSync(dir, { recursive: true });
+        const screenshotPath = getScreenshotPath(dir, opts, inst, locStr);
+        await page.screenshot({ path: screenshotPath, fullPage: false });
+        console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
+      }
+      break;
+    }
+
+    // ── 断言：元素禁用 ────────────────────────────────────────
+    case 'assert_disabled': {
+      let locStr = args[0]!;
+      let remainingArgs = args.slice(1);
+
+      if (remainingArgs.length >= 1 && (/^\/-?\d+$/.test(remainingArgs[0]!) || remainingArgs[0] === '/all')) {
+        locStr = `${locStr}${remainingArgs[0]}`;
+        remainingArgs.shift();
+      }
+
+      locStr = stripQuotes(locStr);
+      const parsed = parseLocator(locStr);
+      const isAll = parsed.modifier?.all === true;
+
+      const assertNearOpts = parseNearOptions(remainingArgs);
+      let timeoutMs = defaultAssertTimeout;
+
+      let locator: import("@playwright/test").Locator;
+      if (assertNearOpts) {
+        const lastArg = remainingArgs[remainingArgs.length - 1];
+        if (lastArg && /^\d+(\.\d+)?(ms|s|m)$/.test(lastArg)) {
+          timeoutMs = parseDuration(lastArg);
+        }
+        locator = await findNearestReachable(page, locStr, assertNearOpts, timeoutMs);
+      } else {
+        const lastArg = remainingArgs[0];
+        if (lastArg && /^\d+(\.\d+)?(ms|s|m)$/.test(lastArg)) {
+          timeoutMs = parseDuration(lastArg);
+        }
+        locator = resolveLocator(page, parsed);
+      }
+
+      if (isAll) {
+        const count = await locator.count();
+        if (count === 0) {
+          throw new Error(`assert_disabled: no visible elements found matching "${locStr}"`);
+        }
+        for (let i = 0; i < count; i++) {
+          await expect(locator.nth(i)).toBeDisabled({ timeout: timeoutMs });
+        }
+      } else {
+        await expect(locator).toBeDisabled({ timeout: timeoutMs });
+      }
+
+      if (opts.screenshotOnAssert) {
+        const dir = opts.screenshotDir || '.resumewright/screenshots';
+        fs.mkdirSync(dir, { recursive: true });
+        const screenshotPath = getScreenshotPath(dir, opts, inst, locStr);
+        await page.screenshot({ path: screenshotPath, fullPage: false });
+        console.log(`[dsl]   📸 Assert screenshot saved: ${decodeURIComponent(screenshotPath)}`);
+      }
       break;
     }
 

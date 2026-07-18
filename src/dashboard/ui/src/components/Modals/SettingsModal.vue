@@ -8,7 +8,6 @@ const headed = ref(true)
 const trace = ref(true)
 const screenshotOnAssert = ref(true)
 const apiCache = ref(true)
-const cacheGet = ref(true)
 const concurrency = ref(3)
 
 async function load() {
@@ -19,7 +18,6 @@ async function load() {
       trace.value = !!settings.trace
       screenshotOnAssert.value = !!settings.screenshotOnAssert
       apiCache.value = settings.apiCache !== false
-      cacheGet.value = settings.cacheGet !== false
       concurrency.value = typeof settings.concurrency === 'number' ? settings.concurrency : 3
     }
   } catch (err) {
@@ -40,7 +38,7 @@ async function save() {
       trace: trace.value,
       screenshotOnAssert: screenshotOnAssert.value,
       apiCache: apiCache.value,
-      cacheGet: cacheGet.value,
+      cacheGet: apiCache.value,
       concurrency: val
     })
   } catch (err) {
@@ -110,16 +108,6 @@ onMounted(() => {
             </div>
             <div class="switch-control">
               <input type="checkbox" v-model="apiCache" @change="save">
-              <span class="slider"></span>
-            </div>
-          </label>
-          <label class="modal-switch-row">
-            <div class="switch-desc">
-              <span class="switch-title">包含 GET 请求</span>
-              <span class="switch-subtitle">同时按顺序记录 GET 响应；需先启用 API 顺序缓存</span>
-            </div>
-            <div class="switch-control">
-              <input type="checkbox" v-model="cacheGet" :disabled="!apiCache" @change="save">
               <span class="slider"></span>
             </div>
           </label>

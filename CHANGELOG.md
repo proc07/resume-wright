@@ -10,6 +10,7 @@
 ## [Unreleased] - 2026-07-17
 
 ### 新增 (Added)
+- **`assert_enabled` 与 `assert_disabled` 断言指令**：DSL 脚本原生支持 `assert_enabled "locator"` 与 `assert_disabled "locator"` 两个新指令，支持 `near` 近邻修饰符（如 `assert_enabled "xxx" near "anchor"`），支持尾部 `/all` 过滤修饰符以校验页面上所有符合条件的匹配节点，用于精准校验表单或操作按钮的可用与禁用状态，并支持断言成功时自动截图和超时自定义配置。
 - **API 响应顺序采集与回放**：普通运行按请求发起顺序记录同一接口的全部响应，缓存重新运行时使用 Step/SubStep 作用域、请求指纹和 occurrence 逐条回放，支持状态轮询等同接口多响应场景。
 - **动态请求体兼容**：请求指纹改为 Method + 归一化 URL；请求体仅用于诊断。同一端点按 occurrence 回放，避免 workflow ID、cache token 等嵌套动态值变化造成写请求缓存误判缺失。旧版 body-based 缓存会在加载时自动迁移。
 - **安全的回放错误传播**：写请求缓存缺失时先中止请求，再在 Step/SubStep 生命周期边界抛出错误，避免从 Playwright route 回调抛错导致未处理异常退出。

@@ -359,7 +359,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         trace: !!body.trace,
         screenshotOnAssert: !!body.screenshotOnAssert,
         apiCache: body.apiCache !== false,
-        cacheGet: !!body.cacheGet,
+        cacheGet: body.apiCache !== false,
         concurrency
       };
       saveDashboardSettings(settings);
@@ -912,7 +912,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
     const trace = url.searchParams.get('trace') === 'true';
     const screenshotOnAssert = url.searchParams.get('screenshotOnAssert') === 'true';
     const apiCache = url.searchParams.get('apiCache') !== 'false';
-    const cacheGet = url.searchParams.get('cacheGet') === 'true';
+    const cacheGet = apiCache;
     const readCache = url.searchParams.get('readCache') !== 'false';
     const rawConcurrency = parseInt(url.searchParams.get('concurrency') || '3', 10);
     const concurrency = isNaN(rawConcurrency) ? 3 : Math.max(1, Math.min(10, rawConcurrency));

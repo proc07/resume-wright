@@ -26,7 +26,9 @@ export type DslCommandName =
   | 'do_delete'
   | 'macro'
   | 'inspect'
-  | 'wait_api';
+  | 'wait_api'
+  | 'assert_enabled'
+  | 'assert_disabled';
 
 /** 变量赋值来源 */
 export type AssignSource =
@@ -79,6 +81,8 @@ export interface LocatorModifier {
   last?: boolean;
   /** DOM 标签过滤 */
   tag?: string;
+  /** 匹配所有节点标志 */
+  all?: boolean;
 }
 
 /** 解析后的元素定位信息 */

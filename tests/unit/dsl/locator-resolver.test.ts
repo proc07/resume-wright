@@ -144,6 +144,12 @@ describe('parseLocator()', () => {
       expect(p.modifier?.index).toBe(2);
     });
 
+    it('/all 所有元素修饰符', () => {
+      const p = parseLocator('提交/all');
+      expect(p.modifier?.all).toBe(true);
+      expect(p.value).toBe('提交');
+    });
+
     it('无修饰符时 modifier 为 undefined', () => {
       const p = parseLocator('提交');
       expect(p.modifier).toBeUndefined();

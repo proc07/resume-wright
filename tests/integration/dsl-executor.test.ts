@@ -265,6 +265,26 @@ describe('DSL 执行器集成测试', () => {
 
       fs.rmSync(tempDir, { recursive: true, force: true });
     });
+
+    it('断言可用和禁用元素（包括 near 修饰符支持与 /all 修饰符）', async () => {
+      const ctx = makeCtx();
+      await executeScript(`
+        open "$base_url"
+        # 验证默认是 enabled
+        assert_enabled "role:button[提交申请]"
+        # 带 near 验证
+        assert_enabled "删除" near "张三"
+        # 验证所有 "删除" 按钮都启用
+        assert_enabled "删除"/all
+        # 动态禁用全部 "删除" 按钮
+        execute_script
+        """
+        document.querySelectorAll('.near-btn').forEach(btn => btn.disabled = true);
+        """
+        # 验证所有 "删除" 按钮都已被禁用
+        assert_disabled "删除"/all
+      `, page, ctx, {});
+    });
   });
 
   describe('assert_url — URL 断言', () => {

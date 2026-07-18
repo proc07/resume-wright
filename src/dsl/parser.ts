@@ -17,7 +17,7 @@ const COMMANDS = new Set<DslCommandName>([
   'screenshot', 'wait', 'check', 'upload', 'execute_script',
   'assert_exists', 'assert_not_exists', 'assert_text_equal',
   'assert_title_exists', 'assert_url', 'do_get', 'do_post', 'do_put', 'do_delete',
-  'macro', 'inspect', 'wait_api',
+  'macro', 'inspect', 'wait_api', 'assert_enabled', 'assert_disabled',
 ]);
 
 // HTTP 命令集合（可以作为赋值来源）

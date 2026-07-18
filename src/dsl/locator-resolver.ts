@@ -43,6 +43,8 @@ function extractModifier(str: string): { base: string; modifier?: LocatorModifie
   if (/^-?\d+$/.test(modPart)) {
     const idx = parseInt(modPart, 10);
     modifier = idx === -1 ? { last: true } : { index: idx };
+  } else if (modPart === 'all') {
+    modifier = { all: true };
   } else {
     modifier = { tag: modPart };
   }

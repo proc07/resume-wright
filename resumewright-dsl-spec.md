@@ -290,6 +290,28 @@ assert_not_exists "错误提示" 10s           # 10 秒内不出现则通过
 
 ---
 
+### assert_enabled — 断言元素可用
+
+```bash
+assert_enabled "role:button[提交申请]"      # 断言按钮处于启用状态
+assert_enabled "提交申请" 10s               # 10 秒内启用则通过
+assert_enabled "删除" near "张三"           # 断言指定近邻位置的元素启用
+assert_enabled "删除"/all                   # 断言页面中所有匹配的“删除”按钮都处于启用状态
+```
+
+---
+
+### assert_disabled — 断言元素禁用
+
+```bash
+assert_disabled "role:button[确认]"         # 断言按钮处于禁用状态
+assert_disabled "确认" 10s                  # 10 秒内禁用则通过
+assert_disabled "删除" near "张三"          # 断言指定近邻位置的元素禁用
+assert_disabled "删除"/all                  # 断言页面中所有匹配的“删除”按钮都处于禁用状态
+```
+
+---
+
 ### assert_text_equal — 断言文本相等
 
 ```bash
