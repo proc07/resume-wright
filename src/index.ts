@@ -9,7 +9,15 @@ export { SubStepExecutor } from './engine/sub-step-executor.js';
 export { ContextStore } from './engine/context-store.js';
 export { Checkpoint, listCheckpoints, resetAllCheckpoints } from './engine/checkpoint.js';
 export { RolePool } from './engine/role-pool.js';
-export { NetworkInterceptor } from './engine/network-interceptor.js';
+export {
+  CacheReplayMismatchError,
+  NetworkInterceptor,
+  SharedStaticBootstrapCache,
+} from './engine/network-interceptor.js';
+export type {
+  NetworkInterceptorOptions,
+  SharedStaticBootstrapCacheOptions,
+} from './engine/network-interceptor.js';
 export { DomSnapshotManager } from './engine/dom-snapshot.js';
 export { SubStepStore } from './engine/sub-step-store.js';
 
@@ -21,7 +29,15 @@ export { loadMacro } from './dsl/macro-loader.js';
 export { loadCase, loadAllCases } from './adapters/yaml-loader.js';
 export { ElementsRegistry, getDefaultRegistry } from './adapters/elements-csv.js';
 
-export type { CaseDefinition, Step, SubStep, RoleCredential, OnFailureConfig } from './types/case.types.js';
+export type {
+  CaseDefinition,
+  Step,
+  SubStep,
+  RoleCredential,
+  OnFailureConfig,
+  BootstrapCacheConfig,
+  SharedStaticBootstrapConfig,
+} from './types/case.types.js';
 export type { DslScript, DslInstruction, DslCommandName, ParsedLocator } from './types/dsl.types.js';
 export type {
   SchedulerOptions,
@@ -30,6 +46,8 @@ export type {
   CheckpointData,
   DomSnapshot,
   ApiCacheEntry,
+  ApiCacheMetadata,
+  ApiReplaySummary,
   RoleSession,
   RoleContext,
 } from './types/engine.types.js';

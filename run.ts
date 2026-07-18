@@ -45,7 +45,7 @@ program
   .option('--no-api-cache', 'Disable API response caching')
   .option('--cache-get', 'Also cache GET requests (default: true)')
   .option('--no-cache-get', 'Disable caching of GET requests')
-  .option('--read-cache', 'Read and fulfill API requests from the cache (default: true)')
+  .option('--read-cache', 'Replay API requests from the cache in recorded order (default: false)')
   .option('--no-read-cache', 'Do not read from cache (write-only mode for normal runs)')
   .action(async (files: string[], opts) => {
     const headless = !opts.headed;
@@ -55,9 +55,9 @@ program
     const concurrency = parseInt(opts.concurrency, 10);
     const casesDir = opts.casesDir;
     const enableTrace = !!opts.trace;
-    const apiCache = !!opts.apiCache;
+    const apiCache = !process.argv.includes('--no-api-cache');
     const cacheGet = opts.cacheGet !== false;
-    const readCache = opts.readCache !== false;
+    const readCache = process.argv.includes('--read-cache') && !process.argv.includes('--no-read-cache');
 
     // 设置 headed 环境变量（playwright.config.ts 会读取）
     if (opts.headed) process.env['HEADED'] = 'true';

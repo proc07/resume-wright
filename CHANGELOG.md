@@ -7,6 +7,31 @@
 
 ---
 
+## [Unreleased] - 2026-07-17
+
+### 新增 (Added)
+- **API 响应顺序采集与回放**：普通运行按请求发起顺序记录同一接口的全部响应，缓存重新运行时使用 Step/SubStep 作用域、请求指纹和 occurrence 逐条回放，支持状态轮询等同接口多响应场景。
+- **动态请求体兼容**：请求指纹改为 Method + 归一化 URL；请求体仅用于诊断。同一端点按 occurrence 回放，避免 workflow ID、cache token 等嵌套动态值变化造成写请求缓存误判缺失。旧版 body-based 缓存会在加载时自动迁移。
+- **安全的回放错误传播**：写请求缓存缺失时先中止请求，再在 Step/SubStep 生命周期边界抛出错误，避免从 Playwright route 回调抛错导致未处理异常退出。
+- **CLI 缓存默认值修复**：`run --read-cache` 现在会默认启用 API 拦截器；此前未同时传入 `--api-cache` 时可能静默禁用缓存并发送真实请求。仍可通过 `--no-api-cache` 显式关闭。
+- **会话参数兼容**：URL 指纹会忽略 `globalId` 与 `cacheToken`，避免登录会话或分页令牌变化导致 GET 缓存误判缺失。
+- **缓存 attempt 快照隔离**：每次子步骤重试独立采集，仅最近一次成功 attempt 作为有效快照；失败 attempt 不再污染后续缓存重跑。
+- **回放差异诊断**：增加未消费缓存、GET 真实返回和写请求缓存缺失报告。GET 缓存耗尽时允许访问真实接口，写请求缓存耗尽时在产生副作用前安全失败。
+- **完整 HTTP 响应缓存**：支持记录和回放 2xx、3xx、4xx、5xx，并为响应正文增加 UTF-8/base64 编码标记。
+- **逐请求缓存来源标识**：为最新运行持久化 `api-requests.json` 请求记录；Dashboard 在 occurrence 右侧仅为实际缓存命中的接口显示 `cache` 标记，真实网络请求不显示该标记。
+- **角色级应用初始化缓存**：在登录或 storageState 恢复前挂载短生命周期 BrowserContext 拦截器，将首页、`config.json` 和 `users/details` 等启动 GET 请求保存到独立的 `role::<role>::bootstrap` scope。不同角色使用独立快照，回放完成角色 bootstrap 后才进入 Step/SubStep 业务缓存，并在 Dashboard 单独展示角色缓存来源。
+- **Case 级共享静态启动缓存**：同源白名单中的首页、HTML 和 `config.json` 按 fingerprint 只保存一份，后续角色 and 并发请求直接复用；`users/details` 等动态接口继续按角色隔离。个性化响应通过 Set-Cookie/Vary 自动降级为角色缓存，Dashboard 单独展示共享启动请求及 CACHE 来源。
+- **Local Network Access 自动授权**：首次运行、普通重新运行和缓存回放创建 BrowserContext 后、创建 Page 前，均按 `base_url` origin 自动授予 `local-network-access` 权限；缓存回放时阻止 Service Worker 绕过缓存 route，避免 Chromium 权限弹窗阻断登录、在线采集或本地响应回放。不支持该权限的浏览器会告警后继续运行。
+- **首次采集缓存可用标记**：请求 journal 新增 `cacheAvailable`，Dashboard 的 CACHE badge 统一表示响应已保存、可以回放；首次真实采集成功后立即显示，同时保留 `fromCache` 诊断实际缓存命中来源。
+- **缓存重跑错误截图分区**：最新一次缓存重跑只有最终失败时才写入独立错误截图，并在 Step 下新增“缓存步骤运行快照”；普通运行截图保持不变。
+
+### 变更 (Changed)
+- CLI 普通运行默认进入缓存采集模式，只有显式传入 `--read-cache` 才启用顺序回放。
+- Dashboard 缓存列表展示 occurrence 顺序，并支持显示没有 SubStep 的普通 Step 缓存。
+- Dashboard 共享启动缓存改为 按 Method + 归一化 URL fingerprint 的资源级单行视图，不再重复展示各角色触发记录及 occurrence；磁盘请求 journal 仍保留完整审计信息。
+- 使用缓存重新运行不再删除或覆盖首次普通运行的 Step/SubStep 状态、接口请求记录、DOM snapshots、普通截图和 trace；重跑数据写入独立 `cache-rerun-*` overlay，下次普通运行才建立新 baseline。
+- 继续兼容旧版 `api-cache.json` 数组，旧条目会按文件顺序自动推导 occurrence。
+
 ## [0.8.3] - 2026-07-10
 
 - **VS Code 配色一键同步功能**：

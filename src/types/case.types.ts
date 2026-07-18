@@ -35,6 +35,16 @@ export interface Step {
   skip_blocks?: boolean | string[];
 }
 
+export interface SharedStaticBootstrapConfig {
+  enabled?: boolean;
+  include?: string[];
+  exclude?: string[];
+}
+
+export interface BootstrapCacheConfig {
+  shared_static?: SharedStaticBootstrapConfig;
+}
+
 export interface CaseDefinition {
   name: string;
   description?: string;
@@ -43,6 +53,7 @@ export interface CaseDefinition {
   persist_vars?: string[];         // 长效持久化变量列表
   login_macro_path?: string;
   base_url?: string;                       // 全局基础 URL
+  bootstrap_cache?: BootstrapCacheConfig;
   roles: Record<string, RoleCredential>;
   on_failure?: OnFailureConfig;
   steps: Step[];

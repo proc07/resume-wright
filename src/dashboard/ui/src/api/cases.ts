@@ -18,6 +18,8 @@ export interface CaseData {
   completedCount: number
   totalSteps: number
   subStepsDetail?: Record<string, Record<string, SubStepState>>
+  sharedBootstrapCache?: ApiCacheEntry[]
+  roleCaches?: Record<string, ApiCacheEntry[]>
   traces?: string[]
   error?: string
   variables?: Record<string, any>
@@ -38,12 +40,25 @@ export interface ApiCacheEntry {
   url: string
   status: number
   body?: string
+  bodyEncoding?: 'utf8' | 'base64'
   requestBody?: string
+  occurrence?: number
+  sequence?: number
+  attemptId?: string
+  captureRunId?: string
+  cachedAt?: string
+  isActiveSnapshot?: boolean
+  fromCache?: boolean
+  cacheAvailable?: boolean
+  roleName?: string
 }
 
 export interface CaseDetails {
   caseName: string
   screenshots: string[]
+  cacheRerunScreenshots: string[]
+  sharedBootstrapCache: ApiCacheEntry[]
+  roleCaches: Record<string, ApiCacheEntry[]>
   subSteps: Record<string, Record<string, SubStepState>>
   traces: string[]
   error?: string

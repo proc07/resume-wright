@@ -30,6 +30,8 @@ export interface ExecutorOptions {
   assertTimeout?: string | number;
   screenshotCounter?: { count: number };
   isUseStep?: boolean;
+  suppressScreenshots?: boolean;
+  captureRunId?: string;
 }
 
 function getScreenshotPath(
@@ -430,6 +432,13 @@ async function executeCommand(
       let timeoutMs = 30000; // 默认 Playwright 导航超时 30s
       if (secondArg && secondArg !== 'fast') {
         timeoutMs = parseDuration(secondArg);
+      }
+
+      // 同一角色再次打开完全相同的 SPA/hash URL 时，浏览器可能保留当前 document。
+      // 自动经过 about:bLank，确保卸载旧日页面并重新触发目标页面的完整加载。
+      if (page.url() === url){
+        console.log(`[ds1] open target matches current URL. Resetting via about:blank...`);
+        await page.goto('about:blank', { waitUntil: 'load', timeout: timeoutMs });
       }
 
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });

@@ -302,33 +302,54 @@ export function resetCaseKeepCache(caseDir: string): void {
     const cpFile = path.join(caseDir, 'checkpoint.json');
     if (fs.existsSync(cpFile)) fs.unlinkSync(cpFile);
 
-    // 清除 sub-steps 下的 state.json 和 snapshots，保留 api-cache.json
+    // 首次普通运行是 Dashboard baseline。缓存重跑只清理上一轮 replay，
+    // 保留 state.json、api-requests.json、snapshots 和可回放缓存。
     const subStepsDir = path.join(caseDir, 'sub-steps');
     if (fs.existsSync(subStepsDir)) {
       for (const stepDir of fs.readdirSync(subStepsDir)) {
         const stepDirPath = path.join(subStepsDir, stepDir);
         if (!fs.statSync(stepDirPath).isDirectory()) continue;
 
-        // 删除 state.json
-        const stateFile = path.join(stepDirPath, 'state.json');
-        if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
+        const replayStateFile = path.join(stepDirPath, 'cache-rerun-state.json');
+        if (fs.existsSync(replayStateFile)) fs.unlinkSync(replayStateFile);
 
-        // 清空 snapshots 目录
-        const snapsDir = path.join(stepDirPath, 'snapshots');
-        if (fs.existsSync(snapsDir)) {
-          fs.rmSync(snapsDir, { recursive: true, force: true });
-          fs.mkdirSync(snapsDir, { recursive: true });
+        const replayRequestsFile = path.join(stepDirPath, 'cache-rerun-api-requests.json');
+        if (fs.existsSync(replayRequestsFile)) fs.unlinkSync(replayRequestsFile);
+
+        const replaySnapshotsDir = path.join(stepDirPath, 'cache-rerun-snapshots');
+        if (fs.existsSync(replaySnapshotsDir)) {
+          fs.rmSync(replaySnapshotsDir, { recursive: true, force: true });
         }
-        // api-cache.json 保留不动
       }
     }
 
-    // 清除 traces 和 screenshots，保留 history
-    const tracesDir = path.join(caseDir, 'traces');
-    if (fs.existsSync(tracesDir)) fs.rmSync(tracesDir, { recursive: true, force: true });
+    // 保留每个角色的 bootstrap api-cache.json / api-cache.meta.json，
+    // baseline journal 也保留，仅删除上一轮缓存重跑 journal。
+    const roleCacheDir = path.join(caseDir, 'role-cache');
+    if (fs.existsSync(roleCacheDir)) {
+      for (const roleDir of fs.readdirSync(roleCacheDir)) {
+        const roleDirPath = path.join(roleCacheDir, roleDir);
+        if (!fs.statSync(roleDirPath).isDirectory()) continue;
+        const requestsFile = path.join(roleDirPath, 'cache-rerun-api-requests.json');
+        if (fs.existsSync(requestsFile)) fs.unlinkSync(requestsFile);
+      }
+    }
 
-    const screenshotsDir = path.join(caseDir, 'screenshots');
-    if (fs.existsSync(screenshotsDir)) fs.rmSync(screenshotsDir, { recursive: true, force: true });
+    // 共享静态 bootstrap baseline 同样保留，只删除上一轮缓存重跑 journal。
+    const sharedBootstrapDir = path.join(caseDir, 'bootstrap-cache', 'shared-static');
+    const sharedRequestsFile = path.join(sharedBootstrapDir, 'cache-rerun-api-requests.json');
+    if (fs.existsSync(sharedRequestsFile)) fs.unlinkSync(sharedRequestsFile);
+
+    // baseline traces/screenshots 保留；仅清除最新一次缓存重跑错误截图。
+    const replayScreenshotsDir = path.join(caseDir, 'cache-rerun-screenshots');
+    if (fs.existsSync(replayScreenshotsDir)) {
+      fs.rmSync(replayScreenshotsDir, { recursive: true, force: true });
+    }
+
+    const replayTracesDir = path.join(caseDir, 'cache-rerun-traces');
+    if (fs.existsSync(replayTracesDir)) {
+      fs.rmSync(replayTracesDir, { recursive: true, force: true });
+    }
   } catch (err) {
     console.error(`[checkpoint] Failed to reset case (keep cache) at ${caseDir}:`, err);
   }

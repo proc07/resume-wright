@@ -10,6 +10,7 @@ import { Checkpoint, getSafeCaseName } from './checkpoint.js';
 import { RolePool } from './role-pool.js';
 import { StepExecutor } from './step-executor.js';
 import { getFormattedDateTime } from './datetime-utils.js';
+import { SharedStaticBootstrapCache } from './network-interceptor.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -189,6 +190,35 @@ export class WorkflowRunner {
         headless: this.opts.headless ?? true,
       });
 
+      const sharedStaticConfig = this.definition.bootstrap_cache?.shared_static;
+      const sharedStaticCache = this.opts.apiCache !== false
+        && sharedStaticConfig?.enabled !== false
+        && Boolean(sharedStaticConfig)
+        && Boolean(effectiveBaseUrl)
+        ? new SharedStaticBootstrapCache({
+            cacheFilePath: path.join(
+              caseDir,
+              'bootstrap-cache',
+              'shared-static',
+              'api-cache.json',
+            ),
+            baseUrl: effectiveBaseUrl!,
+            include: sharedStaticConfig?.include ?? [],
+            exclude: sharedStaticConfig?.exclude ?? [],
+            readCache: this.opts.readCache ?? false,
+            captureRunId: runId,
+            ignoreBareNumericQuery: true,
+            requestJournalFilePath: this.opts.readCache
+              ? path.join(
+                  caseDir,
+                  'bootstrap-cache',
+                  'shared-static',
+                  'cache-rerun-api-requests.json',
+                )
+              : undefined,
+          })
+        : undefined;
+
       // 初始化 RolePool
       const rolePool = new RolePool(
         browser,
@@ -200,6 +230,11 @@ export class WorkflowRunner {
           traceDir: this.opts.traceDir ?? path.join(caseDir, 'traces'),
           loginMacroPath: this.definition.login_macro_path ?? this.opts.loginMacroPath,
           baseUrl: this.opts.baseUrl ?? this.definition.base_url,
+          apiCache: this.opts.apiCache,
+          readCache: this.opts.readCache ?? false,
+          captureRunId: runId,
+          roleCacheDir: path.join(caseDir, 'role-cache'),
+          sharedStaticCache,
         },
         path.join(caseDir, 'states')
       );
@@ -212,6 +247,12 @@ export class WorkflowRunner {
         caseName,
         caseDir,
         screenshotDir: this.opts.screenshotOnFail ? screenshotDir : '',
+        errorScreenshotDir: this.opts.screenshotOnFail
+          ? this.opts.readCache
+            ? path.join(caseDir, 'cache-rerun-screenshots')
+            : screenshotDir
+          : '',
+        suppressScreenshots: this.opts.readCache ?? false,
         screenshotOnAssert: this.opts.screenshotOnAssert,
         assertTimeout: this.definition.assert_timeout,
         defaultOnFailure: this.definition.on_failure,
@@ -220,7 +261,8 @@ export class WorkflowRunner {
         afterHooks: this.definition.after_hooks,
         apiCache: this.opts.apiCache,
         cacheGet: this.opts.cacheGet,
-        readCache: this.opts.readCache,
+        readCache: this.opts.readCache ?? false,
+        captureRunId: runId,
       });
 
       let completedSteps = checkpoint.completedCount();

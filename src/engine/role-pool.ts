@@ -5,8 +5,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import type { RoleCredential } from '../types/case.types.js';
+import type { RoleCredential, BootstrapCacheConfig } from '../types/case.types.js';
 import type { RoleContext } from '../types/engine.types.js';
+import type { SharedStaticBootstrapCache } from './network-interceptor.js';
 import { getDefaultRegistry } from '../adapters/elements-csv.js';
 import { getDebuggerScript } from '../dsl/rw-debugger.js';
 import { parseLocator, resolveLocator, resolveInputLocator, stripQuotes, SPECIAL_LOCATOR_REGEX } from '../dsl/locator-resolver.js';
@@ -26,6 +27,12 @@ export interface RolePoolOptions {
   enableTrace?: boolean;
   traceDir?: string;
   baseUrl?: string;
+  apiCache?: boolean;
+  readCache?: boolean;
+  captureRunId?: string;
+  roleCacheDir?: string;
+  sharedStaticCache?: SharedStaticBootstrapCache;
+  bootstrapCache?: BootstrapCacheConfig;
 }
 
 /**

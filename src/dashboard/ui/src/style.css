@@ -918,12 +918,27 @@ code, pre {
 }
 
 /* ── 子步骤详情面板 ── */
+.card-substeps {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .substeps-panel {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
   max-height: 400px;
+  overflow-x: hidden;
   overflow-y: auto;
+}
+
+.substeps-panel > div,
+.substep-body {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .substep-card {
@@ -932,6 +947,7 @@ code, pre {
   border-radius: 8px;
   padding: 8px 12px;
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 6px;
 }
@@ -974,11 +990,18 @@ code, pre {
 .api-cache-list {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
   gap: 6px;
   background-color: rgba(11, 15, 25, 0.6);
   padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.api-cache-item-wrapper {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .api-cache-title {
@@ -990,6 +1013,8 @@ code, pre {
 
 .api-cache-item {
   display: flex;
+  min-width: 0;
+  width: 100%;
   justify-content: space-between;
   font-size: 11px;
   padding: 4px 0;
@@ -1021,11 +1046,13 @@ code, pre {
 }
 
 .api-cache-url {
+  display: block;
+  width: 100%;
   color: #cbd5e1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 240px;
+  max-width: 100%;
 }
 
 .api-cache-badge {
@@ -1035,6 +1062,18 @@ code, pre {
   border-radius: 3px;
   font-size: 9px;
   font-weight: 600;
+}
+
+.api-cache-origin-badge {
+  background-color: rgba(99, 102, 241, 0.18);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 /* ── 终端上下拖拽条 ── */
@@ -1933,8 +1972,9 @@ code, pre {
 
 .api-cache-url-container {
   position: relative;
-  overflow: visible;
-  max-width: 240px;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .screenshot-card-wrapper {

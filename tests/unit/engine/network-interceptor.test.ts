@@ -359,28 +359,47 @@ describe('NetworkInterceptor', () => {
       }
     });
 
-    it('核心数据不同时应该生成不同的指纹', async () => {
+    it('不同 body 核心数据在 capture/replay 模式下可以通过 occurrence 顺序匹配进行区分', async () => {
       const page = createMockPage();
-      const interceptor = new NetworkInterceptor(page, cacheFilePath);
+      const interceptor = new NetworkInterceptor(page, cacheFilePath, { readCache: false });
       await interceptor.attach();
+      interceptor.beginScopeAttempt('step-1');
 
       const handler = (page.route as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
 
       // 第一次请求：name = 'alice'
-      const { route: route1, fetchMock: fetchMock1 } = createMockRoute({ status: 200 });
-      const body1 = JSON.stringify({ name: 'alice', timestamp: '123' });
+      const { route: route1, fetchMock: fetchMock1 } = createMockRoute({ status: 200, body: '{"res":"alice"}' });
+      const body1 = JSON.stringify({ name: 'alice' });
       const request1 = createMockRequest({ method: 'POST', postData: body1 });
       await handler(route1, request1);
 
-      // 第二次请求：name = 'bob'（不同的核心数据）
-      const { route: route2, fetchMock: fetchMock2 } = createMockRoute({ status: 200 });
-      const body2 = JSON.stringify({ name: 'bob', timestamp: '456' });
+      // 第二次请求：name = 'bob'
+      const { route: route2, fetchMock: fetchMock2 } = createMockRoute({ status: 200, body: '{"res":"bob"}' });
+      const body2 = JSON.stringify({ name: 'bob' });
       const request2 = createMockRequest({ method: 'POST', postData: body2 });
       await handler(route2, request2);
 
-      // 两次都应该真正发送（不同的指纹）
       expect(fetchMock1).toHaveBeenCalledTimes(1);
       expect(fetchMock2).toHaveBeenCalledTimes(1);
+
+      // 切换回放模式测试有序回放
+      await interceptor.completeScopeAttempt();
+      await interceptor.detach();
+
+      const replayInterceptor = new NetworkInterceptor(page, cacheFilePath, { readCache: true });
+      await replayInterceptor.attach();
+      replayInterceptor.beginScopeAttempt('step-1');
+      const replayHandler = (page.route as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)[1];
+
+      const { route: rRoute1, fulfillMock: fulfillMock1, fetchMock: rFetchMock1 } = createMockRoute({ status: 200, body: '{"res":"alice"}' });
+      await replayHandler(rRoute1, request1);
+      expect(fulfillMock1).toHaveBeenCalledWith(expect.objectContaining({ body: '{"res":"alice"}' }));
+      expect(rFetchMock1).not.toHaveBeenCalled();
+
+      const { route: rRoute2, fulfillMock: fulfillMock2, fetchMock: rFetchMock2 } = createMockRoute({ status: 200, body: '{"res":"bob"}' });
+      await replayHandler(rRoute2, request2);
+      expect(fulfillMock2).toHaveBeenCalledWith(expect.objectContaining({ body: '{"res":"bob"}' }));
+      expect(rFetchMock2).not.toHaveBeenCalled();
     });
   });
 
@@ -924,34 +943,34 @@ describe('NetworkInterceptor', () => {
       const handler = (page.route as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
 
       const { route } = createMockRoute();
-      const abortSpy = vi.fn().mockResolvedValue(undefined);
-      route.abort = abortSpy;
-
-      // 1. 模拟一个永久挂起（极慢）的网络 fetch：
-      // 除非我们手动调用 rejectFetch，否则这个 Promise 会永远卡住
-      let rejectFetch!: (e: Error) => void;
+      let resolveFetch!: (res: any) => void;
+      
       route.fetch = vi.fn().mockImplementation(async () => {
-        return new Promise<any>((_, reject) => { rejectFetch = reject; });
-      });
-
-      // 2. 模拟 abort 方法：当拦截器调用 abort() 时，去触发上面的 Promise 失败报错
-      abortSpy.mockImplementation(async () => {
-        rejectFetch(new Error('aborted'));
+        return new Promise<any>((resolve) => { resolveFetch = resolve; });
       });
 
       const request = createMockRequest({ method: 'POST' });
 
-      // 3. 启动请求，此时 handlerPromise 处于 pending 状态（卡在 fetch 里）
+      // 启动请求，此时 handlerPromise 处于 pending 状态
       const handlerPromise = handler(route, request);
 
-      // 4. 调用 detach()：
-      // 测试期望：detach() 会主动去触发 route.abort()，从而解开上面那个永远卡住的 Promise
+      // 在 50ms 后模拟 fetch 完成
+      setTimeout(() => {
+        const mockResponse = {
+          status: () => 200,
+          headers: () => ({ 'content-type': 'application/json' }),
+          text: vi.fn().mockResolvedValue('{"success":true}'),
+        };
+        resolveFetch(mockResponse);
+      }, 50);
+
+      const startTime = Date.now();
       await interceptor.detach();
+      const duration = Date.now() - startTime;
 
-      // 5. 验证 handlerPromise 最终能够顺利退出，没有无限卡死
+      // 验证 detach() 确实等待了 handlerPromise 完成
+      expect(duration).toBeGreaterThanOrEqual(40);
       await handlerPromise;
-
-      expect(abortSpy).toHaveBeenCalledWith('aborted');
     });
   });
 });

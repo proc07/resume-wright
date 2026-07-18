@@ -17,7 +17,7 @@ export interface SchedulerOptions {
   traceDir?: string;
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
   cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
-  readCache?: boolean;        // 是否从缓存读取数据，默认 true
+  readCache?: boolean;        // 是否从缓存顺序回放数据，默认 false
 }
 
 /** 单个 Case 执行选项 */
@@ -31,7 +31,7 @@ export interface WorkflowRunnerOptions {
   traceDir?: string;
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
   cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
-  readCache?: boolean;        // 是否从缓存读取数据，默认 true
+  readCache?: boolean;        // 是否从缓存顺序回放数据，默认 false
   baseUrl?: string;           // 覆盖用例的 base_url (常用于测试)
 }
 
@@ -44,6 +44,8 @@ export interface StepExecutionContext {
   caseName: string;
   caseDir: string;
   screenshotDir: string;
+  errorScreenshotDir?: string;
+  suppressScreenshots?: boolean;
   screenshotOnAssert?: boolean;
   assertTimeout?: string | number;
   defaultOnFailure?: import('./case.types.js').OnFailureConfig;
@@ -52,7 +54,8 @@ export interface StepExecutionContext {
   afterHooks?: string;
   apiCache?: boolean;         // 是否启用 API 响应缓存，默认 true
   cacheGet?: boolean;         // 是否缓存 GET 请求，默认 false
-  readCache?: boolean;        // 是否从缓存读取数据，默认 true
+  readCache?: boolean;        // 是否从缓存顺序回放数据，默认 false
+  captureRunId?: string;      // 本次采集/回放运行 ID
 }
 
 /** Case 执行结果 */
@@ -113,10 +116,69 @@ export interface ApiCacheEntry {
   url: string;
   status: number;
   headers: Record<string, string>;
-  body: string;               // JSON 字符串 (Response)
-  requestBody?: string;       // JSON 字符串 (Request)
+  body: string;
+  bodyEncoding?: 'utf8' | 'base64';
+  requestBody?: string;
   cachedAt: string;           // ISO 8601
   subStepId?: string;
+  stepId?: string;
+  scopeId?: string;
+  occurrence?: number;           // 同 scope + Method/归一化 URL 下第几次请求
+  sequence?: number;             // 当前 scope 内所有 API 的请求发起顺序
+  attemptId?: string;
+  captureRunId?: string;
+  matchKeyVersion?: number;
+  responseKind?: 'http';
+  isActiveSnapshot?: boolean;
+}
+
+/** Dashboard 使用的本次运行 API 请求记录，不参与缓存匹配 */
+export interface ApiRequestEvent {
+  runId: string;
+  method: string;
+  url: string;
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  bodyEncoding?: 'utf8' | 'base64';
+  requestBody?: string;
+  requestedAt: string;
+  subStepId?: string;
+  stepId?: string;
+  scopeId?: string;
+  occurrence: number;
+  sequence: number;
+  attemptId: string;
+  fromCache: boolean;
+  cacheAvailable?: boolean;       // 响应是否已保存，可用于后续回放
+  roleName?: string;              // 共享 bootstrap journal 中记录触发请求的角色
+}
+
+export interface ApiRequestJournal {
+  version: 3;
+  runId: string;
+  entries: ApiRequestEvent[];
+}
+
+/** 每个 scope 当前活跃的成功采集快照 */
+export interface ApiCacheMetadata {
+  version: 1;
+  activeAttempts: Record<string, {
+    attemptId: string;
+    captureRunId: string;
+    entryCount: number;
+    completedAt: string;
+  }>;
+}
+
+/** 某个 scope 的缓存回放统计 */
+export interface ApiReplaySummary {
+  scopeId: string;
+  cached: number;
+  consumed: number;
+  cacheHits: number;
+  liveFallbacks: number;
+  unconsumed: number;
 }
 
 /** 角色 Session 缓存 */

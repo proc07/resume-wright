@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadCase } from '../adapters/yaml-loader.js';
 import { Checkpoint, listCheckpoints, resetAllCheckpoints, resetCaseRuntime, resetCaseKeepCache, resetAllRuntimes, getSafeCaseName } from '../engine/checkpoint.js';
+import { createFingerprint } from '../engine/network-interceptor.js';
 import fg from 'fast-glob';
 
 // 获取当前目录路径（ESM 规范下替代 __dirname）
@@ -25,6 +26,31 @@ const lastRunStatuses: Record<string, 'passed' | 'failed' | 'running' | 'never_r
 
 // 缓存 caseName -> safeCaseName 相对路径映射，避免重复扫描文件系统
 const caseNameCache: Record<string, string> = {};
+
+
+
+/**
+ * 共享启动缓存是资源快照视图，而 api-requests.json 是逐次触发事件流。
+ * Dashboard 按与缓存引擎相同的 fingerprint 折叠事件，同时保留 journal 原文件用于审计。
+ */
+function deduplicateSharedBootstrapEntries(entries: any[]): any[] {
+  const resources = new Map<string, any>();
+  for (const entry of entries) {
+    const fingerprint = createFingerprint(entry.method, entry.url, true);
+    const existing = resources.get(fingerprint);
+    if (existing) {
+      existing.fromCache = existing.fromCache === true || entry.fromCache === true;
+      existing.cacheAvailable = existing.cacheAvailable === true || entry.cacheAvailable === true;
+      continue;
+    }
+
+    const resource = { ...entry };
+    delete resource.roleName;
+    delete resource.occurrence;
+    resources.set(fingerprint, resource);
+  }
+  return [...resources.values()];
+}
 
 function resolveSafeCaseName(caseName: string): string {
   if (caseNameCache[caseName]) {
@@ -409,6 +435,25 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       const safeCaseName = resolveSafeCaseName(caseName);
       const caseDir = path.join('.resumewright', safeCaseName);
 
+      // 读取最新的 error 信息和运行状态信息
+      let latestError: string | undefined;
+      let latestRunId: string | undefined;
+      let latestRunStatus: string | undefined;
+      try {
+        const historyFile = path.join(caseDir, 'history', 'history.json');
+        if (fs.existsSync(historyFile)) {
+          const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+          if (history && history.length > 0) {
+            const latest = history[0];
+            latestRunId = latest.runId;
+            latestRunStatus = latest.status;
+            if (latest.status === 'failed') {
+              latestError = latest.error || undefined;
+            }
+          }
+        }
+      } catch { /* ignore */ }
+
       // 读取 screenshots
       const screenshots: string[] = [];
       const ssDir = path.join(caseDir, 'screenshots');
@@ -416,7 +461,21 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         try {
           fs.readdirSync(ssDir)
             .filter((f) => f.endsWith('.png'))
-            .forEach((f) => screenshots.push(`/api/screenshots/${encodedCaseName}/${f}`));
+            .forEach((f) => screenshots.push(
+              `/api/screenshots/${encodedCaseName}/${encodeURIComponent(f)}`,
+            ));
+        } catch { /* ignore */ }
+      }
+
+      const cacheRerunScreenshots: string[] = [];
+      const cacheRerunSsDir = path.join(caseDir, 'cache-rerun-screenshots');
+      if (fs.existsSync(cacheRerunSsDir)) {
+        try {
+          fs.readdirSync(cacheRerunSsDir)
+            .filter((f) => f.endsWith('.png'))
+            .forEach((f) => cacheRerunScreenshots.push(
+              `/api/cache-rerun-screenshots/${encodedCaseName}/${encodeURIComponent(f)}`,
+            ));
         } catch { /* ignore */ }
       }
 
@@ -437,53 +496,268 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (fs.existsSync(subStepsDir)) {
         try {
           const stepDirs = fs.readdirSync(subStepsDir);
+          const hasLatestRunJournal = stepDirs.some((sDir) => {
+            const requestsPath = path.join(subStepsDir, sDir, 'api-requests.json');
+            try {
+              if (!fs.existsSync(requestsPath)) return false;
+              const journal = JSON.parse(fs.readFileSync(requestsPath, 'utf-8'));
+              return journal?.version === 1;
+            } catch {
+              return false;
+            }
+          });
+
           for (const sDir of stepDirs) {
             const statePath = path.join(subStepsDir, sDir, 'state.json');
             const cachePath = path.join(subStepsDir, sDir, 'api-cache.json');
-            if (fs.existsSync(statePath)) {
-              try {
-                const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-                if (fs.existsSync(cachePath)) {
-                  try {
-                    const cacheEntries = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as any[];
-                    for (const entry of cacheEntries) {
-                      const subId = entry.subStepId;
-                      if (subId && state[subId]) {
-                        if (!state[subId].apiCache) {
-                          state[subId].apiCache = [];
-                        }
-                        state[subId].apiCache.push({
-                          method: entry.method,
-                          url: entry.url,
-                          status: entry.status,
-                          body: entry.body,
-                          requestBody: entry.requestBody || undefined,
-                        });
-                      }
+            const requestsPath = path.join(subStepsDir, sDir, 'api-requests.json');
+            if (!fs.existsSync(statePath) && !fs.existsSync(cachePath) && !fs.existsSync(requestsPath)) continue;
+
+            try {
+              const state = fs.existsSync(statePath)
+                ? JSON.parse(fs.readFileSync(statePath, 'utf-8'))
+                : {};
+              let hasLatestRunRequests = false;
+              if (fs.existsSync(requestsPath)) {
+                try {
+                  const journal = JSON.parse(fs.readFileSync(requestsPath, 'utf-8'));
+                  if (journal?.version === 1) {
+                    hasLatestRunRequests = true;
+                    for (const entry of journal.entries || []) {
+                      const subId = entry.subStepId || '$step';
+                      if (!state[subId]) state[subId] = { status: 'completed' };
+                      if (!state[subId].apiCache) state[subId].apiCache = [];
+                      state[subId].apiCache.push({
+                        method: entry.method,
+                        url: entry.url,
+                        status: entry.status,
+                        body: entry.body,
+                        bodyEncoding: entry.bodyEncoding,
+                        requestBody: entry.requestBody || undefined,
+                        occurrence: entry.occurrence,
+                        sequence: entry.sequence,
+                        attemptId: entry.attemptId,
+                        captureRunId: entry.runId,
+                        cachedAt: entry.requestedAt,
+                        fromCache: entry.fromCache === true,
+                        cacheAvailable: entry.cacheAvailable ?? true,
+                      });
                     }
-                  } catch { /* ignore */ }
-                }
-                subStepsData[sDir] = state;
-              } catch { /* ignore */ }
+                  }
+                } catch { /* ignore */ }
+              }
+
+              const mayUseLegacySnapshots = !hasLatestRunRequests
+                && !hasLatestRunJournal
+                && latestRunStatus !== 'running';
+              if (mayUseLegacySnapshots && fs.existsSync(cachePath)) {
+                try {
+                  const cacheEntries = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as any[];
+                  const metadataPath = path.join(subStepsDir, sDir, 'api-cache.meta.json');
+                  const metadata = fs.existsSync(metadataPath)
+                    ? JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+                    : { activeAttempts: {} };
+                  for (const entry of cacheEntries) {
+                    const subId = entry.subStepId || '$step';
+                    const scopeId = entry.scopeId || subId;
+                    const activeAttempt = metadata.activeAttempts?.[scopeId]?.attemptId;
+                    const isActiveSnapshot = activeAttempt
+                      ? entry.attemptId === activeAttempt
+                      : entry.isActiveSnapshot !== false;
+                    if (!isActiveSnapshot) continue;
+                    if (!state[subId]) {
+                      state[subId] = { status: 'completed' };
+                    }
+                    if (!state[subId].apiCache) state[subId].apiCache = [];
+                    state[subId].apiCache.push({
+                      method: entry.method,
+                      url: entry.url,
+                      status: entry.status,
+                      body: entry.body,
+                      bodyEncoding: entry.bodyEncoding,
+                      requestBody: entry.requestBody || undefined,
+                      occurrence: entry.occurrence,
+                      sequence: entry.sequence,
+                      attemptId: entry.attemptId,
+                      captureRunId: entry.captureRunId,
+                      cachedAt: entry.cachedAt,
+                      isActiveSnapshot,
+                      fromCache: undefined,
+                      cacheAvailable: true,
+                    });
+                  }
+                } catch { /* ignore */ }
+              }
+              subStepsData[sDir] = state;
+            } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      }
+
+      // 读取 Case 内所有角色共用的静态启动缓存。
+      const sharedBootstrapCacheData: any[] = [];
+      const sharedBootstrapDir = path.join(caseDir, 'bootstrap-cache', 'shared-static');
+      const sharedRequestsPath = path.join(sharedBootstrapDir, 'api-requests.json');
+      const sharedCachePath = path.join(sharedBootstrapDir, 'api-cache.json');
+      let hasLatestSharedJournal = false;
+      if (fs.existsSync(sharedRequestsPath)) {
+        try {
+          const journal = JSON.parse(fs.readFileSync(sharedRequestsPath, 'utf-8'));
+          if (journal?.version === 1) {
+            hasLatestSharedJournal = true;
+            for (const entry of journal.entries || []) {
+              sharedBootstrapCacheData.push({
+                method: entry.method,
+                url: entry.url,
+                status: entry.status,
+                body: entry.body,
+                bodyEncoding: entry.bodyEncoding,
+                requestBody: entry.requestBody || undefined,
+                occurrence: entry.occurrence,
+                sequence: entry.sequence,
+                attemptId: entry.attemptId,
+                captureRunId: entry.runId,
+                cachedAt: entry.requestedAt,
+                fromCache: entry.fromCache === true,
+                cacheAvailable: entry.cacheAvailable ?? true,
+                roleName: entry.roleName,
+              });
             }
           }
         } catch { /* ignore */ }
       }
 
-      // 读取最新的 error 信息
-      let latestError: string | undefined;
-      try {
-        const historyFile = path.join(caseDir, 'history', 'history.json');
-        if (fs.existsSync(historyFile)) {
-          const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
-          if (history && history.length > 0) {
-            const latest = history[0];
-            if (latest.status === 'failed') {
-              latestError = latest.error || undefined;
-            }
+      if (!hasLatestSharedJournal && latestRunStatus !== 'running' && fs.existsSync(sharedCachePath)) {
+        try {
+          const cacheEntries = JSON.parse(fs.readFileSync(sharedCachePath, 'utf-8')) as any[];
+          for (const entry of cacheEntries) {
+            if (entry.isActiveSnapshot === false) continue;
+            sharedBootstrapCacheData.push({
+              method: entry.method,
+              url: entry.url,
+              status: entry.status,
+              body: entry.body,
+              bodyEncoding: entry.bodyEncoding,
+              requestBody: entry.requestBody || undefined,
+              occurrence: 1,
+              sequence: entry.sequence,
+              attemptId: entry.attemptId,
+              captureRunId: entry.captureRunId,
+              cachedAt: entry.cachedAt,
+              isActiveSnapshot: true,
+              fromCache: undefined,
+              cacheAvailable: true,
+            });
           }
-        }
-      } catch { /* ignore */ }
+        } catch { /* ignore */ }
+      }
+
+      const uniqueSharedBootstrapCacheData = deduplicateSharedBootstrapEntries(
+        sharedBootstrapCacheData,
+      );
+
+      // 读取每个角色的应用启动缓存。最新 run 的 api-requests.json 是请求来源权威数据；
+      // 旧运行没有 journal 时才回退展示 active snapshot。
+      const roleCachesData: Record<string, any[]> = {};
+      const roleCacheDir = path.join(caseDir, 'role-cache');
+      if (fs.existsSync(roleCacheDir)) {
+        try {
+          const roleDirs = fs.readdirSync(roleCacheDir).filter((roleDir) => {
+            const roleDirPath = path.join(roleCacheDir, roleDir);
+            return fs.statSync(roleDirPath).isDirectory();
+          });
+          const hasLatestRoleJournal = Boolean(latestRunId) && roleDirs.some((roleDir) => {
+            const requestsPath = path.join(roleCacheDir, roleDir, 'api-requests.json');
+            try {
+              if (!fs.existsSync(requestsPath)) return false;
+              const journal = JSON.parse(fs.readFileSync(requestsPath, 'utf-8'));
+              return journal?.version === 1;
+            } catch {
+              return false;
+            }
+          });
+
+          for (const roleDir of roleDirs) {
+            const roleDirPath = path.join(roleCacheDir, roleDir);
+            const requestsPath = path.join(roleDirPath, 'api-requests.json');
+            const cachePath = path.join(roleDirPath, 'api-cache.json');
+            let hasLatestRequests = false;
+            let roleName = roleDir;
+            let rows: any[] = [];
+
+            if (fs.existsSync(requestsPath)) {
+              try {
+                const journal = JSON.parse(fs.readFileSync(requestsPath, 'utf-8'));
+                if (journal?.version === 1) {
+                  hasLatestRequests = true;
+                  for (const entry of journal.entries || []) {
+                    if (typeof entry.stepId === 'string' && entry.stepId.startsWith('role:')) {
+                      roleName = entry.stepId.slice('role:'.length);
+                    }
+                    rows.push({
+                      method: entry.method,
+                      url: entry.url,
+                      status: entry.status,
+                      body: entry.body,
+                      bodyEncoding: entry.bodyEncoding,
+                      requestBody: entry.requestBody || undefined,
+                      occurrence: entry.occurrence,
+                      sequence: entry.sequence,
+                      attemptId: entry.attemptId,
+                      captureRunId: entry.runId,
+                      cachedAt: entry.requestedAt,
+                      fromCache: entry.fromCache === true,
+                      cacheAvailable: entry.cacheAvailable ?? true,
+                    });
+                  }
+                }
+              } catch { /* ignore */ }
+            }
+
+            const mayUseLegacySnapshot = !hasLatestRoleJournal
+              && !hasLatestRequests
+              && latestRunStatus !== 'running';
+            if (mayUseLegacySnapshot && fs.existsSync(cachePath)) {
+              try {
+                const cacheEntries = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as any[];
+                const metadataPath = path.join(roleDirPath, 'api-cache.meta.json');
+                const metadata = fs.existsSync(metadataPath)
+                  ? JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+                  : { activeAttempts: {} };
+                for (const entry of cacheEntries) {
+                  if (typeof entry.stepId === 'string' && entry.stepId.startsWith('role:')) {
+                    roleName = entry.stepId.slice('role:'.length);
+                  }
+                  const scopeId = entry.scopeId || `role:${roleName}::bootstrap`;
+                  const activeAttempt = metadata.activeAttempts?.[scopeId]?.attemptId;
+                  const isActiveSnapshot = activeAttempt
+                    ? entry.attemptId === activeAttempt
+                    : entry.isActiveSnapshot !== false;
+                  if (!isActiveSnapshot) continue;
+                  rows.push({
+                    method: entry.method,
+                    url: entry.url,
+                    status: entry.status,
+                    body: entry.body,
+                    bodyEncoding: entry.bodyEncoding,
+                    requestBody: entry.requestBody || undefined,
+                    occurrence: entry.occurrence,
+                    sequence: entry.sequence,
+                    attemptId: entry.attemptId,
+                    captureRunId: entry.captureRunId,
+                    cachedAt: entry.cachedAt,
+                    isActiveSnapshot,
+                    fromCache: undefined,
+                    cacheAvailable: true,
+                  });
+                }
+              } catch { /* ignore */ }
+            }
+
+            if (rows.length > 0) roleCachesData[roleName] = rows;
+          }
+        } catch { /* ignore */ }
+      }
 
       // 读取 checkpoint 中的本地变量 (context) 与耗时
       let variables: Record<string, any> = {};
@@ -525,6 +799,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       return jsonRes(res, 200, {
         caseName,
         screenshots,
+        cacheRerunScreenshots,
         subSteps: subStepsData,
         traces,
         error: latestError,
@@ -532,6 +807,8 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         stepDurations,
         duration: caseDuration,
         startTime,
+        sharedBootstrapCache: uniqueSharedBootstrapCacheData,
+        roleCaches: roleCachesData,
       });
     } catch (err: any) {
       return jsonRes(res, 500, { error: err.message });
@@ -904,6 +1181,36 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       const safeCaseName = resolveSafeCaseName(caseName);
       const decodedFileName = decodeURIComponent(fileName);
       const filePath = path.join('.resumewright', safeCaseName, 'screenshots', decodedFileName);
+
+      if (fs.existsSync(filePath)) {
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        fs.createReadStream(filePath).pipe(res);
+        return;
+      }
+    } catch { /* ignore */ }
+
+    res.writeHead(404);
+    res.end('Not found');
+    return;
+  }
+
+  // ── 静态资源映射: cache-rerun 截图预览 ──
+  if (pathname.startsWith('/api/cache-rerun-screenshots/') && req.method === 'GET') {
+    try {
+      const segments = pathname.split('/');
+      const encodedCaseName = segments[3];
+      const fileName = segments[4];
+
+      if (!encodedCaseName || !fileName) {
+        res.writeHead(404);
+        res.end('Not found');
+        return;
+      }
+
+      const caseName = decodeURIComponent(encodedCaseName);
+      const safeCaseName = resolveSafeCaseName(caseName);
+      const decodedFileName = decodeURIComponent(fileName);
+      const filePath = path.join('.resumewright', safeCaseName, 'cache-rerun-screenshots', decodedFileName);
 
       if (fs.existsSync(filePath)) {
         res.writeHead(200, { 'Content-Type': 'image/png' });

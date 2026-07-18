@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, onUnmounted } from 'vue'
-import type { CaseData } from '@/api/cases'
+import type { ApiCacheEntry, CaseData } from '@/api/cases'
 import ScreenshotsGallery from './ScreenshotsGallery.vue'
 
 const props = defineProps<{
@@ -16,6 +16,21 @@ const step = computed(() => {
 const subStepsDetail = computed(() => {
   if (!props.selectedStepId || !props.caseData.subStepsDetail) return null
   return props.caseData.subStepsDetail[props.selectedStepId] || null
+})
+
+const screenshotStepIds = computed(() => {
+  if (!props.selectedStepId) return []
+  const subStepIds = Object.keys(subStepsDetail.value || {})
+    .filter(id => id !== '$step')
+  return [props.selectedStepId, ...subStepIds]
+})
+
+const mainStepCache = computed(() => subStepsDetail.value?.['$step']?.apiCache || [])
+const sharedBootstrapCache = computed(() => props.caseData.sharedBootstrapCache || [])
+
+const roleBootstrapCache = computed(() => {
+  if (!step.value) return []
+  return props.caseData.roleCaches?.[step.value.role] || []
 })
 
 const stepIndex = computed(() => {
@@ -144,6 +159,41 @@ function formatJson(bodyStr: string | undefined): string {
   }
 }
 
+function displayApiUrl(entry: ApiCacheEntry): string {
+  if (entry.method.toUpperCase() !== 'GET') return entry.url
+  return entry.url.replace(/\/?[\?#]*/, '')
+}
+
+function formatRequestDetails(entry: ApiCacheEntry): string {
+  const details: Record<string, unknown> = {}
+
+  try {
+    const url = new URL(entry.url, window.location.origin)
+    const query: Record<string, string | string[]> = {}
+    for (const [key, value] of url.searchParams.entries()) {
+      const current = query[key]
+      if (current === undefined) query[key] = value
+      else if (Array.isArray(current)) current.push(value)
+      else query[key] = [current, value]
+    }
+    if (Object.keys(query).length > 0) details.query = query
+  } catch {
+    // 无效 URL 不影响原始请求体展示
+  }
+
+  if (entry.requestBody) {
+    try {
+      details.body = JSON.parse(entry.requestBody)
+    } catch {
+      details.body = entry.requestBody
+    }
+  }
+
+  return Object.keys(details).length > 0
+    ? JSON.stringify(details)
+    : '无请求参数或请求体数据 (No request parameters or body)'
+}
+
 // ── 全局 Teleport 悬浮窗逻辑 ──
 const activeTooltip = ref<{
   title: string
@@ -208,6 +258,103 @@ function handlePopoverMouseLeave() {
         请选择上面的步骤，或在有子步骤的步骤运行后在此处查看缓存与快照状态。
       </div>
       <div v-else-if="step">
+        <!-- 共享自动缓存 -->
+        <div v-if="sharedBootstrapCache.length > 0" class="substep-card">
+          <div class="substep-header">
+            <span class="substep-title">共享自动缓存</span>
+            <span class="substep-status completed">Case 内所有角色共享</span>
+          </div>
+          <div class="substep-body">
+            <div class="api-cache-list mt-2">
+              <div class="api-cache-title">静态应用资源 (Shared Bootstrap Cache)</div>
+              <div
+                v-for="c in sharedBootstrapCache"
+                :key="`${c.method}:${c.url}`"
+                class="api-cache-item-wrapper"
+              >
+                <div class="api-cache-item">
+                  <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
+                    <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
+                    <div class="api-cache-url-container" :title="c.url">
+                      <span class="api-cache-url">{{ displayApiUrl(c) }}</span>
+                    </div>
+                  </div>
+                  
+                  <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
+                    <span v-if="c.cacheAvailable" class="api-cache-badge" :title="c.url">cache</span>
+                    <span class="api-cache-badge" style="margin-right: 2px;">{{ c.status }}</span>
+                    
+                    <div class="api-tag-container">
+                      <span
+                        class="api-action-tag req-tag"
+                        @mouseenter="handleMouseEnter($event, 'Request Details (JSON):', formatRequestDetails(c))"
+                        @mouseleave="handleMouseLeave"
+                      >req</span>
+                    </div>
+
+                    <div class="api-tag-container">
+                      <span
+                        class="api-action-tag res-tag"
+                        @mouseenter="handleMouseEnter($event, 'Response Body (JSON):', c.body || '无响应体数据 (No response body)')"
+                        @mouseleave="handleMouseLeave"
+                      >res</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 角色自动缓存 -->
+        <div v-if="roleBootstrapCache.length > 0" class="substep-card">
+          <div class="substep-header">
+            <span class="substep-title">角色自动缓存: <code>{{ step.role }}</code></span>
+            <span class="substep-status completed">角色内共享</span>
+          </div>
+          <div class="substep-body">
+            <div class="api-cache-list mt-2">
+              <div class="api-cache-title">应用初始化缓存 (Role Bootstrap Cache)</div>
+              <div
+                v-for="(c, cIdx) in roleBootstrapCache"
+                :key="cIdx"
+                class="api-cache-item-wrapper"
+              >
+                <div class="api-cache-item">
+                  <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
+                    <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
+                    <div class="api-cache-url-container" :title="c.url">
+                      <span class="api-cache-url">{{ displayApiUrl(c) }}</span>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
+                    <span class="api-cache-badge">#{{ c.occurrence || cIdx + 1 }}</span>
+                    <span v-if="c.cacheAvailable" class="api-cache-origin-badge">cache</span>
+                    <span class="api-cache-badge" style="margin-right: 2px;">{{ c.status }}</span>
+                    
+                    <div class="api-tag-container">
+                      <span
+                        class="api-action-tag req-tag"
+                        @mouseenter="handleMouseEnter($event, 'Request Details (JSON):', formatRequestDetails(c))"
+                        @mouseleave="handleMouseLeave"
+                      >req</span>
+                    </div>
+
+                    <div class="api-tag-container">
+                      <span
+                        class="api-action-tag res-tag"
+                        @mouseenter="handleMouseEnter($event, 'Response Body (JSON):', c.body || '无响应体数据 (No response body)')"
+                        @mouseleave="handleMouseLeave"
+                      >res</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <template v-if="step.subStepsCount === 0">
           <div class="substep-card">
             <div class="substep-header">
@@ -225,6 +372,48 @@ function handlePopoverMouseLeave() {
             >
               {{ formatError(props.caseData.error) }}
             </pre>
+
+            <div v-if="mainStepCache.length > 0" class="api-cache-list mt-2">
+              <div class="api-cache-title">接口有序缓存 (API Ordered Cache)</div>
+              <div>
+                <div
+                  v-for="(c, cIdx) in mainStepCache"
+                  :key="cIdx"
+                  class="api-cache-item-wrapper"
+                >
+                  <div class="api-cache-item">
+                    <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
+                      <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
+                      <div class="api-cache-url-container" :title="c.url">
+                        <span class="api-cache-url">{{ displayApiUrl(c) }}</span>
+                      </div>
+                    </div>
+
+                    <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
+                      <span class="api-cache-badge">#{{ c.occurrence || cIdx + 1 }}</span>
+                      <span v-if="c.cacheAvailable" class="api-cache-origin-badge">cache</span>
+                      <span class="api-cache-badge" style="margin-right: 2px;">{{ c.status }}</span>
+                      
+                      <div class="api-tag-container">
+                        <span
+                          class="api-action-tag req-tag"
+                          @mouseenter="handleMouseEnter($event, 'Request Details (JSON):', formatRequestDetails(c))"
+                          @mouseleave="handleMouseLeave"
+                        >req</span>
+                      </div>
+
+                      <div class="api-tag-container">
+                        <span
+                          class="api-action-tag res-tag"
+                          @mouseenter="handleMouseEnter($event, 'Response Body (JSON):', c.body || '无响应体数据 (No response body)')"
+                          @mouseleave="handleMouseLeave"
+                        >res</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </template>
         <template v-else-if="!subStepsDetail || Object.keys(subStepsDetail).length === 0">
@@ -260,7 +449,7 @@ function handlePopoverMouseLeave() {
               
               <!-- API 响应缓存列表 -->
               <div class="api-cache-list mt-2">
-                <div class="api-cache-title">接口缓存命中 (API Response Cache)</div>
+                <div class="api-cache-title">接口缓顺序缓存 (API Ordered Cache)</div>
                 <div
                   v-if="!state.apiCache || state.apiCache.length === 0"
                   style="font-size: 11px; color: #cbd5e1"
@@ -276,20 +465,22 @@ function handlePopoverMouseLeave() {
                     <div class="api-cache-item">
                       <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
                         <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
-                        <div class="api-cache-url-container" :data-tooltip="c.url" style="flex-grow: 1; min-width: 0;">
-                          <span class="api-cache-url">{{ c.url }}</span>
+                        <div class="api-cache-url-container" :title="c.url">
+                          <span class="api-cache-url">{{ displayApiUrl(c) }}</span>
                         </div>
                       </div>
                       
                       <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
                         <!-- 响应状态状态码 -->
+                        <span class="api-cache-badge">#{{ c.occurrence || cIdx + 1 }}</span>
+                        <span v-if="c.cacheAvailable" class="api-cache-origin-badge">cache</span>
                         <span class="api-cache-badge" style="margin-right: 2px;">{{ c.status }}</span>
 
                         <!-- Request parameters Tag (req) -->
                         <div class="api-tag-container">
                           <span
                             class="api-action-tag req-tag"
-                            @mouseenter="handleMouseEnter($event, 'Request Body (JSON):', c.requestBody || '无请求体数据 (No request body)')"
+                            @mouseenter="handleMouseEnter($event, 'Request Details (JSON):', formatRequestDetails(c))"
                             @mouseleave="handleMouseLeave"
                           >req</span>
                         </div>
@@ -312,7 +503,18 @@ function handlePopoverMouseLeave() {
         </template>
 
         <!-- 步骤运行快照 -->
-        <ScreenshotsGallery :step-id="selectedStepId" />
+        <ScreenshotsGallery
+          :step-id="selectedStepId"
+          :related-step-ids="screenshotStepIds"
+          source="cache-rerun"
+          title="🔄 缓存步骤运行快照"
+        />
+        <ScreenshotsGallery
+          :step-id="selectedStepId"
+          :related-step-ids="screenshotStepIds"
+          source="baseline"
+          title="📸 步骤运行快照"
+        />
       </div>
     </div>
 

@@ -7,7 +7,7 @@ import path from 'node:path';
 import yaml from 'js-yaml';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { CaseDefinition, Step, SubStep } from '../types/case.types.js';
+import type { CaseDefinition, Step, SubStep, BootstrapCacheConfig } from '../types/case.types.js';
 
 // ── Zod Schema ────────────────────────────────────────────────
 
@@ -50,6 +50,14 @@ const HookSchema = z.union([z.string(), z.array(z.string())])
   })
   .optional();
 
+const BootstrapCacheSchema = z.object({
+  shared_static: z.object({
+    enabled: z.boolean().default(true),
+    include: z.array(z.string().min(1)).default([]),
+    exclude: z.array(z.string().min(1)).default([]),
+  }).optional(),
+});
+
 const CaseSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
@@ -58,6 +66,7 @@ const CaseSchema = z.object({
   persist_vars: z.array(z.string()).optional(),
   login_macro_path: z.string().optional(),
   base_url: z.string().optional(),
+  bootstrap_cache: BootstrapCacheSchema.optional(),
   roles: z.record(z.string(), RoleSchema),
   on_failure: OnFailureSchema.optional(),
   steps: z.array(StepSchema).min(1),
@@ -71,6 +80,7 @@ const GlobalConfigSchema = z.object({
   assert_timeout: z.union([z.string(), z.number()]).optional(),
   persist_vars: z.array(z.string()).optional(),
   login_macro_path: z.string().optional(),
+  bootstrap_cache: BootstrapCacheSchema.optional(),
   on_failure: OnFailureSchema.optional(),
 });
 
@@ -546,6 +556,7 @@ export interface GlobalConfig {
   assert_timeout?: string | number;
   persist_vars?: string[];
   login_macro_path?: string;
+  bootstrap_cache?: BootstrapCacheConfig;
   on_failure?: z.infer<typeof OnFailureSchema>;
 }
 
@@ -679,6 +690,7 @@ export function loadCase(filePath: string): CaseDefinition {
     assert_timeout: rawData.assert_timeout ?? globalConfig.assert_timeout,
     persist_vars: rawData.persist_vars || globalConfig.persist_vars,
     login_macro_path: rawData.login_macro_path || globalConfig.login_macro_path,
+    bootstrap_cache: rawData.bootstrap_cache || globalConfig.bootstrap_cache,
     on_failure: rawData.on_failure || globalConfig.on_failure,
   };
   for (const step of caseData.steps) {

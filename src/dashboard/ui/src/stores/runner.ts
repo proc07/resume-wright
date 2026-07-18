@@ -84,7 +84,11 @@ export const useRunnerStore = defineStore('runner', () => {
     caseFiles.forEach(file => {
       const target = casesStore.casesData.find(c => c.filePath === file)
       if (target) {
-        casesStore.resetCaseUiState(target.name)
+        if (settings.readCache) {
+          casesStore.updateCaseStatus(target.name, 'running')
+        } else {
+          casesStore.resetCaseUiState(target.name)
+        }
       }
     })
 

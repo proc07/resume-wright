@@ -105,8 +105,8 @@ onMounted(() => {
           </label>
           <label class="modal-switch-row">
             <div class="switch-desc">
-              <span class="switch-title">缓存写操作 (POST/PUT/DELETE/PATCH)</span>
-              <span class="switch-subtitle">拦截非幂等请求并缓存响应，断点续跑时复用以避免重复调用</span>
+              <span class="switch-title">启用 API 顺序缓存</span>
+              <span class="switch-subtitle">按请求发起顺序记录写接口响应，缓存跑时逐条回放，避免重复副作用</span>
             </div>
             <div class="switch-control">
               <input type="checkbox" v-model="apiCache" @change="save">
@@ -115,11 +115,11 @@ onMounted(() => {
           </label>
           <label class="modal-switch-row">
             <div class="switch-desc">
-              <span class="switch-title">缓存读操作 (GET)</span>
-              <span class="switch-subtitle">拦截并缓存 GET 请求，适用于纯前端测试需要固定数据的场景</span>
+              <span class="switch-title">包含 GET 请求</span>
+              <span class="switch-subtitle">同时按顺序记录 GET 响应；需先启用 API 顺序缓存</span>
             </div>
             <div class="switch-control">
-              <input type="checkbox" v-model="cacheGet" @change="save">
+              <input type="checkbox" v-model="cacheGet" :disabled="!apiCache" @change="save">
               <span class="slider"></span>
             </div>
           </label>

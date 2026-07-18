@@ -7,6 +7,7 @@ export const useTerminalStore = defineStore('terminal', () => {
   const activeTab = ref<TerminalTab>('stream')
   const terminalHeight = ref<number>(320)
   const screenshots = ref<string[]>([])
+  const cacheRerunScreenshots = ref<string[]>([])
   const lightboxImages = ref<string[]>([])
   const lightboxIndex = ref<number>(-1)
   const lightboxVisible = ref<boolean>(false)
@@ -28,6 +29,10 @@ export const useTerminalStore = defineStore('terminal', () => {
 
   function setScreenshots(list: string[]) {
     screenshots.value = list
+  }
+
+  function setCacheRerunScreenshots(list: string[]) {
+    cacheRerunScreenshots.value = list
   }
 
   function openLightbox(index: number, customImages?: string[]) {
@@ -58,6 +63,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     activeTab,
     terminalHeight,
     screenshots,
+    cacheRerunScreenshots,
     lightboxImages,
     lightboxIndex,
     lightboxVisible,
@@ -66,6 +72,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     setTerminalHeight,
     loadSavedHeight,
     setScreenshots,
+    setCacheRerunScreenshots,
     openLightbox,
     closeLightbox,
     navigateLightbox,

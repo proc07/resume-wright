@@ -7,20 +7,23 @@ import type { SubStep } from '../types/case.types.js';
 import type { ContextStore } from './context-store.js';
 import { SubStepStore } from './sub-step-store.js';
 import { DomSnapshotManager } from './dom-snapshot.js';
-import { NetworkInterceptor } from './network-interceptor.js';
+import { CacheReplayMismatchError, NetworkInterceptor } from './network-interceptor.js';
 import { executeScript } from '../dsl/executor.js';
 import { sleep } from '../utils.js';
+import path from 'node:path';
 
 export interface SubStepExecutorOptions {
   screenshotDir?: string;
   macrosDir?: string;
   subStepsBaseDir?: string;
   screenshotOnAssert?: boolean;
+  suppressScreenshots?: boolean;
   assertTimeout?: string | number;
   defaultOnFailure?: import('../types/case.types.js').OnFailureConfig;
   apiCache?: boolean;
   cacheGet?: boolean;
   readCache?: boolean;
+  captureRunId?: string;
   isUseStep?: boolean;
 }
 
@@ -45,7 +48,11 @@ export class SubStepExecutor {
     private readonly ctx: ContextStore,
     private readonly opts: SubStepExecutorOptions = {}
   ) {
-    this.store = new SubStepStore(stepId, this.opts.subStepsBaseDir);
+    this.store = new SubStepStore(
+      stepId,
+      this.opts.subStepsBaseDir,
+      this.opts.readCache ? 'cache-rerun' : 'baseline'
+    );
     this.store.load();
 
     this.snapshotMgr = new DomSnapshotManager(this.store.snapshotsDir);
@@ -55,6 +62,11 @@ export class SubStepExecutor {
       this.interceptor = new NetworkInterceptor(page, this.store.apiCachePath, {
         cacheGet: this.opts.cacheGet,
         readCache: this.opts.readCache,
+        stepId: this.stepId,
+        captureRunId: this.opts.captureRunId,
+        requestJournalFilePath: this.opts.readCache
+          ? path.join(path.dirname(this.store.apiCachePath), 'cache-rerun-api-requests.json')
+          : undefined,
       });
     } else {
       this.interceptor = null;
@@ -92,9 +104,7 @@ export class SubStepExecutor {
     const restoreSnapshot = on_failure?.restore_snapshot ?? false;
     let retryCount = this.store.getRetryCount(id);
 
-    if (this.interceptor) {
-      this.interceptor.activeSubStepId = id;
-    }
+    this.interceptor?.beginScopeAttempt(id);
 
     // 存在历史快照则恢复，否则保存当前状态为执行前快照
     if (this.snapshotMgr.exists(`${id}-before`)) {
@@ -105,9 +115,6 @@ export class SubStepExecutor {
     }
 
     while (true) {
-      if (this.interceptor) {
-        this.interceptor.resetCounts();
-      }
       try {
         // snapshot_before_submit：在提交前额外保存快照
         if (snapshot_before_submit) {
@@ -120,19 +127,28 @@ export class SubStepExecutor {
             macrosDir: this.opts.macrosDir,
             stepId: id,
             screenshotOnAssert: this.opts.screenshotOnAssert,
+            suppressScreenshots: this.opts.suppressScreenshots,
             assertTimeout: this.opts.assertTimeout,
             isUseStep: subStep.is_use_step || this.opts.isUseStep,
           });
         }
 
+        await this.interceptor?.completeScopeAttempt();
         this.store.markCompleted(id);
         console.log(`[sub-step] ✓ Completed: ${id}`);
         return;
 
       } catch (err) {
+        const replayError = await this.interceptor?.failScopeAttempt();
+        const failure = replayError ?? err;
         retryCount++;
-        const errMsg = String(err);
+        const errMsg = String(failure);
         console.error(`[sub-step] ✗ Failed: ${id} (attempt ${retryCount}): ${errMsg}`);
+
+        if (failure instanceof CacheReplayMismatchError) {
+          this.store.markFailed(id, errMsg, retryCount);
+          throw failure;
+        }
 
         const strategy = on_failure?.strategy ?? 'retry';
 
@@ -160,6 +176,8 @@ export class SubStepExecutor {
           `[sub-step] Retrying in ${retryDelay}ms... (${retryCount}/${maxRetries})`
         );
         await sleep(retryDelay);
+
+        this.interceptor?.beginScopeAttempt(id);
 
         // 从快照恢复（如果配置了 restore_snapshot）
         if (restoreSnapshot && this.snapshotMgr.exists(`${id}-before`)) {

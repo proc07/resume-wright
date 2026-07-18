@@ -167,19 +167,21 @@ step3/4 script:
 
 ### 4.3 SubStep Store — 子步骤级断点续跑
 
-**解决问题：** Step 内部有多个子操作（填写表单 A → 提交 → 填写表单 B → 提交），某一子操作失败时，从该子操作恢复，而不是整个 Step 重来。
+**解决问题**：Step 内部有多个子操作（填写表单 A → 提交 → 填写表单 B → 提交），某一子操作失败时，从该子操作恢复，而不是整个 Step 重来。
 
-**存储结构：**
+**存储结构与重跑物理隔离**：
+使用缓存重新运行（重跑）时，不会删除或覆盖首次普通运行（baseline）的数据。重跑数据通过 `cache-rerun-*` 独立前缀文件及目录进行物理隔离 overlay。
+
 ```
 .resumewright/sub-steps/<step-id>/
-  ├── state.json        # 各子步骤完成状态
-  ├── api-cache.json    # 该 Step 内所有 API 响应缓存
-  └── snapshots/
-      ├── sub-step-1.json   # 子步骤开始前的页面快照
-      └── sub-step-2.json
+  ├── state.json                # 首次普通运行各子步骤完成状态 (baseline)
+  ├── cache-rerun-state.json    # 缓存重跑各子步骤完成状态 (cache-rerun)
+  ├── api-cache.json            # 该 Step 内所有 API 响应缓存/Journal
+  ├── snapshots/                # 首次普通运行页面快照目录
+  └── cache-rerun-snapshots/    # 缓存重跑页面快照目录
 ```
 
-**state.json 示例：**
+**state.json / cache-rerun-state.json 示例**：
 ```json
 {
   "fill_form_a": { "status": "completed", "completedAt": "2024-01-15T10:23:45Z" },
@@ -192,21 +194,35 @@ step3/4 script:
 
 ### 4.4 Network Interceptor — API 拦截与响应缓存
 
-**解决问题：** 防止崩溃重启后，已成功的非幂等 API（POST/PUT/DELETE）被重复调用，导致重复创建记录、重复发邮件、重复计费等副作用。
+**解决问题**：防止崩溃重启或回放运行后，已成功的非幂等 API（POST/PUT/DELETE/PATCH）被重复调用，产生副作用（如重复创建记录、重复发送邮件等）。
 
-**拦截逻辑：**
+**拦截逻辑与核心能力**：
 ```
 请求到来
-  ├── GET 请求 → 直接放行
-  └── POST / PUT / DELETE / PATCH
-        ├── 生成请求指纹（MD5 of Method + URL + Body[:500]）
-        ├── 查询 api-cache.json
-        │     ├── 命中缓存 → route.fulfill(cachedResponse)（不真实发送）
-        │     └── 未命中  → 真实发送 → 成功后立即写入缓存
-        └── 继续
+  ├── 静态资源请求 (document/script等) 
+  │     └── 符合配置白名单且为同源 GET/HEAD ➔ 尝试进入 "共享静态启动缓存"
+  └── API 请求 (xhr/fetch)
+        ├── 生成请求指纹 (MD5 of Method + 归一化 URL，忽略 globalId/cacheToken 等会话参数)
+        ├── 判断当前运行模式:
+        │     ├── capture (首次运行/采集) ➔ 记录请求并存入 api-cache.json
+        │     └── replay (回放重跑)
+        │           └── 按 scope (Attempt / Sequence 发生序号 occurrence) 匹配对应响应
+        │                 ├── 命中缓存 ➔ route.fulfill(cachedResponse) (不真实发送，显示 CACHE 标记)
+        │                 └── 未命中 
+        │                       ├── GET 请求 ➔ 耗尽时允许访问真实接口并记录 (回放差异诊断)
+        │                       └── 写请求 ➔ 缺失时中止请求并在 Step 边界安全报错 (防止产生副作用)
+        └── 结束
 ```
 
-**挂载时机：** 每个 Step 或 SubStep 开始执行前，通过 `page.route('**/*', handler)` 注册拦截器，Step 完成后移除。
+**缓存分层设计 (Bootstrap Caching)**：
+1. **Case 级共享静态启动缓存 (Shared Static Cache)**：
+   同源白名单中的首页、HTML 和 `config.json` 按指纹只保存一份，后续角色和并发请求直接复用；若检测到 Set-Cookie/Vary 等敏感响应，会自动降级为角色缓存。
+2. **角色级应用初始化缓存 (Role Bootstrap Cache)**：
+   在登录或 storageState 恢复前挂载短生命周期 BrowserContext 拦截器，将首页、`config.json` 和 `users/details` 等启动 GET 请求保存到独立的 `role::<role>::bootstrap` 作用域下，不同角色物理隔离。
+3. **步骤顺序缓存 (Step/SubStep Cache)**：
+   Step 内普通业务 API 请求采用按 occurrence 发起序号回放，与 Attempt 周期精密绑定，每次子步骤重试（attempt）独立采集，仅最后一次成功 attempt 作为有效快照。
+
+**挂载时机**：创建 BrowserContext 后注册拦截器，Step/SubStep 执行前后联动生命周期 `beginScopeAttempt()`、`completeScopeAttempt()` 与 `failScopeAttempt()` 进行计数及状态追踪。同时在创建 Page 前，按 `base_url` origin 自动授予 `local-network-access` 权限，避免权限弹窗阻断测试。
 
 ---
 

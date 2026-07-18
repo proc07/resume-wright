@@ -25,14 +25,16 @@ export class SubStepStore {
 
   constructor(
     private readonly stepId: string,
-    baseDir: string = SUB_STEPS_DIR
+    baseDir: string = SUB_STEPS_DIR,
+    runtimeKind: 'baseline' | 'cache-rerun' = 'baseline'
   ) {
     const safeId = stepId.replace(/[^\w-]/g, '_');
     const stepDir = path.join(baseDir, safeId);
+    const prefix = runtimeKind === 'cache-rerun' ? 'cache-rerun-' : '';
 
-    this.stateFilePath = path.join(stepDir, 'state.json');
+    this.stateFilePath = path.join(stepDir, `${prefix}state.json`);
     this.apiCachePath = path.join(stepDir, 'api-cache.json');
-    this.snapshotsDir = path.join(stepDir, 'snapshots');
+    this.snapshotsDir = path.join(stepDir, `${prefix}snapshots`);
   }
 
   // ── 加载 ─────────────────────────────────────────────────

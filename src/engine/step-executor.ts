@@ -27,6 +27,7 @@ export class StepExecutor {
   async execute(step: Step): Promise<void> {
     const { rolePool, contextStore, checkpoint, caseName, screenshotDir } =
       this.execCtx;
+    const errorScreenshotDir = this.execCtx.errorScreenshotDir ?? screenshotDir;
 
     console.log(`\n${'═'.repeat(60)}`);
     console.log(`[step] ▶ Executing step: ${step.id} (role: ${step.role})`);
@@ -57,11 +58,11 @@ export class StepExecutor {
         if (strategy === 'skip') {
           console.warn(`[step] Strategy=skip — marking step as completed despite failure`);
           // skip 策略时截图
-          if (this.execCtx.screenshotDir) {
+          if (errorScreenshotDir) {
             try {
               const roleCtx = rolePool.getActiveRoleContext(step.role);
               if (roleCtx) {
-                const ssDir = screenshotDir;
+                const ssDir = errorScreenshotDir;
                 const { mkdirSync } = await import('node:fs');
                 mkdirSync(ssDir, { recursive: true });
                 const ssPath = path.join(ssDir, `${step.id}-error-${getFormattedDateTime()}.png`);
@@ -76,17 +77,32 @@ export class StepExecutor {
         }
 
         if (strategy === 'manual') {
+          if (errorScreenshotDir) {
+            try {
+              const roleCtx = rolePool.getActiveRoleContext(step.role);
+              if (roleCtx) {
+                const { mkdirSync } = await import('node:fs');
+                mkdirSync(errorScreenshotDir, { recursive: true });
+                const ssPath = path.join(
+                  errorScreenshotDir,
+                  `${step.id}-error-${getFormattedDateTime()}.png`
+                );
+                await roleCtx.page.screenshot({ path: ssPath });
+                console.log(`[step] 📸 Error screenshot: ${decodeURIComponent(ssPath)}`);
+              }
+            } catch { /* ignore */ }
+          }
           throw new Error(`Step "${step.id}" failed (strategy=manual): ${errMsg}`);
         }
 
         // strategy === 'retry'
         if (attempt > maxRetries) {
           // 最终失败时才截图
-          if (this.execCtx.screenshotDir) {
+          if (errorScreenshotDir) {
             try {
               const roleCtx = rolePool.getActiveRoleContext(step.role);
               if (roleCtx) {
-                const ssDir = screenshotDir;
+                const ssDir = errorScreenshotDir;
                 const { mkdirSync } = await import('node:fs');
                 mkdirSync(ssDir, { recursive: true });
                 const ssPath = path.join(ssDir, `${step.id}-error-${getFormattedDateTime()}.png`);
@@ -156,15 +172,18 @@ export class StepExecutor {
     const caseDir = this.execCtx.caseDir;
 
     // API 缓存路径
-    const apiCachePath = path.join(
+    const stepRuntimeDir = path.join(
       caseDir,
       'sub-steps',
-      step.id.replace(/[^\w-]/g, '_'),
-      'api-cache.json'
+      step.id.replace(/[^\w-]/g, '_')
     );
+    const apiCachePath = path.join(stepRuntimeDir, 'api-cache.json');
 
     let tracingStarted = false;
-    const traceDir = path.join(caseDir, 'traces');
+    const traceDir = path.join(
+      caseDir,
+      this.execCtx.readCache ? 'cache-rerun-traces' : 'traces'
+    );
     const tracePath = path.join(traceDir, `${step.id}-trace.zip`);
 
     if (this.execCtx.enableTrace) {
@@ -185,6 +204,7 @@ export class StepExecutor {
           macrosDir: 'macros',
           stepId: `${step.id}-before`,
           screenshotOnAssert,
+          suppressScreenshots: this.execCtx.suppressScreenshots,
           assertTimeout,
         });
       }
@@ -202,11 +222,13 @@ export class StepExecutor {
               macrosDir: 'macros',
               subStepsBaseDir: path.join(caseDir, 'sub-steps'),
               screenshotOnAssert,
+              suppressScreenshots: this.execCtx.suppressScreenshots,
               assertTimeout,
               defaultOnFailure: step.on_failure ?? this.execCtx.defaultOnFailure,
               apiCache: this.execCtx.apiCache,
               cacheGet: this.execCtx.cacheGet,
               readCache: this.execCtx.readCache,
+              captureRunId: this.execCtx.captureRunId,
               isUseStep: step.is_use_step,
             }
           );
@@ -218,7 +240,13 @@ export class StepExecutor {
             const interceptor = new NetworkInterceptor(page, apiCachePath, {
               cacheGet: this.execCtx.cacheGet,
               readCache: this.execCtx.readCache,
+              stepId: step.id,
+              captureRunId: this.execCtx.captureRunId,
+              requestJournalFilePath: this.execCtx.readCache
+                ? path.join(stepRuntimeDir, 'cache-rerun-api-requests.json')
+                : undefined,
             });
+            interceptor.beginScopeAttempt();
             await interceptor.attach();
             try {
               await executeScript(step.script, page, contextStore, {
@@ -226,9 +254,14 @@ export class StepExecutor {
                 macrosDir: 'macros',
                 stepId: step.id,
                 screenshotOnAssert,
+                suppressScreenshots: this.execCtx.suppressScreenshots,
                 assertTimeout,
                 isUseStep: step.is_use_step,
               });
+              await interceptor.completeScopeAttempt();
+            } catch (err) {
+              const replayError = await interceptor.failScopeAttempt();
+              throw replayError ?? err;
             } finally {
               await interceptor.detach();
             }
@@ -238,6 +271,7 @@ export class StepExecutor {
               macrosDir: 'macros',
               stepId: step.id,
               screenshotOnAssert,
+              suppressScreenshots: this.execCtx.suppressScreenshots,
               assertTimeout,
               isUseStep: step.is_use_step,
             });
@@ -252,6 +286,7 @@ export class StepExecutor {
             macrosDir: 'macros',
             stepId: `${step.id}-after`,
             screenshotOnAssert,
+            suppressScreenshots: this.execCtx.suppressScreenshots,
             assertTimeout,
           }).catch((err) => {
             console.error(`[step] Failed to execute after_step hook: ${err}`);

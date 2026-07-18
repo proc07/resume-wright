@@ -67,7 +67,11 @@ async function runCase(fromStart = false, keepCache = false) {
     
     // Set status to running
     casesStore.updateCaseStatus(currentCase.value.name, 'running')
-    runnerStore.clearLog(safeName)
+    if (fromStart && keepCache) {
+      runnerStore.appendLog(safeName, '\n\n[system] —— 使用缓存重新运行 ——\n')
+    } else {
+      runnerStore.clearLog(safeName)
+    }
 
     await runnerStore.run(
       [currentCase.value.filePath],

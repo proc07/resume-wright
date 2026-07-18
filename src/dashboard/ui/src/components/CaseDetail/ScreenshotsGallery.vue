@@ -4,20 +4,30 @@ import { useTerminalStore } from '@/stores/terminal'
 
 const props = defineProps<{
   stepId: string
+  relatedStepIds?: string[]
+  source?: 'baseline' | 'cache-rerun'
+  title: string
 }>()
 
 const terminalStore = useTerminalStore()
 
+function matchesStepId(filename: string, stepId: string): boolean {
+  return (
+    filename.startsWith(stepId + '-') ||
+    filename.includes('-' + stepId + '-') ||
+    filename.endsWith('-' + stepId + '.png')
+  )
+}
+
 const stepScreenshots = computed(() => {
-  const allScreenshots = terminalStore.screenshots
+  const allScreenshots = props.source === 'cache-rerun'
+    ? terminalStore.cacheRerunScreenshots
+    : terminalStore.screenshots
+  const stepIds = new Set([props.stepId, ...(props.relatedStepIds || [])])
   return allScreenshots.filter((src) => {
     const parts = src.split('/')
     const filename = decodeURIComponent(parts[parts.length - 1] || '')
-    return (
-      filename.startsWith(props.stepId + '-') ||
-      filename.includes('-' + props.stepId + '-') ||
-      filename.endsWith('-' + props.stepId + '.png')
-    )
+    return [...stepIds].some(stepId => matchesStepId(filename, stepId))
   })
 })
 
@@ -34,7 +44,7 @@ function openLightbox(localIndex: number) {
 <template>
   <div v-if="stepScreenshots.length > 0" class="step-screenshots-section mt-4">
     <div class="api-cache-title" style="margin-bottom: 8px;">
-      📸 步骤运行快照 ({{ stepScreenshots.length }})
+      {{ props.title || '步骤运行快照' }} ({{ stepScreenshots.length }})
     </div>
     <div class="screenshots-gallery">
       <div

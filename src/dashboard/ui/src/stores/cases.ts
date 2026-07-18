@@ -71,6 +71,8 @@ export const useCasesStore = defineStore('cases', () => {
         if (updated) {
           // preserve subStepsDetail, traces and variables which come from separate API
           updated.subStepsDetail = currentCase.value.subStepsDetail
+          updated.sharedBootstrapCache = currentCase.value.sharedBootstrapCache
+          updated.roleCaches = currentCase.value.roleCaches
           updated.traces = currentCase.value.traces
           updated.variables = currentCase.value.variables
           currentCase.value = updated
@@ -90,6 +92,8 @@ export const useCasesStore = defineStore('cases', () => {
       const target = casesData.value.find(item => item.name === c.name)
       if (target) {
         target.subStepsDetail = details.subSteps
+        target.sharedBootstrapCache = details.sharedBootstrapCache
+        target.roleCaches = details.roleCaches
         target.traces = details.traces
         target.error = details.error
         target.variables = details.variables
@@ -105,7 +109,9 @@ export const useCasesStore = defineStore('cases', () => {
         // details 无 stepDurations 时保留 list 里已有的 duration（不做任何处理）
         currentCase.value = { ...target }
       }
-      useTerminalStore().setScreenshots(details.screenshots)
+      const terminalStore = useTerminalStore()
+      terminalStore.setScreenshots(details.screenshots)
+      terminalStore.setCacheRerunScreenshots(details.cacheRerunScreenshots || [])
       return details
     } catch (err) {
       console.error('获取用例详情失败:', err)
@@ -119,6 +125,8 @@ export const useCasesStore = defineStore('cases', () => {
       const target = casesData.value.find(item => item.name === caseName)
       if (target) {
         target.subStepsDetail = details.subSteps
+        target.sharedBootstrapCache = details.sharedBootstrapCache
+        target.roleCaches = details.roleCaches
         target.traces = details.traces
         target.error = details.error
         target.variables = details.variables
@@ -136,7 +144,9 @@ export const useCasesStore = defineStore('cases', () => {
           currentCase.value = { ...target }
         }
       }
-      useTerminalStore().setScreenshots(details.screenshots)
+      const terminalStore = useTerminalStore()
+      terminalStore.setScreenshots(details.screenshots)
+      terminalStore.setCacheRerunScreenshots(details.cacheRerunScreenshots || [])
       return details
     } catch (err) {
       console.error('刷新用例详情失败:', err)
@@ -203,6 +213,8 @@ export const useCasesStore = defineStore('cases', () => {
         s.duration = 0
       })
       c.subStepsDetail = {}
+      c.sharedBootstrapCache = []
+      c.roleCaches = {}
       c.error = undefined
       if (currentCase.value?.name === caseName) {
         currentCase.value = { ...c }
