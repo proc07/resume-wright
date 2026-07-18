@@ -413,6 +413,7 @@ code, pre {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
 }
 
 .case-title-left {
@@ -707,7 +708,7 @@ code, pre {
 /* ── 详情卡片网格 ── */
 .details-grid {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 3fr 7fr;
   gap: 12px;
 }
 
@@ -759,19 +760,20 @@ code, pre {
 
 .step-tag-repeat {
   position: absolute;
-  top: 4px;
-  right: 6px;
+  top: -6px;
+  left: 6px;
   font-size: 8px;
   font-weight: 700;
   text-transform: uppercase;
   color: #fbbf24;
-  background-color: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.25);
+  background-color: #1e293b;
+  border: 1px solid rgba(251, 191, 36, 0.45);
   padding: 0.5px 3.5px;
   border-radius: 3px;
   letter-spacing: 0.3px;
   line-height: 1;
   pointer-events: none;
+  z-index: 2;
 }
 
 .step-node:hover {
@@ -861,6 +863,8 @@ code, pre {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .step-id {
@@ -870,7 +874,8 @@ code, pre {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .step-role {

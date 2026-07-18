@@ -292,6 +292,7 @@ const durationBadgeClass = computed(() => {
         ⟲ 重新运行
       </button>
       <button
+        v-if="currentCase.status !== 'never_run'"
         id="btn-restart-with-cache"
         class="btn btn-outline"
         :disabled="currentCase.status === 'running' || runnerStore.isRunning"
