@@ -278,21 +278,23 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
 
           let caseDuration = 0;
           let startTime: string | undefined;
-          try {
-            const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
-            if (fs.existsSync(historyFile)) {
-              const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
-              if (history && history.length > 0) {
-                if (history[0].status === 'running') {
-                  startTime = history[0].timestamp;
+          if (status !== 'never_run') {
+            try {
+              const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
+              if (fs.existsSync(historyFile)) {
+                const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+                if (history && history.length > 0) {
+                  if (history[0].status === 'running') {
+                    startTime = history[0].timestamp;
+                  }
+                  caseDuration = history[0].duration || 0;
                 }
-                caseDuration = history[0].duration || 0;
               }
-            }
-          } catch { /* ignore */ }
+            } catch { /* ignore */ }
 
-          if (!caseDuration) {
-            caseDuration = Object.values(durations).reduce((sum, d) => sum + d, 0);
+            if (!caseDuration) {
+              caseDuration = Object.values(durations).reduce((sum, d) => sum + d, 0);
+            }
           }
 
           return {
@@ -435,8 +437,10 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       const safeCaseName = resolveSafeCaseName(caseName);
       const caseDir = path.join('.resumewright', safeCaseName);
 
-      // 读取最新的 error 信息和运行状态信息
+      // 读取 error 信息和运行状态信息
       let latestError: string | undefined;
+      let baselineError: string | undefined;
+      let cacheRerunError: string | undefined;
       let latestRunId: string | undefined;
       let latestRunStatus: string | undefined;
       try {
@@ -449,6 +453,18 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             latestRunStatus = latest.status;
             if (latest.status === 'failed') {
               latestError = latest.error || undefined;
+            }
+
+            const rerunItem = history.find((h: any) => h.readCache === true && h.status === 'failed');
+            if (rerunItem) {
+              cacheRerunError = rerunItem.error || undefined;
+            } else if (latest.readCache === true && latest.status === 'failed') {
+              cacheRerunError = latest.error || undefined;
+            }
+
+            const baselineItem = history.find((h: any) => !h.readCache && h.status === 'failed');
+            if (baselineItem) {
+              baselineError = baselineItem.error || undefined;
             }
           }
         }
@@ -594,6 +610,53 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         } catch { /* ignore */ }
       }
 
+      // 读取 cache-rerun 模式下的 sub-steps 状态与 API 拦截日志
+      const cacheRerunSubStepsData: Record<string, any> = {};
+      if (fs.existsSync(subStepsDir)) {
+        try {
+          const stepDirs = fs.readdirSync(subStepsDir);
+          for (const sDir of stepDirs) {
+            const replayStatePath = path.join(subStepsDir, sDir, 'cache-rerun-state.json');
+            const replayRequestsPath = path.join(subStepsDir, sDir, 'cache-rerun-api-requests.json');
+            if (!fs.existsSync(replayStatePath) && !fs.existsSync(replayRequestsPath)) continue;
+
+            try {
+              const state = fs.existsSync(replayStatePath)
+                ? JSON.parse(fs.readFileSync(replayStatePath, 'utf-8'))
+                : {};
+              if (fs.existsSync(replayRequestsPath)) {
+                try {
+                  const journal = JSON.parse(fs.readFileSync(replayRequestsPath, 'utf-8'));
+                  if (journal?.version === 1) {
+                    for (const entry of journal.entries || []) {
+                      const subId = entry.subStepId || '$step';
+                      if (!state[subId]) state[subId] = { status: 'completed' };
+                      if (!state[subId].apiCache) state[subId].apiCache = [];
+                      state[subId].apiCache.push({
+                        method: entry.method,
+                        url: entry.url,
+                        status: entry.status,
+                        body: entry.body,
+                        bodyEncoding: entry.bodyEncoding,
+                        requestBody: entry.requestBody || undefined,
+                        occurrence: entry.occurrence,
+                        sequence: entry.sequence,
+                        attemptId: entry.attemptId,
+                        captureRunId: entry.runId,
+                        cachedAt: entry.requestedAt,
+                        fromCache: entry.fromCache === true,
+                        cacheAvailable: entry.cacheAvailable ?? true,
+                      });
+                    }
+                  }
+                } catch { /* ignore */ }
+              }
+              cacheRerunSubStepsData[sDir] = state;
+            } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      }
+
       // 读取 Case 内所有角色共用的静态启动缓存。
       const sharedBootstrapCacheData: any[] = [];
       const sharedBootstrapDir = path.join(caseDir, 'bootstrap-cache', 'shared-static');
@@ -654,6 +717,37 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
 
       const uniqueSharedBootstrapCacheData = deduplicateSharedBootstrapEntries(
         sharedBootstrapCacheData,
+      );
+
+      const cacheRerunSharedBootstrapCacheData: any[] = [];
+      const cacheRerunSharedRequestsPath = path.join(sharedBootstrapDir, 'cache-rerun-api-requests.json');
+      if (fs.existsSync(cacheRerunSharedRequestsPath)) {
+        try {
+          const journal = JSON.parse(fs.readFileSync(cacheRerunSharedRequestsPath, 'utf-8'));
+          if (journal?.version === 1) {
+            for (const entry of journal.entries || []) {
+              cacheRerunSharedBootstrapCacheData.push({
+                method: entry.method,
+                url: entry.url,
+                status: entry.status,
+                body: entry.body,
+                bodyEncoding: entry.bodyEncoding,
+                requestBody: entry.requestBody || undefined,
+                occurrence: entry.occurrence,
+                sequence: entry.sequence,
+                attemptId: entry.attemptId,
+                captureRunId: entry.runId,
+                cachedAt: entry.requestedAt,
+                fromCache: entry.fromCache === true,
+                cacheAvailable: entry.cacheAvailable ?? true,
+                roleName: entry.roleName,
+              });
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      const uniqueCacheRerunSharedBootstrapCacheData = deduplicateSharedBootstrapEntries(
+        cacheRerunSharedBootstrapCacheData,
       );
 
       // 读取每个角色的应用启动缓存。最新 run 的 api-requests.json 是请求来源权威数据；
@@ -759,33 +853,85 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         } catch { /* ignore */ }
       }
 
+      const cacheRerunRoleCachesData: Record<string, any[]> = {};
+      if (fs.existsSync(roleCacheDir)) {
+        try {
+          const roleDirs = fs.readdirSync(roleCacheDir).filter((roleDir) => {
+            const roleDirPath = path.join(roleCacheDir, roleDir);
+            return fs.statSync(roleDirPath).isDirectory();
+          });
+          for (const roleDir of roleDirs) {
+            const roleDirPath = path.join(roleCacheDir, roleDir);
+            const replayRequestsPath = path.join(roleDirPath, 'cache-rerun-api-requests.json');
+            let roleName = roleDir;
+            let rows: any[] = [];
+            if (fs.existsSync(replayRequestsPath)) {
+              try {
+                const journal = JSON.parse(fs.readFileSync(replayRequestsPath, 'utf-8'));
+                if (journal?.version === 1) {
+                  for (const entry of journal.entries || []) {
+                    if (typeof entry.stepId === 'string' && entry.stepId.startsWith('role:')) {
+                      roleName = entry.stepId.slice('role:'.length);
+                    }
+                    rows.push({
+                      method: entry.method,
+                      url: entry.url,
+                      status: entry.status,
+                      body: entry.body,
+                      bodyEncoding: entry.bodyEncoding,
+                      requestBody: entry.requestBody || undefined,
+                      occurrence: entry.occurrence,
+                      sequence: entry.sequence,
+                      attemptId: entry.attemptId,
+                      captureRunId: entry.runId,
+                      cachedAt: entry.requestedAt,
+                      fromCache: entry.fromCache === true,
+                      cacheAvailable: entry.cacheAvailable ?? true,
+                    });
+                  }
+                }
+              } catch { /* ignore */ }
+            }
+            if (rows.length > 0) cacheRerunRoleCachesData[roleName] = rows;
+          }
+        } catch { /* ignore */ }
+      }
+
       // 读取 checkpoint 中的本地变量 (context) 与耗时
       let variables: Record<string, any> = {};
       let stepDurations: Record<string, number> = {};
       let caseDuration = 0;
       let startTime: string | undefined;
+      let isNeverRun = false;
       try {
         const cp = new Checkpoint(caseName, caseDir);
         cp.load();
         variables = cp.getContext();
         stepDurations = cp.getStepDurations();
-      } catch { /* ignore */ }
-
-      try {
-        const historyFile = path.join(caseDir, 'history', 'history.json');
-        if (fs.existsSync(historyFile)) {
-          const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
-          if (history && history.length > 0) {
-            if (history[0].status === 'running') {
-              startTime = history[0].timestamp;
-            }
-            caseDuration = history[0].duration || 0;
-          }
+        if (cp.completedCount() === 0 && !lastRunStatuses[caseName]) {
+          isNeverRun = true;
         }
-      } catch { /* ignore */ }
+      } catch {
+        isNeverRun = true;
+      }
 
-      if (!caseDuration) {
-        caseDuration = Object.values(stepDurations).reduce((sum, d) => sum + d, 0);
+      if (!isNeverRun) {
+        try {
+          const historyFile = path.join(caseDir, 'history', 'history.json');
+          if (fs.existsSync(historyFile)) {
+            const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+            if (history && history.length > 0) {
+              if (history[0].status === 'running') {
+                startTime = history[0].timestamp;
+              }
+              caseDuration = history[0].duration || 0;
+            }
+          }
+        } catch { /* ignore */ }
+
+        if (!caseDuration) {
+          caseDuration = Object.values(stepDurations).reduce((sum, d) => sum + d, 0);
+        }
       }
 
       try {
@@ -801,14 +947,19 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         screenshots,
         cacheRerunScreenshots,
         subSteps: subStepsData,
+        cacheRerunSubSteps: cacheRerunSubStepsData,
         traces,
         error: latestError,
+        baselineError,
+        cacheRerunError,
         variables,
         stepDurations,
         duration: caseDuration,
         startTime,
         sharedBootstrapCache: uniqueSharedBootstrapCacheData,
+        cacheRerunSharedBootstrapCache: uniqueCacheRerunSharedBootstrapCacheData,
         roleCaches: roleCachesData,
+        cacheRerunRoleCaches: cacheRerunRoleCachesData,
       });
     } catch (err: any) {
       return jsonRes(res, 500, { error: err.message });
@@ -875,16 +1026,16 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (body.caseName) {
         const safeCaseName = resolveSafeCaseName(body.caseName);
         const caseDir = path.join('.resumewright', safeCaseName);
-        const cp = new Checkpoint(body.caseName, caseDir);
-        cp.reset();
-        delete lastRunStatuses[body.caseName];
 
         if (body.keepCache) {
-          // 保留 API 缓存，只清除断点和子步骤状态
+          // 保留 API 缓存与 Baseline 断点记录，仅清除上一轮 cache-rerun-* 临时数据
           resetCaseKeepCache(caseDir);
-          return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (API cache preserved)` });
+          return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (API cache and baseline preserved)` });
         } else {
-          // 清空一切，保留 history 目录
+          // 清空一切（断点、状态与缓存），保留 history 目录
+          const cp = new Checkpoint(body.caseName, caseDir);
+          cp.reset();
+          delete lastRunStatuses[body.caseName];
           resetCaseRuntime(caseDir);
           return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (history preserved)` });
         }

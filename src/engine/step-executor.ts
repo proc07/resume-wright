@@ -47,7 +47,9 @@ export class StepExecutor {
       try {
         await this.runStep(step);
         const duration = Date.now() - startTime;
-        checkpoint.markCompleted(step.id, contextStore, duration);
+        if (!this.execCtx.readCache) {
+          checkpoint.markCompleted(step.id, contextStore, duration);
+        }
         console.log(`[step] ✓ Step completed: ${step.id}`);
         return;
       } catch (err) {
@@ -72,7 +74,9 @@ export class StepExecutor {
             } catch { /* ignore */ }
           }
           const duration = Date.now() - startTime;
-          checkpoint.markCompleted(step.id, contextStore, duration);
+          if (!this.execCtx.readCache) {
+            checkpoint.markCompleted(step.id, contextStore, duration);
+          }
           return;
         }
 

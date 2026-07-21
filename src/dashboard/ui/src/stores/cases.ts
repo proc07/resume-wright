@@ -92,21 +92,36 @@ export const useCasesStore = defineStore('cases', () => {
       const target = casesData.value.find(item => item.name === c.name)
       if (target) {
         target.subStepsDetail = details.subSteps
+        target.cacheRerunSubStepsDetail = details.cacheRerunSubSteps
         target.sharedBootstrapCache = details.sharedBootstrapCache
+        target.cacheRerunSharedBootstrapCache = details.cacheRerunSharedBootstrapCache
         target.roleCaches = details.roleCaches
+        target.cacheRerunRoleCaches = details.cacheRerunRoleCaches
         target.traces = details.traces
         target.error = details.error
+        target.baselineError = details.baselineError
+        target.cacheRerunError = details.cacheRerunError
         target.variables = details.variables
-        target.duration = details.duration || target.duration
-        target.startTime = details.startTime || target.startTime
-        if (details.stepDurations) {
-          target.steps = target.steps.map(s => ({
-            ...s,
-            // 取 details 和 list 中较大的，避免旧服务返回 0 覆盖正确就
-            duration: Math.max(details.stepDurations?.[s.id] ?? 0, s.duration ?? 0)
-          }))
+        if (target.status === 'never_run') {
+          target.duration = details.duration ?? 0
+          target.startTime = details.startTime
+          if (details.stepDurations) {
+            target.steps = target.steps.map(s => ({
+              ...s,
+              duration: details.stepDurations?.[s.id] ?? 0
+            }))
+          }
+        } else {
+          target.duration = details.duration || target.duration
+          target.startTime = details.startTime || target.startTime
+          if (details.stepDurations) {
+            target.steps = target.steps.map(s => ({
+              ...s,
+              // 取 details 和 list 中较大的，避免旧服务返回 0 覆盖正确结果
+              duration: Math.max(details.stepDurations?.[s.id] ?? 0, s.duration ?? 0)
+            }))
+          }
         }
-        // details 无 stepDurations 时保留 list 里已有的 duration（不做任何处理）
         currentCase.value = { ...target }
       }
       const terminalStore = useTerminalStore()
@@ -125,21 +140,36 @@ export const useCasesStore = defineStore('cases', () => {
       const target = casesData.value.find(item => item.name === caseName)
       if (target) {
         target.subStepsDetail = details.subSteps
+        target.cacheRerunSubStepsDetail = details.cacheRerunSubSteps
         target.sharedBootstrapCache = details.sharedBootstrapCache
+        target.cacheRerunSharedBootstrapCache = details.cacheRerunSharedBootstrapCache
         target.roleCaches = details.roleCaches
+        target.cacheRerunRoleCaches = details.cacheRerunRoleCaches
         target.traces = details.traces
         target.error = details.error
+        target.baselineError = details.baselineError
+        target.cacheRerunError = details.cacheRerunError
         target.variables = details.variables
-        target.duration = details.duration || target.duration
-        target.startTime = details.startTime || target.startTime
-        if (details.stepDurations) {
-          target.steps = target.steps.map(s => ({
-            ...s,
-            // 取 details 和 list 中较大的，避免旧服务返回 0 覆盖正确就
-            duration: Math.max(details.stepDurations?.[s.id] ?? 0, s.duration ?? 0)
-          }))
+        if (target.status === 'never_run') {
+          target.duration = details.duration ?? 0
+          target.startTime = details.startTime
+          if (details.stepDurations) {
+            target.steps = target.steps.map(s => ({
+              ...s,
+              duration: details.stepDurations?.[s.id] ?? 0
+            }))
+          }
+        } else {
+          target.duration = details.duration || target.duration
+          target.startTime = details.startTime || target.startTime
+          if (details.stepDurations) {
+            target.steps = target.steps.map(s => ({
+              ...s,
+              // 取 details 和 list 中较大的，避免旧服务返回 0 覆盖正确结果
+              duration: Math.max(details.stepDurations?.[s.id] ?? 0, s.duration ?? 0)
+            }))
+          }
         }
-        // details 无 stepDurations 时保留 list 里已有的 duration（不做任何处理）
         if (currentCase.value?.name === caseName) {
           currentCase.value = { ...target }
         }
@@ -208,6 +238,8 @@ export const useCasesStore = defineStore('cases', () => {
     if (c) {
       c.status = 'running'
       c.completedCount = 0
+      c.duration = 0
+      c.startTime = undefined
       c.steps.forEach(s => {
         s.completed = false
         s.duration = 0

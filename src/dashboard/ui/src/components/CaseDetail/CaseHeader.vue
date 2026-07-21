@@ -104,6 +104,8 @@ async function resetCase(silent = false, keepCache = false) {
   try {
     const data = await runnerStore.reset(currentCase.value.name, keepCache)
     if (data.success) {
+      lastLiveDuration.value = 0
+      liveDuration.value = 0
       if (!silent) {
         await casesStore.loadCases()
         if (casesStore.currentCase?.name) {
@@ -210,6 +212,9 @@ watch(
       stopHeaderTimer()
       liveDuration.value = 0
     }
+    if (status === 'never_run') {
+      lastLiveDuration.value = 0
+    }
   }
 )
 
@@ -227,16 +232,19 @@ onUnmounted(() => {
 })
 
 const displayTotalDuration = computed(() => {
-  if (currentCase.value?.status === 'running' && liveDuration.value > 0) {
+  if (!currentCase.value || currentCase.value.status === 'never_run') {
+    return null
+  }
+  if (currentCase.value.status === 'running' && liveDuration.value > 0) {
     return formatDuration(liveDuration.value)
   }
   // 优先展示 store 中持久化的总耗时
-  if (currentCase.value?.duration !== undefined && currentCase.value?.duration !== null && currentCase.value.duration > 0) {
+  if (currentCase.value.duration !== undefined && currentCase.value.duration !== null && currentCase.value.duration > 0) {
     return formatDuration(currentCase.value.duration)
   }
   // 如果已完成/失败且 duration 为 0，展示 0.0s
-  if ((currentCase.value?.status === 'passed' || currentCase.value?.status === 'failed') &&
-      currentCase.value?.duration !== undefined && currentCase.value?.duration !== null) {
+  if ((currentCase.value.status === 'passed' || currentCase.value.status === 'failed') &&
+      currentCase.value.duration !== undefined && currentCase.value.duration !== null) {
     return formatDuration(currentCase.value.duration)
   }
   // store 还未刷新时用 lastLiveDuration 过渡
@@ -274,45 +282,43 @@ const durationBadgeClass = computed(() => {
     </p>
     
     <div class="case-actions mt-4">
+      <template v-if="currentCase.status !== 'running' && !runnerStore.isRunning">
+        <button
+          v-if="currentCase.status !== 'passed'"
+          id="btn-run-case"
+          class="btn btn-primary"
+          @click="runCase(false)"
+        >
+          {{ runButtonText }}
+        </button>
+        <button
+          id="btn-restart-case"
+          class="btn btn-outline"
+          @click="confirmRestart"
+        >
+          ⟲ 重新运行
+        </button>
+        <button
+          v-if="currentCase.status !== 'never_run'"
+          id="btn-restart-with-cache"
+          class="btn btn-outline"
+          @click="confirmRestartWithCache"
+        >
+          ⟲ 使用缓存重新运行
+        </button>
+        <button
+          id="btn-reset-case"
+          class="btn btn-outline-danger"
+          @click="confirmClear"
+        >
+          清除
+        </button>
+      </template>
+
       <button
-        v-if="currentCase.status !== 'passed'"
-        id="btn-run-case"
-        class="btn btn-primary"
-        :disabled="currentCase.status === 'running' || runnerStore.isRunning"
-        @click="runCase(false)"
-      >
-        {{ runButtonText }}
-      </button>
-      <button
-        id="btn-restart-case"
-        class="btn btn-outline"
-        :disabled="currentCase.status === 'running' || runnerStore.isRunning"
-        @click="confirmRestart"
-      >
-        ⟲ 重新运行
-      </button>
-      <button
-        v-if="currentCase.status !== 'never_run'"
-        id="btn-restart-with-cache"
-        class="btn btn-outline"
-        :disabled="currentCase.status === 'running' || runnerStore.isRunning"
-        @click="confirmRestartWithCache"
-      >
-        ⟲ 使用缓存重新运行
-      </button>
-      <button
-        id="btn-reset-case"
-        class="btn btn-outline-danger"
-        :disabled="currentCase.status === 'running' || runnerStore.isRunning"
-        @click="confirmClear"
-      >
-        清除
-      </button>
-      
-      <button
+        v-if="currentCase.status === 'running' || runnerStore.isRunning"
         id="btn-stop-case"
         class="btn btn-danger"
-        v-if="currentCase.status === 'running'"
         @click="stopCase"
       >
         ■ 终止

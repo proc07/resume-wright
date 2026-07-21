@@ -298,12 +298,8 @@ export function resetCaseRuntime(caseDir: string): void {
 export function resetCaseKeepCache(caseDir: string): void {
   if (!fs.existsSync(caseDir)) return;
   try {
-    // 清除 checkpoint
-    const cpFile = path.join(caseDir, 'checkpoint.json');
-    if (fs.existsSync(cpFile)) fs.unlinkSync(cpFile);
-
     // 首次普通运行是 Dashboard baseline。缓存重跑只清理上一轮 replay，
-    // 保留 state.json、api-requests.json、snapshots 和可回放缓存。
+    // 保留 baseline 的 checkpoint.json、state.json、api-requests.json、snapshots 和可回放缓存。
     const subStepsDir = path.join(caseDir, 'sub-steps');
     if (fs.existsSync(subStepsDir)) {
       for (const stepDir of fs.readdirSync(subStepsDir)) {
