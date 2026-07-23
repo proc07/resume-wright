@@ -97,6 +97,23 @@ export class ContextStore {
     this.notify();
   }
 
+  /**
+   * 为并行分支创建浅拷贝派生的子 ContextStore（实现变量读取继承，写入隔离）
+   */
+  createChildStore(): ContextStore {
+    const child = new ContextStore();
+    child.merge(this.toJSON());
+    return child;
+  }
+
+  /**
+   * 将子 ContextStore 中新增/更新的变量合并回父 Store
+   */
+  mergeChildStore(childStore: ContextStore): void {
+    const childData = childStore.toJSON();
+    this.merge(childData);
+  }
+
   // ── 序列化 ───────────────────────────────────────────────
 
   /**

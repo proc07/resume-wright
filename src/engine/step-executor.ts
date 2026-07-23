@@ -4,6 +4,7 @@
 
 import type { Step } from '../types/case.types.js';
 import type { StepExecutionContext } from '../types/engine.types.js';
+import type { ContextStore } from './context-store.js';
 import { NetworkInterceptor } from './network-interceptor.js';
 import { SubStepExecutor } from './sub-step-executor.js';
 import { executeScript } from '../dsl/executor.js';
@@ -24,9 +25,12 @@ import path from 'node:path';
 export class StepExecutor {
   constructor(private readonly execCtx: StepExecutionContext) {}
 
-  async execute(step: Step): Promise<void> {
-    const { rolePool, contextStore, checkpoint, caseName, screenshotDir } =
-      this.execCtx;
+  async execute(
+    step: Step,
+    options: { createNewPage?: boolean; overrideContextStore?: ContextStore } = {}
+  ): Promise<void> {
+    const { rolePool, checkpoint, caseName, screenshotDir } = this.execCtx;
+    const contextStore = options.overrideContextStore ?? this.execCtx.contextStore;
     const errorScreenshotDir = this.execCtx.errorScreenshotDir ?? screenshotDir;
 
     console.log(`\n${'═'.repeat(60)}`);
@@ -45,7 +49,7 @@ export class StepExecutor {
 
     while (true) {
       try {
-        await this.runStep(step);
+        await this.runStep(step, options);
         const duration = Date.now() - startTime;
         if (!this.execCtx.readCache) {
           checkpoint.markCompleted(step.id, contextStore, duration);
@@ -126,8 +130,12 @@ export class StepExecutor {
     }
   }
 
-  private async runStep(step: Step): Promise<void> {
-    const { rolePool, contextStore, caseName, screenshotDir, screenshotOnAssert, assertTimeout } = this.execCtx;
+  private async runStep(
+    step: Step,
+    options: { createNewPage?: boolean; overrideContextStore?: ContextStore } = {}
+  ): Promise<void> {
+    const { rolePool, caseName, screenshotDir, screenshotOnAssert, assertTimeout } = this.execCtx;
+    const contextStore = options.overrideContextStore ?? this.execCtx.contextStore;
 
     // ── 源匹配自动登录保护逻辑 ──
     // 静态提取当前步骤（或子步骤）中首条 open 目标地址。如果目标是一个绝对路径 URL，
@@ -161,7 +169,10 @@ export class StepExecutor {
     }
 
     // 获取角色的 Page 和 BrowserContext
-    const { page, context } = await rolePool.getRoleContext(step.role, { skipLogin });
+    const { page, context } = await rolePool.getRoleContext(step.role, {
+      skipLogin,
+      createNewPage: options.createNewPage,
+    });
 
     // 动态注入当前角色的属性及凭证信息，便于 DSL 脚本和宏直接读取，无需显式传参
     const creds = rolePool.getCredentials(step.role);
@@ -236,7 +247,7 @@ export class StepExecutor {
               isUseStep: step.is_use_step,
             }
           );
-          await subExec.executeAll(step.sub_steps);
+          await subExec.executeAll(step.sub_steps, step);
         } else if (step.script) {
           // ── 无子步骤：直接执行 script ──
           const useCache = this.execCtx.apiCache !== false;

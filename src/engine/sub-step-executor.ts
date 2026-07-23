@@ -3,12 +3,14 @@
 // ============================================================
 
 import type { Page, BrowserContext } from '@playwright/test';
-import type { SubStep } from '../types/case.types.js';
+import type { Step, SubStep } from '../types/case.types.js';
 import type { ContextStore } from './context-store.js';
 import { SubStepStore } from './sub-step-store.js';
 import { DomSnapshotManager } from './dom-snapshot.js';
 import { CacheReplayMismatchError, NetworkInterceptor } from './network-interceptor.js';
 import { executeScript } from '../dsl/executor.js';
+import { groupSubSteps } from './step-grouper.js';
+import { executeParallelSubSteps } from './parallel-executor.js';
 import { sleep } from '../utils.js';
 import path from 'node:path';
 
@@ -35,6 +37,7 @@ export interface SubStepExecutorOptions {
  * - 已完成的子步骤自动跳过
  * - 按 on_failure 策略重试（可从快照恢复）
  * - 挂载 NetworkInterceptor 防止 API 重复调用
+ * - 支持子步骤并行执行 (groupSubSteps / executeParallelSubSteps)
  */
 export class SubStepExecutor {
   private readonly store: SubStepStore;
@@ -73,14 +76,25 @@ export class SubStepExecutor {
     }
   }
 
-  async executeAll(subSteps: SubStep[]): Promise<void> {
+  async executeAll(subSteps: SubStep[], parentStep?: Step): Promise<void> {
     if (this.interceptor) {
       await this.interceptor.attach();
     }
 
     try {
-      for (const subStep of subSteps) {
-        await this.executeOne(subStep);
+      const units = groupSubSteps(subSteps, parentStep);
+      for (const unit of units) {
+        if (unit.type === 'single') {
+          await this.executeOne(unit.subStep);
+        } else {
+          await executeParallelSubSteps(
+            unit.subSteps,
+            this.ctx,
+            async (subStep, childStore) => {
+              await this.executeOne(subStep, childStore);
+            }
+          );
+        }
       }
     } finally {
       if (this.interceptor) {
@@ -89,7 +103,7 @@ export class SubStepExecutor {
     }
   }
 
-  private async executeOne(subStep: SubStep): Promise<void> {
+  private async executeOne(subStep: SubStep, overrideContextStore?: ContextStore): Promise<void> {
     const { id, script, snapshot_before_submit } = subStep;
 
     // 已完成则跳过（缓存重新运行场景需完整跑一遍 API 回放，不跳过子步骤）
@@ -122,7 +136,8 @@ export class SubStepExecutor {
         }
 
         if (script) {
-          await executeScript(script, this.page, this.ctx, {
+          const targetCtx = overrideContextStore ?? this.ctx;
+          await executeScript(script, this.page, targetCtx, {
             screenshotDir: this.opts.screenshotDir,
             macrosDir: this.opts.macrosDir,
             stepId: id,

@@ -11,6 +11,8 @@ import { RolePool } from './role-pool.js';
 import { StepExecutor } from './step-executor.js';
 import { getFormattedDateTime } from './datetime-utils.js';
 import { SharedStaticBootstrapCache } from './network-interceptor.js';
+import { groupSteps } from './step-grouper.js';
+import { executeParallelSteps } from './parallel-executor.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -290,27 +292,11 @@ export class WorkflowRunner {
       };
 
       try {
-        for (const step of this.definition.steps) {
-          // 在非 readCache 模式下，已完成或已被手动确认跳过的步骤直接跳过（支持断点续跑与确认跳过）；
-          // 在 readCache 缓存重跑模式下，全量重新回放执行 steps 以触发 API 回放并捕捉异化
-          if (!this.opts.readCache && checkpoint.isCompleted(step.id)) {
-            console.log(`[runner] ⏭  Skipping completed step: ${step.id}`);
-            const savedDurations = checkpoint.getStepDurations();
-            if (savedDurations[step.id] !== undefined) {
-              stepDurations[step.id] = savedDurations[step.id];
-            }
-            continue;
-          }
+        const units = groupSteps(this.definition.steps);
 
-          currentStepId = step.id;
-          currentStepStartTime = Date.now();
-          await stepExecutor.execute(step);
-          const stepDuration = Date.now() - currentStepStartTime;
-          stepDurations[step.id] = stepDuration;
-          currentStepId = undefined;
-
+        const handleStepCompletion = (stepId: string, duration: number) => {
           completedSteps++;
-          console.log(`[runner] 🎯 Completed step: ${step.id} (${formatDuration(stepDuration)})`);
+          console.log(`[runner] 🎯 Completed step: ${stepId} (${formatDuration(duration)})`);
 
           // 保存长效持久化变量
           const persistentKeys = this.definition.persist_vars || [];
@@ -329,6 +315,61 @@ export class WorkflowRunner {
                 console.log(`[runner] 💾 Saved persistent variables: ${Object.keys(dataToPersist).join(', ')}`);
               } catch (err) {
                 console.error(`[runner] Failed to save persistent variables: ${err}`);
+              }
+            }
+          }
+        };
+
+        for (const unit of units) {
+          if (unit.type === 'single') {
+            const step = unit.step;
+            if (!this.opts.readCache && checkpoint.isCompleted(step.id)) {
+              console.log(`[runner] ⏭  Skipping completed step: ${step.id}`);
+              const savedDurations = checkpoint.getStepDurations();
+              if (savedDurations[step.id] !== undefined) {
+                stepDurations[step.id] = savedDurations[step.id];
+              }
+              continue;
+            }
+
+            currentStepId = step.id;
+            currentStepStartTime = Date.now();
+            await stepExecutor.execute(step);
+            const stepDuration = Date.now() - currentStepStartTime;
+            stepDurations[step.id] = stepDuration;
+            currentStepId = undefined;
+
+            handleStepCompletion(step.id, stepDuration);
+          } else {
+            // 并行步骤组
+            const stepsToRun = unit.steps.filter((s) => {
+              if (!this.opts.readCache && checkpoint.isCompleted(s.id)) {
+                console.log(`[runner] ⏭  Skipping completed step in parallel group: ${s.id}`);
+                const savedDurations = checkpoint.getStepDurations();
+                if (savedDurations[s.id] !== undefined) {
+                  stepDurations[s.id] = savedDurations[s.id];
+                }
+                return false;
+              }
+              return true;
+            });
+
+            if (stepsToRun.length > 0) {
+              const pDurations = await executeParallelSteps(
+                stepsToRun,
+                contextStore,
+                async (step, childStore, createNewPage) => {
+                  await stepExecutor.execute(step, {
+                    createNewPage,
+                    overrideContextStore: childStore,
+                  });
+                }
+              );
+
+              for (const step of stepsToRun) {
+                const dur = pDurations[step.id] ?? 0;
+                stepDurations[step.id] = dur;
+                handleStepCompletion(step.id, dur);
               }
             }
           }

@@ -7,6 +7,13 @@
 
 ---
 
+## [Unreleased] - 2026-07-23
+
+### 新增 (Added)
+- **Step 内及 Step 间并行执行功能 (`parallel: true` / `parallel_sub_steps: true`)**：
+  - **Step 级并行**：给步骤添加 `parallel: true`（或 `parallel: 'step'`），自动与相邻步骤打包为并发组并行调度运行。
+  - **SubStep 级并行**：在 Step 上设置 `parallel_sub_steps: true`（或 `parallel: 'sub_steps'`），免去繁琐操作，一次性开启该步骤内所有子步骤并行；同时支持给单个 SubStep 标记 `parallel: true` 实现精细化局部并行。
+
 ## [Unreleased] - 2026-07-22
 
 ### 修复与增强 (Fixed & Enhanced)

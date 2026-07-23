@@ -1,0 +1,36 @@
+# demo/cases/workflows/parallel-demo.yaml
+description: "演示 Step 级别与 SubStep 级别的并行执行功能"
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+  manager:   { username: "manager",   password: "mgr_pass" }
+
+steps:
+  # 步骤 1 & 步骤 2 并行跑 (Step-level parallelism)
+  - id: step_parallel_a
+    role: requester
+    script: |
+      open "/purchase/new"
+      assert_exists "role:heading[新建采购申请]" 10s
+
+  - id: step_parallel_b
+    role: manager
+    parallel: true
+    script: |
+      open "/purchase/new"
+      assert_exists "role:heading[新建采购申请]" 10s
+
+  # 步骤 3 内部子步骤全量并行 (SubStep bulk parallelism)
+  - id: step_sub_parallel
+    role: requester
+    parallel_sub_steps: true
+    sub_steps:
+      - id: check_dashboard
+        script: |
+          open "/dashboard"
+          assert_exists "role:heading[我的申请]" 10s
+
+      - id: check_new_purchase
+        script: |
+          open "/purchase/new"
+          assert_exists "role:heading[新建采购申请]" 10s

@@ -122,10 +122,17 @@ export class RolePool {
   /**
    * 获取角色的完整 RoleContext（context + page）
    */
-  async getRoleContext(roleName: string, options: { skipLogin?: boolean } = {}): Promise<RoleContext> {
-    const page = await this.getPage(roleName, options);
+  async getRoleContext(
+    roleName: string,
+    options: { skipLogin?: boolean; createNewPage?: boolean } = {}
+  ): Promise<RoleContext> {
+    const mainPage = await this.getPage(roleName, options);
     const context = this.contexts.get(roleName)!;
-    return { context, page };
+    if (options.createNewPage && context) {
+      const page = await context.newPage();
+      return { context, page };
+    }
+    return { context, page: mainPage };
   }
 
   // ── 登录流程 ───────────────────────────────────────────────

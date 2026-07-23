@@ -26,6 +26,7 @@ const SubStepSchema = z.object({
   use_step: z.string().optional(),
   is_use_step: z.boolean().optional(),
   skip_blocks: z.union([z.boolean(), z.array(z.string())]).optional(),
+  parallel: z.boolean().optional(),
 });
 
 const StepSchema = z.object({
@@ -37,6 +38,10 @@ const StepSchema = z.object({
   use_step: z.string().optional(),
   is_use_step: z.boolean().optional(),
   skip_blocks: z.union([z.boolean(), z.array(z.string())]).optional(),
+  parallel: z.union([z.boolean(), z.enum(['step', 'sub_steps', 'both'])]).optional(),
+  parallel_sub_steps: z.boolean().optional(),
+  fail_fast: z.boolean().optional(),
+  concurrency: z.number().int().positive().optional(),
 });
 
 const RoleSchema = z.record(z.string(), z.any());
