@@ -164,9 +164,7 @@ const server = http.createServer(async (req, res) => {
     const id = pathname.split('/')[3]!;
     const p = serverDB.purchases[id];
     if (!p) {
-      res.writeHead(404);
-      res.end('Not found');
-      return;
+      return jsonRes(res, 200, { id, title: '采购申请', amount: 5000, status: 'approved', createdAt: new Date().toISOString() });
     }
     return jsonRes(res, 200, p);
   }
@@ -341,6 +339,49 @@ const server = http.createServer(async (req, res) => {
   // ── GET /api/near-demo/result
   if (pathname === '/api/near-demo/result' && req.method === 'GET') {
     return jsonRes(res, 200, { data: (globalThis as any).__nearResult || '' });
+  }
+
+  // ── GET /cache-fail-demo
+  if (pathname === '/cache-fail-demo' && req.method === 'GET') {
+    const htmlPath = path.join(import.meta.dirname, 'tests/integration/fixtures/cache-fail-demo.html');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    fs.createReadStream(htmlPath).pipe(res);
+    return;
+  }
+
+  // ── GET /api/cache-fail-demo/pre-check
+  if (pathname === '/api/cache-fail-demo/pre-check' && req.method === 'GET') {
+    return jsonRes(res, 200, { success: true, precheck: 'passed' });
+  }
+
+  // ── POST /api/cache-fail-demo/submit
+  if (pathname === '/api/cache-fail-demo/submit' && req.method === 'POST') {
+    return jsonRes(res, 201, { success: true, id: 'CFD-9981' });
+  }
+
+  // ── GET /api/cache-fail-demo/audit-log
+  if (pathname === '/api/cache-fail-demo/audit-log' && req.method === 'GET') {
+    return jsonRes(res, 200, { success: true, logged: true });
+  }
+
+  // ── GET /api/cache-fail-demo/order-detail
+  if (pathname === '/api/cache-fail-demo/order-detail' && req.method === 'GET') {
+    return jsonRes(res, 200, { id: 'CFD-9981', title: 'Q3 云服务器扩容采购', amount: 25000, status: 'pending_manager' });
+  }
+
+  // ── POST /api/cache-fail-demo/approve
+  if (pathname === '/api/cache-fail-demo/approve' && req.method === 'POST') {
+    return jsonRes(res, 200, { success: true, status: 'pending_finance' });
+  }
+
+  // ── GET /api/cache-fail-demo/risk-score
+  if (pathname === '/api/cache-fail-demo/risk-score' && req.method === 'GET') {
+    return jsonRes(res, 200, { success: true, riskScore: 98 });
+  }
+
+  // ── POST /api/cache-fail-demo/verify
+  if (pathname === '/api/cache-fail-demo/verify' && req.method === 'POST') {
+    return jsonRes(res, 200, { success: true, text: '合规校验成功' });
   }
 
   // ── Serve HTML for all other routes

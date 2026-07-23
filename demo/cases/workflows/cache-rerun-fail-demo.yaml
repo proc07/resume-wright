@@ -1,0 +1,72 @@
+# demo/cases/workflows/cache-rerun-fail-demo.yaml
+# 演示用例：对比首次运行成功 vs 缓存重新运行失败的效果
+
+description: "演示缓存重跑高级对比：步骤1包含接口减少与接口新增，步骤2包含风控接口新增，步骤3触发接口回放异化报错"
+
+roles:
+  requester: { username: "requester", password: "req_pass" }
+
+steps:
+  # ══════════════════════════════════════════════════════
+  # 步骤 1：申请人提交与资质校验 (演示 接口减少 ➖ 与 接口新增 ➕)
+  # ══════════════════════════════════════════════════════
+  - id: step1_submit_application
+    role: requester
+    on_failure:
+      strategy: retry
+      max_retries: 0
+    sub_steps:
+      - id: fill_and_submit
+        script: |
+          open "/cache-fail-demo?step=1"
+          input "Q3 云服务器扩容采购" to "申请标题"
+          input "25000" to "申请金额"
+          tap "role:button[提交申请]"
+          assert_exists "采购申请已提交" 5s
+          screenshot
+
+  # ══════════════════════════════════════════════════════
+  # 步骤 2：主管初审与风控评估 (演示 重跑增加风控接口调用 ➕)
+  # ══════════════════════════════════════════════════════
+  - id: step2_manager_audit
+    role: requester
+    on_failure:
+      strategy: retry
+      max_retries: 0
+    sub_steps:
+      - id: audit_approve
+        script: |
+          open "/cache-fail-demo?step=2"
+          assert_exists "单号: CFD-9981" 5s
+          tap "role:button[主管审核通过]"
+          assert_exists "css:#approve-result" 5s
+          screenshot
+
+  # ══════════════════════════════════════════════════════
+  # 步骤 3：财务复核与合规校验 (演示 缓存重跑接口异化报错 ❌)
+  # ══════════════════════════════════════════════════════
+  - id: step3_finance_verify
+    role: requester
+    on_failure:
+      strategy: retry
+      max_retries: 0
+    sub_steps:
+      - id: trigger_verify
+        on_failure:
+          strategy: retry
+          max_retries: 0
+        script: |
+          open "/cache-fail-demo?step=3"
+          tap "role:button[发起追加合规校验]"
+          assert_exists "合规校验成功" 5s
+          screenshot
+
+  # ══════════════════════════════════════════════════════
+  # 步骤 4：归档确认 (因步骤3报错，缓存重跑时中断未执行 灰色 ④)
+  # ══════════════════════════════════════════════════════
+  - id: step4_final_archive
+    role: requester
+    script: |
+      open "/cache-fail-demo?step=4"
+      assert_exists "归档完成" 5s
+      screenshot

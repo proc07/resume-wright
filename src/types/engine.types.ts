@@ -75,6 +75,7 @@ export interface CaseResult {
 export interface CheckpointData {
   caseName: string;
   completedSteps: string[];
+  skippedSteps?: string[];
   stepDurations?: Record<string, number>; // 各步骤耗时，格式为 stepId -> ms
   context: Record<string, unknown>;
   lastUpdated: string;        // ISO 8601

@@ -65,6 +65,7 @@ function saveRunHistory(safeCaseName: string, record: {
   timestamp: string;
   status: 'passed' | 'failed' | 'running';
   duration?: number;
+  stepDurations?: Record<string, number>;
   error?: string | null;
   readCache?: boolean;
 }) {
@@ -135,7 +136,7 @@ export class WorkflowRunner {
       const contextStore = new ContextStore();
 
       // 加载长效持久化变量
-      const persistentVarsPath = path.join('config', 'persistent', `${safeCaseName}.json`);
+      const persistentVarsPath = path.join(caseDir, 'persistent.json');
       if (fs.existsSync(persistentVarsPath)) {
         try {
           const savedData = JSON.parse(fs.readFileSync(persistentVarsPath, 'utf-8'));
@@ -290,8 +291,9 @@ export class WorkflowRunner {
 
       try {
         for (const step of this.definition.steps) {
-          // 已完成步骤直接跳过
-          if (checkpoint.isCompleted(step.id)) {
+          // 在非 readCache 模式下，已完成或已被手动确认跳过的步骤直接跳过（支持断点续跑与确认跳过）；
+          // 在 readCache 缓存重跑模式下，全量重新回放执行 steps 以触发 API 回放并捕捉异化
+          if (!this.opts.readCache && checkpoint.isCompleted(step.id)) {
             console.log(`[runner] ⏭  Skipping completed step: ${step.id}`);
             const savedDurations = checkpoint.getStepDurations();
             if (savedDurations[step.id] !== undefined) {
@@ -341,6 +343,8 @@ export class WorkflowRunner {
           timestamp: new Date(startTime).toISOString(),
           status: 'passed',
           duration,
+          stepDurations: { ...stepDurations },
+          readCache: this.opts.readCache ?? false,
           error: null
         });
 
@@ -373,6 +377,8 @@ export class WorkflowRunner {
           timestamp: new Date(startTime).toISOString(),
           status: 'failed',
           duration,
+          stepDurations: { ...stepDurations },
+          readCache: this.opts.readCache ?? false,
           error: lastError
         });
 

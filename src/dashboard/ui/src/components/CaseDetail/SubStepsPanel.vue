@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onUnmounted } from 'vue'
 import type { ApiCacheEntry, CaseData, SubStepState } from '@/api/cases'
+import { useCasesStore } from '@/stores/cases'
 import ScreenshotsGallery from './ScreenshotsGallery.vue'
 
 const props = defineProps<{
@@ -15,11 +16,27 @@ const emit = defineEmits<{
   (e: 'update:activeTab', value: 'baseline' | 'cache-rerun'): void
 }>()
 
+const casesStore = useCasesStore()
+const isSkipping = ref(false)
 
 const step = computed(() => {
   if (!props.selectedStepId) return null
   return props.caseData.steps.find(s => s.id === props.selectedStepId) || null
 })
+
+async function handleSkipStep() {
+  if (!step.value || isSkipping.value) return
+  if (!confirm(`确定要跳过步骤 "${step.value.id}" 吗？后续恢复运行（Resume）时将自动绕过该步骤。`)) return
+  isSkipping.value = true
+  try {
+    const res = await casesStore.confirmSkipStep(props.caseData.name, step.value.id)
+    if (!res.success) {
+      alert('跳过步骤失败，请重试')
+    }
+  } finally {
+    isSkipping.value = false
+  }
+}
 
 const subStepsDetail = computed(() => {
   if (!props.selectedStepId || !props.caseData.subStepsDetail) return null
@@ -40,9 +57,9 @@ function computeDiffApiCache(
     return baseList
   }
 
-  // 若重跑完全没有该作用域的日志，直接展示 baseline (不打 diff 标记)
+  // 若重跑完全没有该作用域的日志，且 baseline 有日志 -> 将 baseline 全部标记为 removed (未触发)
   if (!rerunList || rerunList.length === 0) {
-    return baseList
+    return baseList.map(b => ({ ...b, diffStatus: 'removed' }))
   }
 
   const getEntryKey = (entry: ApiCacheEntry, idx: number) => {
@@ -60,7 +77,7 @@ function computeDiffApiCache(
   const result: ApiCacheEntry[] = []
   const consumedBaseSet = new Set<ApiCacheEntry>()
 
-  // 1. 遍历 rerunList：存在于 baseline 则为正常，不存在为 added (淡绿色)
+  // 1. 遍历 rerunList：存在于 baseline 则为正常，不存在为 added (绿色 URL + [➕ 新增] 标签)
   rerunList.forEach((rItem, rIdx) => {
     const key = getEntryKey(rItem, rIdx)
     const availableBaseItems = baseKeyCounts.get(key) || []
@@ -77,7 +94,7 @@ function computeDiffApiCache(
     }
   })
 
-  // 2. 遍历 baseList 中未在重跑中触发的请求，标记为 removed (淡红+中划线)
+  // 2. 遍历 baseList 中未在重跑中触发的请求，标记为 removed (红色 URL 中划线 + [➖ 未触发] 标签)
   baseList.forEach((bItem) => {
     if (!consumedBaseSet.has(bItem)) {
       result.push({
@@ -97,7 +114,16 @@ const currentSubStepsDetail = computed(() => {
 
   if (props.activeTab === 'cache-rerun') {
     if (!rerunDetail && !baseDetail) return null
-    if (!rerunDetail) return baseDetail
+    if (!rerunDetail) {
+      const result: Record<string, SubStepState> = {}
+      for (const [subId, subState] of Object.entries(baseDetail || {})) {
+        result[subId] = {
+          ...subState,
+          apiCache: computeDiffApiCache(subState.apiCache || [], [])
+        }
+      }
+      return result
+    }
 
     const allSubIds = new Set([
       ...Object.keys(baseDetail || {}),
@@ -143,6 +169,7 @@ const currentMainStepCache = computed(() => {
 
 const currentSharedBootstrapCache = computed(() => {
   const base = props.caseData.sharedBootstrapCache || []
+  if (props.activeTab === 'baseline') return base
   const rerun = props.caseData.cacheRerunSharedBootstrapCache || []
   return computeDiffApiCache(base, rerun)
 })
@@ -151,6 +178,7 @@ const currentRoleBootstrapCache = computed(() => {
   if (!step.value) return []
   const role = step.value.role
   const base = props.caseData.roleCaches?.[role] || []
+  if (props.activeTab === 'baseline') return base
   const rerun = props.caseData.cacheRerunRoleCaches?.[role] || []
   return computeDiffApiCache(base, rerun)
 })
@@ -179,6 +207,19 @@ const isStepFailed = computed(() => {
   if (isCacheRerunCausedFailure) return false
 
   return props.caseData.status === 'failed' && props.caseData.completedCount === stepIndex.value
+})
+
+const isStepSkipped = computed(() => {
+  if (!step.value || !step.value.skipped) return false
+
+  if (props.activeTab === 'baseline') {
+    // 首次运行 Tab：如果 baseline 本身没有报错且步骤已完成，说明首次运行未跳过
+    if (!props.caseData.baselineError && step.value.completed) {
+      return false
+    }
+  }
+
+  return true
 })
 
 const currentMainStepError = computed(() => {
@@ -266,6 +307,12 @@ const displayDuration = computed(() => {
   if (!step.value) return null
   if (isStepRunning.value) {
     return formatDuration(elapsedMs.value)
+  }
+  if (props.activeTab === 'cache-rerun') {
+    const rerunDur = props.caseData.cacheRerunStepDurations?.[step.value.id]
+    if (rerunDur !== undefined && rerunDur !== null && rerunDur > 0) {
+      return formatDuration(rerunDur)
+    }
   }
   // 优先展示从 store 刷新来的持久化 duration
   if (step.value.duration !== undefined && step.value.duration !== null && step.value.duration > 0) {
@@ -398,31 +445,30 @@ function handlePopoverMouseLeave() {
   <div class="card card-substeps">
     <div class="card-header-row">
       <div class="header-left">
-        <h3>{{ step ? step.id : '子步骤 (SubStep) 与 API 缓存' }}</h3>
-        <div v-if="step && (hasBaselineData || hasCacheRerunData)" class="substep-tabs">
-          <button
-            v-if="hasBaselineData"
-            class="tab-btn"
-            :class="{ active: activeTab === 'baseline' }"
-            @click="emit('update:activeTab', 'baseline')"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            首次运行
-          </button>
-          <button
-            v-if="hasCacheRerunData"
-            class="tab-btn"
-            :class="{ active: activeTab === 'cache-rerun' }"
-            @click="emit('update:activeTab', 'cache-rerun')"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"/>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-            </svg>
-            缓存重新运行
-          </button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h3>{{ step ? step.id : '子步骤 (SubStep) 与 API 缓存' }}</h3>
+          <template v-if="step">
+            <span v-if="isStepSkipped" class="step-skipped-badge" title="该步骤已被手动确认跳过">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/>
+                <line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
+              已跳过
+            </span>
+            <button
+              v-else-if="activeTab === 'cache-rerun' && isStepFailed"
+              class="btn-skip-step"
+              :disabled="isSkipping"
+              title="跳过该步骤，后续恢复运行(Resume)时将自动绕过"
+              @click="handleSkipStep"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/>
+                <line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
+              {{ isSkipping ? '跳过中...' : '确认跳过' }}
+            </button>
+          </template>
         </div>
       </div>
       <div v-if="step && displayDuration" class="step-header-duration">
@@ -449,17 +495,17 @@ function handlePopoverMouseLeave() {
                 :key="`${c.method}:${c.url}`"
                 class="api-cache-item-wrapper"
               >
-                <div class="api-cache-item" :class="c.diffStatus ? `diff-${c.diffStatus}` : ''">
+                <div class="api-cache-item" :class="activeTab === 'cache-rerun' && c.diffStatus ? `diff-${c.diffStatus}` : ''">
                   <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
                     <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
                     <div class="api-cache-url-container" :title="c.url">
-                      <span class="api-cache-url" :class="c.diffStatus">{{ displayApiUrl(c) }}</span>
+                      <span class="api-cache-url" :class="activeTab === 'cache-rerun' ? c.diffStatus : ''">{{ displayApiUrl(c) }}</span>
                     </div>
                   </div>
                   
                   <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
-                    <span v-if="c.diffStatus === 'added'" class="api-diff-badge added">+ 新增</span>
-                    <span v-if="c.diffStatus === 'removed'" class="api-diff-badge removed">- 未请求</span>
+                    <span v-if="activeTab === 'cache-rerun' && c.diffStatus === 'added'" class="api-diff-badge added">+ 新增</span>
+                    <span v-if="activeTab === 'cache-rerun' && c.diffStatus === 'removed'" class="api-diff-badge removed">- 未触发</span>
                     <span v-if="c.cacheAvailable" class="api-cache-badge" :title="c.url">cache</span>
                     <span class="api-cache-badge" style="margin-right: 2px;">{{ c.status }}</span>
                     
@@ -499,17 +545,17 @@ function handlePopoverMouseLeave() {
                 :key="cIdx"
                 class="api-cache-item-wrapper"
               >
-                <div class="api-cache-item" :class="c.diffStatus ? `diff-${c.diffStatus}` : ''">
+                <div class="api-cache-item" :class="activeTab === 'cache-rerun' && c.diffStatus ? `diff-${c.diffStatus}` : ''">
                   <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
                     <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
                     <div class="api-cache-url-container" :title="c.url">
-                      <span class="api-cache-url" :class="c.diffStatus">{{ displayApiUrl(c) }}</span>
+                      <span class="api-cache-url" :class="activeTab === 'cache-rerun' ? c.diffStatus : ''">{{ displayApiUrl(c) }}</span>
                     </div>
                   </div>
 
                   <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
-                    <span v-if="c.diffStatus === 'added'" class="api-diff-badge added">+ 新增</span>
-                    <span v-if="c.diffStatus === 'removed'" class="api-diff-badge removed">- 未请求</span>
+                    <span v-if="activeTab === 'cache-rerun' && c.diffStatus === 'added'" class="api-diff-badge added">+ 新增</span>
+                    <span v-if="activeTab === 'cache-rerun' && c.diffStatus === 'removed'" class="api-diff-badge removed">- 未触发</span>
                     <span class="api-cache-badge">#{{ c.occurrence || cIdx + 1 }}</span>
                     <span v-if="c.cacheAvailable" class="api-cache-origin-badge">cache</span>
                     <span class="api-cache-badge" style="margin-right: 2px;">{{ c.status }}</span>
@@ -645,17 +691,17 @@ function handlePopoverMouseLeave() {
                     :key="cIdx"
                     class="api-cache-item-wrapper"
                   >
-                    <div class="api-cache-item" :class="c.diffStatus ? `diff-${c.diffStatus}` : ''">
+                    <div class="api-cache-item" :class="activeTab === 'cache-rerun' && c.diffStatus ? `diff-${c.diffStatus}` : ''">
                       <div style="display: flex; gap: 4px; min-width: 0; flex: 1; margin-right: 8px; align-items: center;">
                         <span class="api-cache-method" :class="c.method.toLowerCase()" style="flex-shrink: 0;">{{ c.method }}</span>
                         <div class="api-cache-url-container" :title="c.url">
-                          <span class="api-cache-url" :class="c.diffStatus">{{ displayApiUrl(c) }}</span>
+                          <span class="api-cache-url" :class="activeTab === 'cache-rerun' ? c.diffStatus : ''">{{ displayApiUrl(c) }}</span>
                         </div>
                       </div>
                       
                       <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; margin-left: 8px;">
-                        <span v-if="c.diffStatus === 'added'" class="api-diff-badge added">+ 新增</span>
-                        <span v-if="c.diffStatus === 'removed'" class="api-diff-badge removed">- 未请求</span>
+                        <span v-if="activeTab === 'cache-rerun' && c.diffStatus === 'added'" class="api-diff-badge added">+ 新增</span>
+                        <span v-if="activeTab === 'cache-rerun' && c.diffStatus === 'removed'" class="api-diff-badge removed">- 未触发</span>
                         <!-- 响应状态状态码 -->
                         <span class="api-cache-badge">#{{ c.occurrence || cIdx + 1 }}</span>
                         <span v-if="c.cacheAvailable" class="api-cache-origin-badge">cache</span>
@@ -767,6 +813,47 @@ function handlePopoverMouseLeave() {
   background: rgba(239, 68, 68, 0.2);
   color: #f87171;
   border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.btn-skip-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #d97706;
+  background-color: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.btn-skip-step:hover:not(:disabled) {
+  background-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #b45309;
+}
+
+.btn-skip-step:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.step-skipped-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #d97706;
+  background-color: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 12px;
+  line-height: 1.2;
 }
 </style>
 

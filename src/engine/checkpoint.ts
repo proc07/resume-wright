@@ -54,6 +54,7 @@ export class Checkpoint {
     this.data = {
       caseName,
       completedSteps: [],
+      skippedSteps: [],
       stepDurations: {},
       context: {},
       lastUpdated: new Date().toISOString(),
@@ -85,10 +86,17 @@ export class Checkpoint {
   // ── 查询 ─────────────────────────────────────────────────
 
   /**
-   * 检查某个 Step 是否已完成
+   * 检查某个 Step 是否被手动或确认跳过
+   */
+  isSkipped(stepId: string): boolean {
+    return Boolean(this.data.skippedSteps?.includes(stepId));
+  }
+
+  /**
+   * 检查某个 Step 是否已完成（包括正常完成与跳过）
    */
   isCompleted(stepId: string): boolean {
-    return this.data.completedSteps.includes(stepId);
+    return this.data.completedSteps.includes(stepId) || this.isSkipped(stepId);
   }
 
   /**
@@ -155,6 +163,29 @@ export class Checkpoint {
   }
 
   /**
+   * 标记某个 Step 为跳过（确认跳过），并保持当前 ContextState，写入 Checkpoint
+   */
+  markSkipped(stepId: string, duration?: number): void {
+    if (!this.data.skippedSteps) {
+      this.data.skippedSteps = [];
+    }
+    if (!this.data.skippedSteps.includes(stepId)) {
+      this.data.skippedSteps.push(stepId);
+    }
+    if (!this.data.completedSteps.includes(stepId)) {
+      this.data.completedSteps.push(stepId);
+    }
+    if (!this.data.stepDurations) {
+      this.data.stepDurations = {};
+    }
+    if (duration !== undefined) {
+      this.data.stepDurations[stepId] = duration;
+    }
+    this.data.lastUpdated = new Date().toISOString();
+    this.writeAtomic();
+  }
+
+  /**
    * 仅更新 context 快照（无需标记 step 完成时使用）
    */
   syncContext(ctx: ContextStore): void {
@@ -174,6 +205,7 @@ export class Checkpoint {
       console.log(`[checkpoint] Reset: ${this.filePath}`);
     }
     this.data.completedSteps = [];
+    this.data.skippedSteps = [];
     this.data.stepDurations = {};
     this.data.context = {};
   }

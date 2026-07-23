@@ -52,6 +52,24 @@ function deduplicateSharedBootstrapEntries(entries: any[]): any[] {
   return [...resources.values()];
 }
 
+function findCaseFileByCaseName(caseName: string): string | null {
+  const casesDir = path.resolve(process.cwd(), 'cases');
+  if (fs.existsSync(casesDir)) {
+    const pattern = path.join(casesDir, '**/*.{yaml,yml}').replace(/\\/g, '/');
+    const files = fg.sync(pattern);
+    for (const file of files) {
+      try {
+        const def = loadCase(file);
+        const filename = path.basename(file, path.extname(file));
+        if (def.name === caseName || filename === caseName) {
+          return file;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+  return null;
+}
+
 function resolveSafeCaseName(caseName: string): string {
   if (caseNameCache[caseName]) {
     return caseNameCache[caseName];
@@ -245,34 +263,128 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
 
           const durations = cp.getStepDurations();
 
-          // 结合内存中最后运行的状态
+          // 结合内存中最后运行的状态与历史记录
           const completed = cp.completedCount();
           const total = definition.steps.length;
+
+          const hasSubSteps = fs.existsSync(path.join('.resumewright', safeCaseName, 'sub-steps'));
+
+          let historicalStatus: string | null = null;
+          try {
+            const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
+            if (fs.existsSync(historyFile)) {
+              const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+              if (history && history.length > 0) {
+                historicalStatus = history[0].status;
+              }
+            }
+          } catch { /* ignore */ }
+
           let status: 'passed' | 'failed' | 'never_run' | 'running' = 'never_run';
 
-          if (completed === total && total > 0) {
-            status = 'passed';
-          } else if (lastRunStatuses[definition.name] === 'running') {
+          if (lastRunStatuses[definition.name] === 'running' || lastRunStatuses[safeCaseName] === 'running') {
             status = 'running';
-          } else if (lastRunStatuses[definition.name] === 'failed') {
-            status = 'failed';
-          } else if (lastRunStatuses[definition.name] === 'never_run') {
-            status = 'never_run';
           } else {
-            // 从历史记录中恢复状态（如果内存中没有）
-            let historicalStatus: string | null = null;
+            let baselineStatus: 'passed' | 'failed' | 'never_run' = 'never_run';
+            let cacheRerunStatus: 'passed' | 'failed' | 'never_run' = 'never_run';
+
+            let history: any[] = [];
             try {
               const historyFile = path.join('.resumewright', safeCaseName, 'history', 'history.json');
               if (fs.existsSync(historyFile)) {
-                const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
-                if (history && history.length > 0) {
-                  historicalStatus = history[0].status;
-                }
+                history = JSON.parse(fs.readFileSync(historyFile, 'utf-8')) || [];
               }
             } catch { /* ignore */ }
 
-            if (historicalStatus === 'failed' || completed > 0) {
+            const baselineHistory = history.find((h: any) => !h.readCache);
+            const cacheRerunHistory = history.find((h: any) => h.readCache === true);
+
+            let hasBaselineSubData = false;
+            let hasBaselineFailedSub = false;
+            let hasCacheRerunSubData = false;
+            let hasCacheRerunFailedSub = false;
+
+            const subStepsDir = path.join('.resumewright', safeCaseName, 'sub-steps');
+            if (fs.existsSync(subStepsDir)) {
+              try {
+                const stepDirs = fs.readdirSync(subStepsDir);
+                for (const sDir of stepDirs) {
+                  const stepPath = path.join(subStepsDir, sDir);
+                  if (!fs.statSync(stepPath).isDirectory()) continue;
+
+                  const baseStateFile = path.join(stepPath, 'state.json');
+                  if (fs.existsSync(baseStateFile)) {
+                    hasBaselineSubData = true;
+                    try {
+                      const st = JSON.parse(fs.readFileSync(baseStateFile, 'utf-8'));
+                      if (Object.values(st).some((sub: any) => sub.status === 'failed' || (sub.error && sub.status !== 'completed'))) {
+                        hasBaselineFailedSub = true;
+                      }
+                    } catch {}
+                  }
+
+                  const rerunStateFile = path.join(stepPath, 'cache-rerun-state.json');
+                  const rerunReqFile = path.join(stepPath, 'cache-rerun-api-requests.json');
+                  if (fs.existsSync(rerunStateFile) || fs.existsSync(rerunReqFile)) {
+                    hasCacheRerunSubData = true;
+                    if (fs.existsSync(rerunStateFile)) {
+                      try {
+                        const st = JSON.parse(fs.readFileSync(rerunStateFile, 'utf-8'));
+                        if (Object.values(st).some((sub: any) => sub.status === 'failed' || (sub.error && sub.status !== 'completed'))) {
+                          hasCacheRerunFailedSub = true;
+                        }
+                      } catch {}
+                    }
+                  }
+                }
+              } catch {}
+            }
+
+            if (completed === 0 && !hasBaselineSubData) {
+              baselineStatus = 'never_run';
+            } else if (baselineHistory) {
+              if (baselineHistory.status === 'failed' || hasBaselineFailedSub) {
+                baselineStatus = 'failed';
+              } else if (baselineHistory.status === 'passed' || completed === total) {
+                baselineStatus = 'passed';
+              }
+            } else if (completed === total && total > 0) {
+              baselineStatus = 'passed';
+            } else if (hasBaselineFailedSub) {
+              baselineStatus = 'failed';
+            } else if (completed > 0 && completed < total) {
+              baselineStatus = 'failed';
+            }
+
+            if (!hasCacheRerunSubData) {
+              cacheRerunStatus = 'never_run';
+            } else if (cacheRerunHistory) {
+              if (cacheRerunHistory.status === 'failed' || hasCacheRerunFailedSub) {
+                cacheRerunStatus = 'failed';
+              } else if (cacheRerunHistory.status === 'passed') {
+                cacheRerunStatus = 'passed';
+              }
+            } else if (hasCacheRerunFailedSub) {
+              cacheRerunStatus = 'failed';
+            } else if (hasCacheRerunSubData) {
+              cacheRerunStatus = 'passed';
+            }
+
+            // 规则一：首次 / 缓存 任意一个包含 fail 则展示 failed (🔴 红点)
+            if (baselineStatus === 'failed' || cacheRerunStatus === 'failed') {
               status = 'failed';
+            }
+            // 规则二：首次与缓存均有记录时，必须两者都成功才展示 passed (🟢 绿点)
+            else if (baselineStatus === 'passed' && cacheRerunStatus === 'passed') {
+              status = 'passed';
+            }
+            // 规则三：仅运行了首次（无缓存记录），只要首次成功即展示 passed (🟢 绿点)
+            else if (baselineStatus === 'passed' && cacheRerunStatus === 'never_run') {
+              status = 'passed';
+            }
+            // 规则四：其它情况归为 never_run (⚪ 灰点)
+            else {
+              status = 'never_run';
             }
           }
 
@@ -297,6 +409,13 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             }
           }
 
+          const isPassedStatus = status === 'passed';
+          const effectiveCompletedCount = isPassedStatus
+            ? total
+            : status === 'failed'
+              ? (completed > 0 ? completed : total)
+              : completed;
+
           return {
             name: definition.name,
             description: definition.description || '',
@@ -305,13 +424,14 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             steps: definition.steps.map((s) => ({
               id: s.id,
               role: s.role,
-              completed: cp.isCompleted(s.id),
+              completed: cp.isCompleted(s.id) || isPassedStatus,
+              skipped: cp.isSkipped(s.id),
               duration: durations[s.id] || 0,
               subStepsCount: s.sub_steps?.length || 0,
               isUseStep: s.is_use_step,
             })),
             status,
-            completedCount: cp.completedCount(),
+            completedCount: effectiveCompletedCount,
             totalSteps: definition.steps.length,
             duration: caseDuration,
             startTime,
@@ -443,6 +563,10 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       let cacheRerunError: string | undefined;
       let latestRunId: string | undefined;
       let latestRunStatus: string | undefined;
+      let cacheRerunStepDurations: Record<string, number> = {};
+      let cacheRerunDuration: number | undefined;
+      let baselineDuration: number | undefined;
+
       try {
         const historyFile = path.join(caseDir, 'history', 'history.json');
         if (fs.existsSync(historyFile)) {
@@ -455,16 +579,21 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
               latestError = latest.error || undefined;
             }
 
-            const rerunItem = history.find((h: any) => h.readCache === true && h.status === 'failed');
+            const rerunItem = history.find((h: any) => h.readCache === true);
             if (rerunItem) {
-              cacheRerunError = rerunItem.error || undefined;
-            } else if (latest.readCache === true && latest.status === 'failed') {
-              cacheRerunError = latest.error || undefined;
+              if (rerunItem.status === 'failed') {
+                cacheRerunError = rerunItem.error || undefined;
+              }
+              cacheRerunStepDurations = rerunItem.stepDurations || {};
+              cacheRerunDuration = rerunItem.duration;
             }
 
-            const baselineItem = history.find((h: any) => !h.readCache && h.status === 'failed');
+            const baselineItem = history.find((h: any) => !h.readCache);
             if (baselineItem) {
-              baselineError = baselineItem.error || undefined;
+              if (baselineItem.status === 'failed') {
+                baselineError = baselineItem.error || undefined;
+              }
+              baselineDuration = baselineItem.duration;
             }
           }
         }
@@ -627,7 +756,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
               if (fs.existsSync(replayRequestsPath)) {
                 try {
                   const journal = JSON.parse(fs.readFileSync(replayRequestsPath, 'utf-8'));
-                  if (journal?.version === 1) {
+                  if (journal?.version === 1 || journal?.version === 3) {
                     for (const entry of journal.entries || []) {
                       const subId = entry.subStepId || '$step';
                       if (!state[subId]) state[subId] = { status: 'completed' };
@@ -666,7 +795,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (fs.existsSync(sharedRequestsPath)) {
         try {
           const journal = JSON.parse(fs.readFileSync(sharedRequestsPath, 'utf-8'));
-          if (journal?.version === 1) {
+          if (journal?.version === 1 || journal?.version === 3) {
             hasLatestSharedJournal = true;
             for (const entry of journal.entries || []) {
               sharedBootstrapCacheData.push({
@@ -724,7 +853,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       if (fs.existsSync(cacheRerunSharedRequestsPath)) {
         try {
           const journal = JSON.parse(fs.readFileSync(cacheRerunSharedRequestsPath, 'utf-8'));
-          if (journal?.version === 1) {
+          if (journal?.version === 1 || journal?.version === 3) {
             for (const entry of journal.entries || []) {
               cacheRerunSharedBootstrapCacheData.push({
                 method: entry.method,
@@ -765,7 +894,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             try {
               if (!fs.existsSync(requestsPath)) return false;
               const journal = JSON.parse(fs.readFileSync(requestsPath, 'utf-8'));
-              return journal?.version === 1;
+              return journal?.version === 1 || journal?.version === 3;
             } catch {
               return false;
             }
@@ -782,7 +911,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             if (fs.existsSync(requestsPath)) {
               try {
                 const journal = JSON.parse(fs.readFileSync(requestsPath, 'utf-8'));
-                if (journal?.version === 1) {
+                if (journal?.version === 1 || journal?.version === 3) {
                   hasLatestRequests = true;
                   for (const entry of journal.entries || []) {
                     if (typeof entry.stepId === 'string' && entry.stepId.startsWith('role:')) {
@@ -868,7 +997,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
             if (fs.existsSync(replayRequestsPath)) {
               try {
                 const journal = JSON.parse(fs.readFileSync(replayRequestsPath, 'utf-8'));
-                if (journal?.version === 1) {
+                if (journal?.version === 1 || journal?.version === 3) {
                   for (const entry of journal.entries || []) {
                     if (typeof entry.stepId === 'string' && entry.stepId.startsWith('role:')) {
                       roleName = entry.stepId.slice('role:'.length);
@@ -911,31 +1040,44 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         if (cp.completedCount() === 0 && !lastRunStatuses[caseName]) {
           isNeverRun = true;
         }
+
+        if (Object.keys(subStepsData).length === 0) {
+          baselineError = undefined;
+          caseDuration = 0;
+          startTime = undefined;
+        }
+
+        if (Object.keys(cacheRerunSubStepsData).length === 0) {
+          cacheRerunError = undefined;
+          cacheRerunDuration = undefined;
+          cacheRerunStepDurations = {};
+        }
       } catch {
         isNeverRun = true;
       }
 
       if (!isNeverRun) {
-        try {
-          const historyFile = path.join(caseDir, 'history', 'history.json');
-          if (fs.existsSync(historyFile)) {
-            const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
-            if (history && history.length > 0) {
-              if (history[0].status === 'running') {
-                startTime = history[0].timestamp;
+        if (baselineDuration) {
+          caseDuration = baselineDuration;
+        } else {
+          try {
+            const historyFile = path.join(caseDir, 'history', 'history.json');
+            if (fs.existsSync(historyFile)) {
+              const history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+              if (history && history.length > 0) {
+                if (history[0].status === 'running') {
+                  startTime = history[0].timestamp;
+                }
               }
-              caseDuration = history[0].duration || 0;
             }
-          }
-        } catch { /* ignore */ }
+          } catch { /* ignore */ }
 
-        if (!caseDuration) {
           caseDuration = Object.values(stepDurations).reduce((sum, d) => sum + d, 0);
         }
       }
 
       try {
-        const persistentPath = path.join('config', 'persistent', `${safeCaseName}.json`);
+        const persistentPath = path.join(caseDir, 'persistent.json');
         if (fs.existsSync(persistentPath)) {
           const persistentVars = JSON.parse(fs.readFileSync(persistentPath, 'utf-8'));
           variables = { ...variables, ...persistentVars };
@@ -954,7 +1096,9 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
         cacheRerunError,
         variables,
         stepDurations,
+        cacheRerunStepDurations,
         duration: caseDuration,
+        cacheRerunDuration,
         startTime,
         sharedBootstrapCache: uniqueSharedBootstrapCacheData,
         cacheRerunSharedBootstrapCache: uniqueCacheRerunSharedBootstrapCacheData,
@@ -1036,12 +1180,41 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
           const cp = new Checkpoint(body.caseName, caseDir);
           cp.reset();
           delete lastRunStatuses[body.caseName];
+          delete lastRunStatuses[safeCaseName];
           resetCaseRuntime(caseDir);
           return jsonRes(res, 200, { success: true, message: `Reset case: ${body.caseName} (history preserved)` });
         }
       }
 
       return jsonRes(res, 400, { error: 'Provide caseName or all: true' });
+    } catch (err: any) {
+      return jsonRes(res, 500, { error: err.message });
+    }
+  }
+
+  // ── REST API: POST /api/case/skip-step — 确认跳过步骤 ──
+  if ((pathname === '/api/case/skip-step' || (pathname.startsWith('/api/case/') && pathname.endsWith('/skip-step'))) && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      let caseName = body.caseName;
+      let stepId = body.stepId;
+
+      if (!caseName && pathname.startsWith('/api/case/') && pathname.endsWith('/skip-step')) {
+        const parts = pathname.split('/');
+        caseName = decodeURIComponent(parts[3]);
+      }
+
+      if (!caseName || !stepId) {
+        return jsonRes(res, 400, { error: 'Missing caseName or stepId' });
+      }
+
+      const safeCaseName = resolveSafeCaseName(caseName);
+      const caseDir = path.join('.resumewright', safeCaseName);
+      const cp = new Checkpoint(caseName, caseDir);
+      cp.load();
+      cp.markSkipped(stepId);
+
+      return jsonRes(res, 200, { success: true, caseName, stepId });
     } catch (err: any) {
       return jsonRes(res, 500, { error: err.message });
     }

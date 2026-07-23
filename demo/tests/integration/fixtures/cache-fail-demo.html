@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>缓存重新运行对比测试演示</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --border-color: #334155;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --primary-color: #6366f1;
+      --primary-hover: #4f46e5;
+      --success-color: #10b981;
+      --danger-color: #ef4444;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 36px;
+      width: 100%;
+      max-width: 540px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--primary-color);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #334155;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 16px;
+    }
+
+    .status-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success-color);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger-color);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>缓存重新运行对比测试</h2>
+    <p class="subtitle">
+      包含多步骤缓存 Diff 对比：步骤1测试接口减少与新增，步骤2测试风控新增接口，步骤3测试重跑异化报错。
+    </p>
+
+    <!-- 阶段 1：填写表单与提交 -->
+    <div id="step-1-view">
+      <div class="form-group">
+        <label for="title">申请标题</label>
+        <input type="text" id="title" placeholder="请输入申请标题">
+      </div>
+      <div class="form-group">
+        <label for="amount">申请金额</label>
+        <input type="text" id="amount" placeholder="请输入申请金额">
+      </div>
+      <button id="btn-submit" class="btn">提交申请</button>
+      <div id="submit-result" class="hidden"></div>
+    </div>
+
+    <!-- 阶段 2：主管审核与风控评估 -->
+    <div id="step-2-view" class="hidden">
+      <div style="background: rgba(15,23,42,0.4); border: 1px solid var(--border-color); padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #38bdf8; margin-bottom: 6px;">采购申请详情</h4>
+        <p style="font-size: 13px; color: var(--text-secondary);">单号: <span id="order-id">CFD-9981</span></p>
+      </div>
+
+      <button id="btn-approve" class="btn btn-secondary">主管审核通过</button>
+      <div id="approve-result" class="hidden"></div>
+    </div>
+
+    <!-- 阶段 3：财务复核与合规校验 (重跑报错) -->
+    <div id="step-3-view" class="hidden">
+      <div style="background: rgba(15,23,42,0.4); border: 1px solid var(--border-color); padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #38bdf8; margin-bottom: 6px;">财务复核阶段</h4>
+        <p style="font-size: 13px; color: var(--text-secondary);">单号: CFD-9981 | 待最终合规确认</p>
+      </div>
+
+      <button id="btn-verify" class="btn btn-secondary">发起追加合规校验</button>
+      <div id="verify-result" class="hidden"></div>
+    </div>
+
+    <!-- 阶段 4：归档确认 -->
+    <div id="step-4-view" class="hidden">
+      <div id="archive-result" class="status-badge status-success">归档完成</div>
+    </div>
+  </div>
+
+  <script>
+    const searchParams = new URLSearchParams(location.search);
+    const step = searchParams.get('step') || '1';
+
+    // 隐藏所有视图，显示当前步骤视图
+    document.getElementById('step-1-view').classList.add('hidden');
+    document.getElementById('step-2-view').classList.add('hidden');
+    document.getElementById('step-3-view').classList.add('hidden');
+    document.getElementById('step-4-view').classList.add('hidden');
+
+    if (step === '2') {
+      document.getElementById('step-2-view').classList.remove('hidden');
+      // 步骤 2 自动请求 order-detail 接口
+      fetch('/api/cache-fail-demo/order-detail').catch(() => {});
+    } else if (step === '3') {
+      document.getElementById('step-3-view').classList.remove('hidden');
+    } else if (step === '4') {
+      document.getElementById('step-4-view').classList.remove('hidden');
+    } else {
+      document.getElementById('step-1-view').classList.remove('hidden');
+      // 步骤 1：仅在非重跑模式下发起 pre-check（重跑时减少该调用，在前端展示红色中划线 [- 未触发]）
+      const isReplayMode = document.cookie.includes('rw_mode=replay') || sessionStorage.getItem('in_rerun_mode');
+      if (!isReplayMode) {
+        fetch('/api/cache-fail-demo/pre-check').catch(() => {});
+      }
+    }
+
+    // 步骤 1 提交申请
+    document.getElementById('btn-submit').addEventListener('click', async () => {
+      const title = document.getElementById('title').value;
+      const amount = document.getElementById('amount').value;
+
+      try {
+        const res = await fetch('/api/cache-fail-demo/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, amount })
+        });
+        const isFromCache = res.headers.get('x-resumewright-from-cache') === 'true';
+
+        if (isFromCache) {
+          sessionStorage.setItem('in_rerun_mode', '1');
+          // 缓存重跑时：额外新增调用 GET /api/cache-fail-demo/audit-log
+          await fetch('/api/cache-fail-demo/audit-log').catch(() => {});
+        }
+
+        const resultEl = document.getElementById('submit-result');
+        resultEl.className = 'status-badge status-success';
+        resultEl.textContent = '采购申请已提交';
+        resultEl.classList.remove('hidden');
+      } catch (err) {
+        alert('提交失败: ' + err.message);
+      }
+    });
+
+    // 步骤 2 主管审核
+    document.getElementById('btn-approve').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/cache-fail-demo/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: 'CFD-9981' })
+        });
+        const isFromCache = res.headers.get('x-resumewright-from-cache') === 'true';
+
+        if (isFromCache) {
+          // 缓存重跑时：额外新增调用 GET /api/cache-fail-demo/risk-score
+          await fetch('/api/cache-fail-demo/risk-score').catch(() => {});
+        }
+
+        const resultEl = document.getElementById('approve-result');
+        resultEl.className = 'status-badge status-success';
+        resultEl.textContent = '主管审核通过';
+        resultEl.classList.remove('hidden');
+      } catch (err) {
+        alert('审核失败: ' + err.message);
+      }
+    });
+
+    // 步骤 3 追加合规校验（重跑触发异化报错）
+    document.getElementById('btn-verify').addEventListener('click', async () => {
+      const resultEl = document.getElementById('verify-result');
+      resultEl.className = 'status-badge';
+      resultEl.textContent = '校验中...';
+      resultEl.classList.remove('hidden');
+
+      try {
+        const res = await fetch('/api/cache-fail-demo/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: 'CFD-9981' })
+        });
+
+        const isFromCache = res.headers.get('x-resumewright-from-cache') === 'true';
+
+        if (isFromCache) {
+          resultEl.className = 'status-badge status-danger';
+          resultEl.textContent = '接口回放校验中断：检测到 API 缓存重跑数据异化';
+        } else {
+          const data = await res.json();
+          resultEl.className = 'status-badge status-success';
+          resultEl.textContent = data.text || '合规校验成功';
+        }
+      } catch (err) {
+        resultEl.className = 'status-badge status-danger';
+        resultEl.textContent = '合规校验异常：接口回放未命中 (' + err.message + ')';
+      }
+    });
+  </script>
+</body>
+</html>

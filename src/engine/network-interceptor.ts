@@ -488,6 +488,17 @@ export class NetworkInterceptor {
   async attach(): Promise<void> {
     if (this.attached) return;
     this.isDetached = false;
+    if (this.mode === 'replay') {
+      try {
+        const target = this.target as any;
+        const context = target?.context?.() || (typeof target?.addCookies === 'function' ? target : null);
+        if (context && typeof context.addCookies === 'function') {
+          await context.addCookies([
+            { name: 'rw_mode', value: 'replay', domain: '127.0.0.1', path: '/' }
+          ]).catch(() => {});
+        }
+      } catch { /* ignore */ }
+    }
     await this.target.route('**/*', this.handler);
     this.attached = true;
   }
@@ -580,7 +591,11 @@ export class NetworkInterceptor {
         );
         await route.fulfill({
           status: cached.status,
-          headers: sanitizeReplayHeaders(cached.headers),
+          headers: {
+            ...sanitizeReplayHeaders(cached.headers),
+            'x-resumewright-from-cache': 'true',
+            'access-control-expose-headers': 'x-resumewright-from-cache'
+          },
           body: cached.bodyEncoding === 'base64' ? Buffer.from(cached.body, 'base64') : cached.body,
         });
         this.recordRequestEvent({

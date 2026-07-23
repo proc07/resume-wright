@@ -69,12 +69,6 @@ export const useCasesStore = defineStore('cases', () => {
       } else {
         const updated = cases.find(c => c.name === currentCase.value!.name)
         if (updated) {
-          // preserve subStepsDetail, traces and variables which come from separate API
-          updated.subStepsDetail = currentCase.value.subStepsDetail
-          updated.sharedBootstrapCache = currentCase.value.sharedBootstrapCache
-          updated.roleCaches = currentCase.value.roleCaches
-          updated.traces = currentCase.value.traces
-          updated.variables = currentCase.value.variables
           currentCase.value = updated
           await refreshCaseDetails(updated.name)
         }
@@ -102,15 +96,17 @@ export const useCasesStore = defineStore('cases', () => {
         target.baselineError = details.baselineError
         target.cacheRerunError = details.cacheRerunError
         target.variables = details.variables
+        target.cacheRerunStepDurations = details.cacheRerunStepDurations
+        target.cacheRerunDuration = details.cacheRerunDuration
         if (target.status === 'never_run') {
           target.duration = details.duration ?? 0
           target.startTime = details.startTime
-          if (details.stepDurations) {
-            target.steps = target.steps.map(s => ({
-              ...s,
-              duration: details.stepDurations?.[s.id] ?? 0
-            }))
-          }
+          target.steps = target.steps.map(s => ({
+            ...s,
+            completed: false,
+            skipped: false,
+            duration: details.stepDurations?.[s.id] ?? 0
+          }))
         } else {
           target.duration = details.duration || target.duration
           target.startTime = details.startTime || target.startTime
@@ -150,15 +146,17 @@ export const useCasesStore = defineStore('cases', () => {
         target.baselineError = details.baselineError
         target.cacheRerunError = details.cacheRerunError
         target.variables = details.variables
+        target.cacheRerunStepDurations = details.cacheRerunStepDurations
+        target.cacheRerunDuration = details.cacheRerunDuration
         if (target.status === 'never_run') {
           target.duration = details.duration ?? 0
           target.startTime = details.startTime
-          if (details.stepDurations) {
-            target.steps = target.steps.map(s => ({
-              ...s,
-              duration: details.stepDurations?.[s.id] ?? 0
-            }))
-          }
+          target.steps = target.steps.map(s => ({
+            ...s,
+            completed: false,
+            skipped: false,
+            duration: details.stepDurations?.[s.id] ?? 0
+          }))
         } else {
           target.duration = details.duration || target.duration
           target.startTime = details.startTime || target.startTime
@@ -254,6 +252,36 @@ export const useCasesStore = defineStore('cases', () => {
     }
   }
 
+  function clearCaseUiState(caseName: string) {
+    const c = casesData.value.find(item => item.name === caseName)
+    if (c) {
+      c.status = 'never_run'
+      c.completedCount = 0
+      c.duration = 0
+      c.startTime = undefined
+      c.baselineError = undefined
+      c.cacheRerunError = undefined
+      c.error = undefined
+      c.steps.forEach(s => {
+        s.completed = false
+        s.skipped = false
+        s.duration = 0
+      })
+      c.subStepsDetail = {}
+      c.cacheRerunSubStepsDetail = {}
+      c.sharedBootstrapCache = []
+      c.cacheRerunSharedBootstrapCache = []
+      c.roleCaches = {}
+      c.cacheRerunRoleCaches = {}
+      if (currentCase.value?.name === caseName) {
+        currentCase.value = { ...c }
+      }
+    }
+    const terminalStore = useTerminalStore()
+    terminalStore.setScreenshots([])
+    terminalStore.setCacheRerunScreenshots([])
+  }
+
   function getFolderSelectedState(folderPath: string): 'all' | 'none' | 'partial' {
     const prefix = folderPath + '/'
     const descendants = casesData.value.filter(c => c.filePath.startsWith(prefix))
@@ -261,6 +289,23 @@ export const useCasesStore = defineStore('cases', () => {
     if (checkedCount === 0) return 'none'
     if (checkedCount === descendants.length) return 'all'
     return 'partial'
+  }
+
+  async function confirmSkipStep(caseName: string, stepId: string) {
+    try {
+      const { skipStep: apiSkipStep } = await import('@/api/cases')
+      const res = await apiSkipStep(caseName, stepId)
+      if (res.success) {
+        await loadCases()
+        if (currentCase.value?.name === caseName) {
+          await refreshCaseDetails(caseName)
+        }
+      }
+      return res
+    } catch (err) {
+      console.error('跳过步骤失败:', err)
+      return { success: false }
+    }
   }
 
   return {
@@ -284,6 +329,8 @@ export const useCasesStore = defineStore('cases', () => {
     setStatusFilter,
     updateCaseStatus,
     resetCaseUiState,
+    clearCaseUiState,
     getFolderSelectedState,
+    confirmSkipStep,
   }
 })

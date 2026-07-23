@@ -842,7 +842,7 @@ describe('DSL 执行器集成测试', () => {
   describe('persist_vars — 声明式长效持久化变量', () => {
     const tempCaseDir = path.join(process.cwd(), 'cases', 'temp-persist-test');
     const tempYamlPath = path.join(tempCaseDir, 'persist_test_case.yaml');
-    const persistentJsonPath = path.join(process.cwd(), 'config', 'persistent', 'temp-persist-test', 'persist_test_case.json');
+    const persistentJsonPath = path.join(process.cwd(), '.resumewright', 'temp-persist-test', 'persist_test_case', 'persistent.json');
 
     beforeAll(() => {
       fs.mkdirSync(tempCaseDir, { recursive: true });
@@ -859,11 +859,6 @@ describe('DSL 执行器集成测试', () => {
         const cpDir = path.join(process.cwd(), '.resumewright', 'temp-persist-test');
         if (fs.existsSync(cpDir)) {
           fs.rmSync(cpDir, { recursive: true, force: true });
-        }
-        if (fs.existsSync(persistentJsonPath)) {
-          fs.unlinkSync(persistentJsonPath);
-          fs.rmdirSync(path.dirname(persistentJsonPath));
-          fs.rmdirSync(path.dirname(path.dirname(persistentJsonPath)));
         }
       } catch (err) { /* ignore */ }
     });

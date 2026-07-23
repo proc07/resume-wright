@@ -263,8 +263,27 @@ export class StepExecutor {
                 isUseStep: step.is_use_step,
               });
               await interceptor.completeScopeAttempt();
+
+              const stateFileName = this.execCtx.readCache ? 'cache-rerun-state.json' : 'state.json';
+              const statePath = path.join(stepRuntimeDir, stateFileName);
+              try {
+                const fs = await import('node:fs');
+                fs.mkdirSync(stepRuntimeDir, { recursive: true });
+                fs.writeFileSync(statePath, JSON.stringify({
+                  $step: { status: 'completed' }
+                }, null, 2), 'utf-8');
+              } catch { /* ignore */ }
             } catch (err) {
               const replayError = await interceptor.failScopeAttempt();
+              const stateFileName = this.execCtx.readCache ? 'cache-rerun-state.json' : 'state.json';
+              const statePath = path.join(stepRuntimeDir, stateFileName);
+              try {
+                const fs = await import('node:fs');
+                fs.mkdirSync(stepRuntimeDir, { recursive: true });
+                fs.writeFileSync(statePath, JSON.stringify({
+                  $step: { status: 'failed', error: String(err) }
+                }, null, 2), 'utf-8');
+              } catch { /* ignore */ }
               throw replayError ?? err;
             } finally {
               await interceptor.detach();

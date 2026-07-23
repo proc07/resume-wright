@@ -78,6 +78,31 @@ describe('Checkpoint', () => {
     });
   });
 
+  // ── 标记跳过 ─────────────────────────────────────────────
+
+  describe('markSkipped()', () => {
+    it('标记跳过时 isSkipped 返回 true 且 isCompleted 返回 true', () => {
+      checkpoint.markSkipped('step2');
+      expect(checkpoint.isSkipped('step2')).toBe(true);
+      expect(checkpoint.isCompleted('step2')).toBe(true);
+    });
+
+    it('重跑加载后仍正确还原 isSkipped 属性', () => {
+      checkpoint.markSkipped('step2');
+      const restored = new Checkpoint('test-case', tmpDir);
+      restored.load();
+      expect(restored.isSkipped('step2')).toBe(true);
+      expect(restored.isCompleted('step2')).toBe(true);
+    });
+
+    it('调用 reset() 后跳过记录亦被清空', () => {
+      checkpoint.markSkipped('step2');
+      checkpoint.reset();
+      expect(checkpoint.isSkipped('step2')).toBe(false);
+      expect(checkpoint.isCompleted('step2')).toBe(false);
+    });
+  });
+
   // ── 加载与恢复 ────────────────────────────────────────────
 
   describe('load() 与 restoreContext()', () => {

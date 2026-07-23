@@ -8,6 +8,7 @@ const props = defineProps<{
     id: string
     role: string
     completed: boolean
+    skipped?: boolean
     duration?: number
     subStepsCount: number
     isUseStep?: boolean
@@ -23,7 +24,8 @@ const emit = defineEmits(['select'])
 
 const stepClass = computed(() => {
   const classes = []
-  if (props.isFailed) classes.push('failed')
+  if (props.step.skipped) classes.push('skipped')
+  else if (props.isFailed) classes.push('failed')
   else if (props.step.completed) classes.push('completed')
   else if (props.isRunning) classes.push('running')
   
@@ -32,6 +34,7 @@ const stepClass = computed(() => {
 })
 
 const indicatorText = computed(() => {
+  if (props.step.skipped) return '⏭'
   if (props.isFailed) return '✗'
   if (props.step.completed) return '✓'
   return String(props.index + 1)

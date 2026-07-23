@@ -4,6 +4,7 @@ export interface CaseStep {
   id: string
   role: string
   completed: boolean
+  skipped?: boolean
   duration?: number
   subStepsCount: number
   isUseStep?: boolean
@@ -30,6 +31,8 @@ export interface CaseData {
   variables?: Record<string, any>
   safeCaseName?: string
   duration?: number
+  cacheRerunDuration?: number
+  cacheRerunStepDurations?: Record<string, number>
   startTime?: string
 }
 
@@ -75,7 +78,9 @@ export interface CaseDetails {
   cacheRerunError?: string
   variables?: Record<string, any>
   stepDurations?: Record<string, number>
+  cacheRerunStepDurations?: Record<string, number>
   duration?: number
+  cacheRerunDuration?: number
   startTime?: string
 }
 
@@ -87,5 +92,14 @@ export async function fetchCases(): Promise<CaseData[]> {
 
 export async function fetchCaseDetails(caseName: string): Promise<CaseDetails> {
   const res = await fetch(`/api/case/${encodeURIComponent(caseName)}/details`)
+  return res.json()
+}
+
+export async function skipStep(caseName: string, stepId: string): Promise<{ success: boolean }> {
+  const res = await fetch('/api/case/skip-step', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ caseName, stepId })
+  })
   return res.json()
 }

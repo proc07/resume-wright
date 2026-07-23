@@ -2,15 +2,28 @@
 import { computed, ref } from 'vue'
 import { useCasesStore } from '@/stores/cases'
 import { useRunnerStore } from '@/stores/runner'
+import { useTerminalStore } from '@/stores/terminal'
 import { fetchSettings } from '@/api/settings'
 import ConfirmModal from '@/components/Common/ConfirmModal.vue'
 
 const casesStore = useCasesStore()
 const runnerStore = useRunnerStore()
+const terminalStore = useTerminalStore()
 
 const currentCase = computed(() => casesStore.currentCase)
 
-// Modal state
+const props = withDefaults(
+  defineProps<{
+    activeTab?: 'baseline' | 'cache-rerun'
+  }>(),
+  {
+    activeTab: 'baseline',
+  }
+)
+
+const emit = defineEmits<{
+  (e: 'update:activeTab', tab: 'baseline' | 'cache-rerun'): void
+}>()
 const modalVisible = ref(false)
 const modalConfig = ref({
   title: '',
@@ -35,23 +48,42 @@ function onModalCancel() {
   modalVisible.value = false
 }
 
-const statusLabel = computed(() => {
-  if (!currentCase.value) return ''
-  const status = currentCase.value.status
-  return {
-    passed: '执行通过',
-    failed: '执行失败',
-    never_run: '未运行',
-    running: '正在执行...'
-  }[status] || status
+const isCurrentTabFailedOrIncomplete = computed(() => {
+  if (!currentCase.value) return false
+
+  if (props.activeTab === 'cache-rerun') {
+    const rerunDetails = currentCase.value.cacheRerunSubStepsDetail || {}
+    const hasFailedSub = Object.values(rerunDetails).some(
+      (detail: any) => Object.values(detail).some((sub: any) => sub.status === 'failed')
+    )
+    return Boolean(currentCase.value.cacheRerunError) || hasFailedSub
+  }
+
+  // ── Baseline (首次运行 Tab) ──────────────────────────────
+  if (currentCase.value.baselineError) return true
+  const baseDetails = currentCase.value.subStepsDetail || {}
+  const hasFailedBaseSub = Object.values(baseDetails).some(
+    (detail: any) => Object.values(detail).some((sub: any) => sub.status === 'failed')
+  )
+  if (hasFailedBaseSub) return true
+
+  // 若 Baseline 首次运行所有步骤均已成功完成，则不属于失败/未完成
+  const isBaselineAllCompleted = currentCase.value.steps.length > 0 && currentCase.value.steps.every(s => s.completed)
+  if (isBaselineAllCompleted) return false
+
+  return false
+})
+
+const showPrimaryRunBtn = computed(() => {
+  if (!currentCase.value) return false
+  if (currentCase.value.status === 'never_run' && !hasBaselineData.value) return true
+  return isCurrentTabFailedOrIncomplete.value
 })
 
 const runButtonText = computed(() => {
   if (!currentCase.value) return '▶ 开始执行'
-  const status = currentCase.value.status
-  if (status === 'passed') return '▶ 重新执行'
-  if (status === 'failed') return '▶ 继续执行'
-  return '▶ 开始执行'
+  if (currentCase.value.status === 'never_run' && !hasBaselineData.value) return '▶ 开始执行'
+  return '▶ 继续执行'
 })
 
 async function runCase(fromStart = false, keepCache = false) {
@@ -64,18 +96,19 @@ async function runCase(fromStart = false, keepCache = false) {
   try {
     const settings = await fetchSettings()
     const safeName = runnerStore.getSafeCaseName(currentCase.value.name, currentCase.value.filePath)
+    const isCacheMode = fromStart ? keepCache : props.activeTab === 'cache-rerun'
     
     // Set status to running
     casesStore.updateCaseStatus(currentCase.value.name, 'running')
-    if (fromStart && keepCache) {
-      runnerStore.appendLog(safeName, '\n\n[system] —— 使用缓存重新运行 ——\n')
+    if (isCacheMode) {
+      runnerStore.appendLog(safeName, '\n\n[system] —— 使用缓存运行 ——\n')
     } else {
       runnerStore.clearLog(safeName)
     }
 
     await runnerStore.run(
       [currentCase.value.filePath],
-      { ...settings, readCache: fromStart && keepCache },
+      { ...settings, readCache: isCacheMode },
       () => {}, // reactively updated
       async () => {
         // refresh list and details
@@ -106,6 +139,10 @@ async function resetCase(silent = false, keepCache = false) {
     if (data.success) {
       lastLiveDuration.value = 0
       liveDuration.value = 0
+      if (!keepCache) {
+        casesStore.clearCaseUiState(currentCase.value.name)
+        emit('update:activeTab', 'baseline')
+      }
       if (!silent) {
         await casesStore.loadCases()
         if (casesStore.currentCase?.name) {
@@ -138,7 +175,10 @@ function confirmRestartWithCache() {
     subMessage: '此操作将清除断点记录，但保留已缓存的 API 响应。重复的非幂等请求将直接使用缓存数据，加速执行。',
     confirmText: '确认使用缓存重新运行',
     type: 'info',
-    onConfirm: () => runCase(true, true),
+    onConfirm: () => {
+      emit('update:activeTab', 'cache-rerun')
+      runCase(true, true)
+    },
   })
 }
 
@@ -231,43 +271,126 @@ onUnmounted(() => {
   stopHeaderTimer()
 })
 
+
+
 const displayTotalDuration = computed(() => {
-  if (!currentCase.value || currentCase.value.status === 'never_run') {
+  if (!currentCase.value || (!hasBaselineData.value && currentCase.value.status === 'never_run')) {
     return null
   }
   if (currentCase.value.status === 'running' && liveDuration.value > 0) {
     return formatDuration(liveDuration.value)
   }
-  // 优先展示 store 中持久化的总耗时
-  if (currentCase.value.duration !== undefined && currentCase.value.duration !== null && currentCase.value.duration > 0) {
-    return formatDuration(currentCase.value.duration)
+  const isCacheTab = props.activeTab === 'cache-rerun'
+  let dur = isCacheTab
+    ? currentCase.value.cacheRerunDuration
+    : currentCase.value.duration
+
+  if (dur === undefined || dur === null || dur <= 0) {
+    if (isCacheTab) {
+      const rerunStepDurs = currentCase.value.cacheRerunStepDurations || {}
+      const sum = Object.values(rerunStepDurs).reduce((a, b) => a + b, 0)
+      if (sum > 0) dur = sum
+    } else {
+      const sum = currentCase.value.steps.reduce((a, s) => a + (s.duration || 0), 0)
+      if (sum > 0) dur = sum
+    }
   }
-  // 如果已完成/失败且 duration 为 0，展示 0.0s
-  if ((currentCase.value.status === 'passed' || currentCase.value.status === 'failed') &&
-      currentCase.value.duration !== undefined && currentCase.value.duration !== null) {
-    return formatDuration(currentCase.value.duration)
+
+  if (dur !== undefined && dur !== null && dur > 0) {
+    return formatDuration(dur)
   }
-  // store 还未刷新时用 lastLiveDuration 过渡
   if (lastLiveDuration.value > 0) {
     return formatDuration(lastLiveDuration.value)
   }
   return null
 })
 
-// 总耗时 badge 样式：running 时橙色脉冲，passed 绿色，failed 红色
+const hasCacheRerunData = computed(() => {
+  if (!currentCase.value) return false
+  const hasSubDetail = Object.keys(currentCase.value.cacheRerunSubStepsDetail || {}).length > 0
+  const hasShared = (currentCase.value.cacheRerunSharedBootstrapCache || []).length > 0
+  const hasRole = Object.keys(currentCase.value.cacheRerunRoleCaches || {}).some(
+    r => (currentCase.value!.cacheRerunRoleCaches?.[r]?.length || 0) > 0
+  )
+  const hasScreenshots = (terminalStore.cacheRerunScreenshots || []).length > 0
+  const hasCacheRerunErr = Boolean(currentCase.value.cacheRerunError)
+  const hasDurations = Boolean(currentCase.value.cacheRerunDuration) || Object.keys(currentCase.value.cacheRerunStepDurations || {}).length > 0
+  return hasSubDetail || hasShared || hasRole || hasScreenshots || hasCacheRerunErr || hasDurations
+})
+
+const activeTabStatus = computed(() => {
+  if (!currentCase.value) return 'never_run'
+  if (currentCase.value.status === 'running') return 'running'
+
+  if (props.activeTab === 'cache-rerun') {
+    if (currentCase.value.cacheRerunError) return 'failed'
+
+    const rerunDetails = currentCase.value.cacheRerunSubStepsDetail || {}
+    const hasFailedSub = Object.values(rerunDetails).some(
+      (detail: any) => Object.values(detail).some((sub: any) => sub.status === 'failed' || (sub.error && sub.status !== 'completed'))
+    )
+    if (hasFailedSub) return 'failed'
+
+    if (hasCacheRerunData.value) return 'passed'
+    return 'never_run'
+  }
+
+  // ── Baseline (首次运行 Tab) ──────────────────────────────
+  if (currentCase.value.baselineError) return 'failed'
+
+  const baseDetails = currentCase.value.subStepsDetail || {}
+  const hasFailedSub = Object.values(baseDetails).some(
+    (detail: any) => Object.values(detail).some((sub: any) => sub.status === 'failed' || (sub.error && sub.status !== 'completed'))
+  )
+  if (hasFailedSub) return 'failed'
+
+  if (currentCase.value.steps.length > 0 && currentCase.value.steps.every(s => s.completed)) {
+    return 'passed'
+  }
+
+  if (hasBaselineData.value) {
+    if (currentCase.value.steps.some(s => s.completed)) return 'passed'
+    return 'failed'
+  }
+
+  return 'never_run'
+})
+
+const statusLabel = computed(() => {
+  const status = activeTabStatus.value
+  return {
+    passed: '执行通过',
+    failed: '执行失败',
+    never_run: '未运行',
+    running: '正在执行...'
+  }[status] || status
+})
+
 const durationBadgeClass = computed(() => {
-  const status = currentCase.value?.status
+  const status = activeTabStatus.value
   if (status === 'running') return 'duration-badge running'
   if (status === 'passed') return 'duration-badge passed'
   if (status === 'failed') return 'duration-badge failed'
   return 'duration-badge'
+})
+
+const hasBaselineData = computed(() => {
+  if (!currentCase.value) return false
+  const hasSubDetail = Object.keys(currentCase.value.subStepsDetail || {}).length > 0
+  const hasShared = (currentCase.value.sharedBootstrapCache || []).length > 0
+  const hasRole = Object.keys(currentCase.value.roleCaches || {}).some(
+    r => (currentCase.value!.roleCaches?.[r]?.length || 0) > 0
+  )
+  const hasCompleted = currentCase.value.steps.some(s => s.completed)
+  const hasBaselineErr = Boolean(currentCase.value.baselineError)
+  return hasSubDetail || hasShared || hasRole || hasCompleted || hasBaselineErr
 })
 </script>
 
 <template>
   <header v-if="currentCase" class="case-header">
     <div class="case-title-row">
-      <span class="badge" :class="currentCase.status">{{ statusLabel }}</span>
+      <span class="badge" :class="activeTabStatus">{{ statusLabel }}</span>
       <h2>{{ currentCase.name }}</h2>
       <span v-if="displayTotalDuration" :class="durationBadgeClass">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex-shrink:0">
@@ -284,7 +407,7 @@ const durationBadgeClass = computed(() => {
     <div class="case-actions mt-4">
       <template v-if="currentCase.status !== 'running' && !runnerStore.isRunning">
         <button
-          v-if="currentCase.status !== 'passed'"
+          v-if="showPrimaryRunBtn"
           id="btn-run-case"
           class="btn btn-primary"
           @click="runCase(false)"
@@ -299,7 +422,7 @@ const durationBadgeClass = computed(() => {
           ⟲ 重新运行
         </button>
         <button
-          v-if="currentCase.status !== 'never_run'"
+          v-if="hasBaselineData"
           id="btn-restart-with-cache"
           class="btn btn-outline"
           @click="confirmRestartWithCache"

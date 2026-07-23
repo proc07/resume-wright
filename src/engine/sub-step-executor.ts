@@ -92,8 +92,8 @@ export class SubStepExecutor {
   private async executeOne(subStep: SubStep): Promise<void> {
     const { id, script, snapshot_before_submit } = subStep;
 
-    // 已完成则跳过
-    if (this.store.isCompleted(id)) {
+    // 已完成则跳过（缓存重新运行场景需完整跑一遍 API 回放，不跳过子步骤）
+    if (!this.opts.readCache && this.store.isCompleted(id)) {
       console.log(`[sub-step] ⏭  Skipping completed sub-step: ${id}`);
       return;
     }

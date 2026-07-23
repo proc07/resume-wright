@@ -7,9 +7,16 @@
 
 ---
 
-## [Unreleased] - 2026-07-17
+## [Unreleased] - 2026-07-22
+
+### 修复与增强 (Fixed & Enhanced)
+- **持久化变量存储路径重构至 `.resumewright` 专有数据目录 (`workflow-runner.ts`, `server.ts`)**：
+  将用例长效持久化变量（`persist_vars`）存储路径由根目录 `config/persistent/<caseName>.json` 整体重构迁移至用例的专属数据目录 `.resumewright/<safeCaseName>/persistent.json`；彻底杜绝项目根目录下的杂项目录污染，且天然享受 `.gitignore` 版本库防护。
+- **`⟲ 缓存重跑` 与 `▷ 首次运行` 控制台视图全链路解耦隔离**：
+  将首次运行 (Baseline) 与缓存重跑 (Cache Rerun) 的运行状态勋章、耗时统计、主按钮动作及步骤完成图示完全独立解耦；解决跨 Tab 视图下状态颠倒、耗时混淆透传、确认跳过/继续执行按钮串染等问题，保障数据与 UI 作用域 100% 精准隔离。
 
 ### 新增 (Added)
+- **步骤“确认跳过”（Skip Step）功能**：在 Dashboard 用例步骤面板右侧 Header 增加“确认跳过”按钮，点击后在 Checkpoint 中将该步骤标记为跳过。左侧步骤树节点以黄色图标（`⏭`）呈现。在恢复运行（Resume）时，引擎会自动绕过跳过的步骤并直接执行下一个步骤；在重新执行（Reset & Run）时，跳过记录会自动与断点一并重置清空。
 - **`assert_enabled` 与 `assert_disabled` 断言指令**：DSL 脚本原生支持 `assert_enabled "locator"` 与 `assert_disabled "locator"` 两个新指令，支持 `near` 近邻修饰符（如 `assert_enabled "xxx" near "anchor"`），支持尾部 `/all` 过滤修饰符以校验页面上所有符合条件的匹配节点，用于精准校验表单或操作按钮的可用与禁用状态，并支持断言成功时自动截图和超时自定义配置。
 - **API 响应顺序采集与回放**：普通运行按请求发起顺序记录同一接口的全部响应，缓存重新运行时使用 Step/SubStep 作用域、请求指纹和 occurrence 逐条回放，支持状态轮询等同接口多响应场景。
 - **动态请求体兼容**：请求指纹改为 Method + 归一化 URL；请求体仅用于诊断。同一端点按 occurrence 回放，避免 workflow ID、cache token 等嵌套动态值变化造成写请求缓存误判缺失。旧版 body-based 缓存会在加载时自动迁移。
@@ -33,7 +40,9 @@
 - Dashboard 缓存列表展示 occurrence 顺序，并支持显示没有 SubStep 的普通 Step 缓存。
 - Dashboard 共享启动缓存改为 按 Method + 归一化 URL fingerprint 的资源级单行视图，不再重复展示各角色触发记录及 occurrence；磁盘请求 journal 仍保留完整审计信息。
 - 使用缓存重新运行不再删除或覆盖首次普通运行的 Step/SubStep 状态、接口请求记录、DOM snapshots、普通截图和 trace；重跑数据写入独立 `cache-rerun-*` overlay，下次普通运行才建立新 baseline。
-- 继续兼容旧版 `api-cache.json` 数组，旧条目会按文件顺序自动推导 occurrence。
+- **持久化变量存储路径重构至 `.resumewright` 专有数据目录 (`workflow-runner.ts`, `server.ts`)**：
+  将用例长效持久化变量（`persist_vars`）存储路径由根目录 `config/persistent/<caseName>.json` 整体重构迁移至用例的专属数据目录 `.resumewright/<safeCaseName>/persistent.json`；彻底杜绝项目根目录下的杂项目录污染，且天然享受 `.gitignore` 版本库防护。
+- **增加 `cache-rerun-fail-demo` 多步骤与 API Diff 校验场景 (`cache-rerun-fail-demo.yaml`, `cache-fail-demo.html`)**：继续兼容旧版 `api-cache.json` 数组，旧条目会按文件顺序自动推导 occurrence。
 
 ## [0.8.3] - 2026-07-10
 
